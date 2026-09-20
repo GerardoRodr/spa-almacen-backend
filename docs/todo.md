@@ -7,7 +7,7 @@ Este documento representa la hoja de ruta integral y el estado de avance para el
 ## Estado General del Proyecto
 
 - [x] **Paso 0: Fundacion, Dependencias e Infraestructura Base**
-- [ ] **Paso 1: Autenticacion, Usuarios y Contexto Multi-Almacen (RBAC)**
+- [x] **Paso 1: Autenticacion, Usuarios y Contexto Multi-Almacen (RBAC)**
 - [ ] **Paso 2: Almacenes, Catalogo Maestro de Items y Alias S10**
 - [ ] **Paso 3: Proveedores, Compras y Algoritmo de Costo Promedio Ponderado (CPP / WAC)**
 - [ ] **Paso 4: Transferencias Operativas en Dos Fases y Control de Mermas**
@@ -32,28 +32,28 @@ Este documento representa la hoja de ruta integral y el estado de avance para el
 
 ---
 
-## Paso 1: Autenticacion, Usuarios y Contexto Multi-Almacen (RBAC)
+## Paso 1: Autenticacion, Usuarios y Contexto Multi-Almacen (RBAC) (Completado)
 
 Establecer la capa de seguridad, emision de JWT, control de acceso por roles y restriccion operativa por almacen asignado.
 
 ### Tareas:
-- [ ] **Modulo de Usuarios (`src/modules/users`):**
-  - [ ] DTOs de creacion y actualizacion de usuarios con validaciones (`CreateUserDto`, `UpdateUserDto`).
-  - [ ] DTO para asignacion de almacenes en `UserWarehouse` (`AssignWarehousesDto`).
-  - [ ] Servicio de usuarios: creacion de usuarios con hash bcrypt, listado y asignacion multi-almacen.
-  - [ ] Controlador de usuarios (`/users`) protegido con rol `ADMIN`.
-- [ ] **Modulo de Autenticacion (`src/modules/auth`):**
-  - [ ] DTOs de login y refresco (`LoginDto`, `RefreshTokenDto`).
-  - [ ] Servicio de autenticacion: validacion de credenciales con bcrypt y generacion de pares de tokens (Access Token 15 min + Refresh Token 7 dias).
-  - [ ] Retorno en login del perfil de usuario y la lista de sus almacenes autorizados activos.
-  - [ ] Implementacion de estrategia `JwtStrategy` con Passport.
-  - [ ] Controlador de autenticacion (`/auth/login`, `/auth/refresh`, `/auth/profile`).
-- [ ] **Guards de Seguridad:**
-  - [ ] `JwtAuthGuard`: Proteccion de rutas privadas mediante validacion de Bearer Token.
-  - [ ] `RolesGuard`: Verificacion de roles (`Role.ADMIN` vs `Role.WAREHOUSE_KEEPER`) usando el decorador `@Roles`.
-  - [ ] `WarehouseAccessGuard`: Verificacion estricta de que un usuario con rol `WAREHOUSE_KEEPER` solo pueda consultar o alterar recursos del almacen activo especificado en la cabecera o parametro (`x-warehouse-id` o `:warehouseId`), mientras que `ADMIN` posee bypass global.
-- [ ] **Seed Inicial:**
-  - [ ] Script de siembra (`prisma/seed.ts`) con usuario Administrador inicial y Almacen Central por defecto.
+- [x] **Modulo de Usuarios (`src/modules/users`):**
+  - [x] DTOs de creacion y actualizacion de usuarios con validaciones (`CreateUserDto`, `UpdateUserDto`).
+  - [x] DTO para asignacion de almacenes en `UserWarehouse` (`AssignWarehousesDto`).
+  - [x] Servicio de usuarios: creacion de usuarios con hash bcrypt, listado y asignacion multi-almacen.
+  - [x] Controlador de usuarios (`/users`) protegido con rol `ADMIN`.
+- [x] **Modulo de Autenticacion (`src/modules/auth`):**
+  - [x] DTOs de login y refresco (`LoginDto`, `RefreshTokenDto`).
+  - [x] Servicio de autenticacion: validacion de credenciales con bcrypt y generacion de pares de tokens (Access Token 15 min + Refresh Token 7 dias).
+  - [x] Retorno en login del perfil de usuario y la lista de sus almacenes autorizados activos.
+  - [x] Implementacion de estrategia `JwtStrategy` con Passport.
+  - [x] Controlador de autenticacion (`/auth/login`, `/auth/refresh`, `/auth/profile`).
+- [x] **Guards de Seguridad:**
+  - [x] `JwtAuthGuard`: Proteccion de rutas privadas mediante validacion de Bearer Token.
+  - [x] `RolesGuard`: Verificacion de roles (`Role.ADMIN` vs `Role.WAREHOUSE_KEEPER`) usando el decorador `@Roles`.
+  - [x] `WarehouseAccessGuard`: Verificacion estricta de que un usuario con rol `WAREHOUSE_KEEPER` solo pueda consultar o alterar recursos del almacen activo especificado en la cabecera o parametro (`x-warehouse-id` o `:warehouseId`), mientras que `ADMIN` posee bypass global.
+- [x] **Seed Inicial:**
+  - [x] Script de siembra (`prisma/seed.ts`) con usuario Administrador inicial y Almacen Central por defecto.
 
 ---
 

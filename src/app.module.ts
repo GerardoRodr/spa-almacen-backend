@@ -3,6 +3,8 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { configuration } from './config/configuration.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { UsersModule } from './modules/users/users.module.js';
+import { AuthModule } from './modules/auth/auth.module.js';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 
@@ -22,6 +24,9 @@ import { AppService } from './app.service.js';
     ]),
     // Modulo global de base de datos Prisma v6
     PrismaModule,
+    // Modulos de seguridad y usuarios
+    UsersModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
