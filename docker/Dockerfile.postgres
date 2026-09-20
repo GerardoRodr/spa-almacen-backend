@@ -1,0 +1,10 @@
+# Imagen base de PostgreSQL 16 sobre Alpine Linux
+FROM postgres:16-alpine
+
+# Variables de entorno por defecto para desarrollo local
+ENV POSTGRES_USER=postgres
+ENV POSTGRES_PASSWORD=postgres
+ENV POSTGRES_DB=almacen_erp
+
+# Puerto expuesto para conexiones de base de datos
+EXPOSE 5432
