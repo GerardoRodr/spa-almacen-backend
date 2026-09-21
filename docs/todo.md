@@ -54,6 +54,8 @@ Establecer la capa de seguridad, emision de JWT, control de acceso por roles y r
   - [x] `WarehouseAccessGuard`: Verificacion estricta de que un usuario con rol `WAREHOUSE_KEEPER` solo pueda consultar o alterar recursos del almacen activo especificado en la cabecera o parametro (`x-warehouse-id` o `:warehouseId`), mientras que `ADMIN` posee bypass global.
 - [x] **Seed Inicial:**
   - [x] Script de siembra (`prisma/seed.ts`) con usuario Administrador inicial y Almacen Central por defecto.
+- [x] **Documentacion OpenAPI Swagger:**
+  - [x] Decoradores `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth` y `@ApiProperty` en controladores y DTOs para pruebas directas en `/api/docs`.
 
 ---
 
@@ -77,6 +79,8 @@ Gestion de almacenes fisicos (Central vs Obra), catalogo maestro de items (Consu
   - [ ] Endpoints: `GET /items`, `POST /items`, `GET /items/:id`, `PUT /items/:id`, `POST /items/aliases`, `DELETE /items/aliases/:id`.
 - [ ] **Interceptor de Ocultamiento Financiero (`CostMaskingInterceptor`):**
   - [ ] Interceptor de serializacion para detectar rol `WAREHOUSE_KEEPER` y omitir recursivamente propiedades sensibles: `averageCost`, `unitPriceOriginal`, `subtotalPEN`, `totalAmountPEN`, `unitCostSnapshot`.
+- [ ] **Documentacion OpenAPI Swagger:**
+  - [ ] Decoradores `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth` y `@ApiProperty` para pruebas interactivas en `/api/docs`.
 
 ---
 
@@ -97,6 +101,8 @@ Ingreso formal de insumos a Almacen Central por adquisicion a proveedores, sopor
     - Actualizacion o creacion de registro `Stock` en el Almacen Central receptor.
     - Generacion append-only de `Movement` (`PURCHASE_ENTRY`) y `MovementItem` congelando el snapshot de costo.
   - [ ] Endpoints: `GET /purchases`, `POST /purchases`, `GET /purchases/:id` (acceso exclusivo `ADMIN`).
+- [ ] **Documentacion OpenAPI Swagger:**
+  - [ ] Decoradores `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth` y `@ApiProperty` para pruebas interactivas en `/api/docs`.
 
 ---
 
@@ -117,6 +123,8 @@ Traslado fisico de materiales desde Almacen Central hacia casetas de obra tempor
     - Caso Conforme (`receivedQty == dispatchedQty`): Estado `COMPLETED`, incremento de `Stock.physicalQty` en destino, actualizacion de CPP en destino y emision de `Movement` (`TRANSFER_RECEIPT`).
     - Caso Discrepancia / Merma en Ruta (`receivedQty < dispatchedQty`): Ingreso de cantidad conforme en destino, cambio de estado a `DISCREPANCY` y generacion automatica de `Movement` (`SHRINKAGE_EXIT`) por perdida en transporte.
   - [ ] Endpoints: `GET /transfers`, `GET /transfers/in-transit`, `POST /transfers/dispatch`, `POST /transfers/:id/receive`.
+- [ ] **Documentacion OpenAPI Swagger:**
+  - [ ] Decoradores `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth` y `@ApiProperty` para pruebas interactivas en `/api/docs`.
 
 ---
 
@@ -138,6 +146,8 @@ Entrega de materiales consumibles a cuadrillas de construccion en caseta de obra
   - [ ] **Inmutabilidad:**
     - Bloqueo estricto a nivel de servicio para operaciones de actualizacion o eliminacion sobre tablas `Movement` y `MovementItem`.
   - [ ] Endpoints: `GET /movements` (con filtros de fecha, tipo, almacen e item), `POST /movements/consumption`, `POST /movements/adjustment`.
+- [ ] **Documentacion OpenAPI Swagger:**
+  - [ ] Decoradores `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth` y `@ApiProperty` para pruebas interactivas en `/api/docs`.
 
 ---
 
@@ -158,6 +168,8 @@ Administracion del ciclo de vida de herramientas y equipos (`ASSET_TOOL`), contr
     - Retorno Conforme (`OPERATIVE` o `DAMAGED_USABLE`): decrementa `Stock.loanedQty`, sella fecha de retorno y emite `Movement` (`LOAN_RETURN`).
     - Retorno con Baja Patrimonial (`DAMAGED_UNUSABLE` o `LOST`): decrementa `Stock.loanedQty`, decrementa `Stock.physicalQty` y emite automaticamente un `Movement` (`SHRINKAGE_EXIT`) por baja de equipo con evidencia.
   - [ ] Endpoints: `POST /custody/loans`, `PUT /custody/loans/:id/return`, `GET /custody/loans/active`, `GET /custody/loans/history-by-dni/:dni`.
+- [ ] **Documentacion OpenAPI Swagger:**
+  - [ ] Decoradores `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth` y `@ApiProperty` para pruebas interactivas en `/api/docs`.
 
 ---
 
@@ -186,6 +198,8 @@ Carga masiva de presupuestos S10 por streams, resolucion de equivalencias, matri
     3. Cero transferencias en transito (`IN_TRANSIT` o `PENDING`).
   - [ ] Marcado de obra como `LIQUIDATED` y desactivacion del almacen.
 - [ ] Endpoints: `GET /projects`, `POST /projects`, `POST /projects/:id/s10-import`, `GET /projects/:id/gap-analysis`, `POST /projects/:id/allocate-stock`, `POST /projects/:id/release-stock`, `POST /projects/:id/liquidate`.
+- [ ] **Documentacion OpenAPI Swagger:**
+  - [ ] Decoradores `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth` y `@ApiProperty` para pruebas interactivas en `/api/docs`.
 
 ---
 
@@ -208,6 +222,8 @@ Subida y almacenamiento de comprobantes, compresion automatica de fotos tomadas 
     - Verificacion de permisos: si `isConfidential == true` (facturas de compra), acceso exclusivo a usuarios con rol `ADMIN`.
     - Emision en streaming de archivo protegido.
   - [ ] Endpoints: `POST /documents/upload`, `GET /documents/:id/download`.
+- [ ] **Documentacion OpenAPI Swagger:**
+  - [ ] Decoradores `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth` y `@ApiProperty` para pruebas interactivas en `/api/docs`.
 
 ---
 
@@ -223,6 +239,8 @@ Respaldo automatico de la base de datos PostgreSQL, verificacion de salud del si
   - [ ] Endpoints: `GET /admin/backups`, `POST /admin/backups/generate`, `GET /admin/backups/:id/download`.
 - [ ] **Monitoreo y Salud (`Terminus / Health`):**
   - [ ] Endpoint `GET /health` con verificacion de conexion activa a PostgreSQL y espacio en disco para uploads.
+- [ ] **Documentacion OpenAPI Swagger:**
+  - [ ] Decoradores `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth` y `@ApiProperty` para pruebas interactivas en `/api/docs`.
 - [ ] **Suite de Pruebas Automatizadas:**
   - [ ] Pruebas unitarias completas de los servicios core (WAC, Two-Phase Transfer, Tool Custody, Gap Analysis).
   - [ ] Pruebas E2E de flujos criticos de negocio con Supertest y Vitest.

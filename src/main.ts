@@ -9,8 +9,12 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
 
-  // Seguridad de cabeceras HTTP
-  app.use(helmet());
+  // Seguridad de cabeceras HTTP permitiendo recursos de Swagger UI
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+    }),
+  );
 
   // Habilitar CORS para frontend Angular y clientes web
   app.enableCors({
