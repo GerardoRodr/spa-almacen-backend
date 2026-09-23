@@ -1,124 +1,175 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# SPA-ALMACEN-ERP - Backend API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Sistema backend para la gestion integral de inventarios, abastecimiento en tres etapas y control logistico de obras de construccion civil.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Desarrollado con **NestJS 12+** en arquitectura modular con soporte nativo de **ESM puro (NodeNext)**, base de datos relacional **PostgreSQL 16 en contenedor Docker**, persistencia mediante **Prisma ORM v6**, y validacion tipada con **Swagger / OpenAPI**.
 
-## Description
+---
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## 1. Caracteristicas Principales del Sistema
 
-## Project setup
+- **Arquitectura Multi-Almacen y RBAC:**
+  - Segregacion de permisos mediante roles de usuario: `ADMIN` (control corporativo) y `WAREHOUSE_KEEPER` (personal operativo de caseta de obra).
+  - Vinculacion explicita de usuarios a almacenes autorizados con verificacion por guard (`WarehouseAccessGuard`).
+- **Proteccion Financiera y Data Masking:**
+  - Enmascaramiento automatico de precios de compra, costos promedios y valorizaciones hacia usuarios de obra mediante `CostMaskingInterceptor`.
+- **Catalogo Maestro e Integracion con S10:**
+  - Clasificacion entre materiales consumibles (`CONSUMABLE`) y herramientas o equipos patrimoniales (`ASSET_TOOL`).
+  - Capa de homologacion de nombres crudos provenientes del software de presupuestos S10 (`ItemAlias`) con factores de conversion a unidades base.
+- **Logistica de Abastecimiento en Tres Etapas:**
+  1. Reserva logica en Almacen Central sobre la demanda del presupuesto de obra.
+  2. Transferencia fisica en dos fases: despacho en origen (`IN_TRANSIT`) e inspeccion en caseta con registro de discrepancias y mermas.
+  3. Salida por consumo definitivo entregada a capataces y cuadrillas en el frente de obra.
+- **Kardex Inmutable (Append-Only):**
+  - Registro de hechos fisicos consumados sin operaciones de actualizacion o borrado, conservando instantaneas congeladas de costo (`unitCostSnapshot`).
+- **Motor Financiero de Costo Promedio Ponderado (CPP / WAC):**
+  - Valorizacion en Soles (PEN) computable sobre la base imponible neta sin IGV (18%), conforme a la normativa tributaria y contable (NIC 2 / SUNAT).
+- **Control de Custodia de Herramientas:**
+  - Prestamos temporales vinculados al DNI y nombre del operario con evaluacion fisica de salida y retorno (`OPERATIVE`, `DAMAGED_USABLE`, `DAMAGED_UNUSABLE`, `LOST`).
 
-```bash
-$ npm install
+---
+
+## 2. Stack Tecnologico
+
+| Componente | Tecnologia | Version / Detalle |
+|---|---|---|
+| **Entorno de Ejecucion** | Node.js | v22+ (ESM puro, `type: module`) |
+| **Framework Backend** | NestJS | 12+ (TypeScript en modo `NodeNext`) |
+| **Base de Datos** | PostgreSQL | 16 Alpine en contenedor Docker |
+| **ORM / Persistencia** | Prisma ORM | v6.19+ |
+| **Autenticacion** | Passport JWT | Access Token (15 min) + Refresh Token (7 dias) |
+| **Encriptacion** | bcrypt | Hashing seguro de contrasenas |
+| **Documentacion Viva** | Swagger / OpenAPI | UI interactiva en `/api/docs` |
+| **Seguridad de Cabeceras** | Helmet + Throttler | CSP adaptada para Swagger y rate limiting |
+| **Procesamiento de Imagenes** | Sharp | Pipeline WebP con compresion optimizada para obra |
+| **Pruebas Unitarias** | Vitest | Suite de testing ultrarrapida |
+| **Analisis Estatico** | Oxlint | Linter de alto rendimiento |
+
+---
+
+## 3. Estructura del Proyecto
+
+```
+spa-almacen-backend/
+├── docker/                     # Configuracion de Dockerfile para PostgreSQL
+├── docker-compose.yml          # Orquestacion de servicios locales (PostgreSQL)
+├── docs/                       # Documentacion tecnica y funcional del proyecto
+│   ├── business/               # Reglas de negocio, arquitectura y especificacion UI
+│   │   ├── ARCHITECTURE.md     # Diseno de arquitectura tecnica y de datos
+│   │   ├── BUSINESS_RULES.md   # Fuente unica de verdad de algoritmos y dominio
+│   │   └── UI_SPECIFICATION.md # Diseno de pantallas y flujo de usuario
+│   ├── modules/                # Especificacion de endpoints y contratos de la API
+│   │   ├── README.md           # Indice central, cabeceras y matriz de roles
+│   │   ├── 01_auth.md          # Autenticacion y renovacion de tokens
+│   │   ├── 02_users.md         # Usuarios y asignacion multi-almacen
+│   │   ├── 03_warehouses.md    # Almacenes, stock en tiempo real y alertas minimas
+│   │   ├── 04_items.md         # Catalogo maestro, herramientas y alias S10
+│   │   ├── 05_purchases_suppliers.md # Proveedores, compras y motor CPP
+│   │   ├── 06_transfers.md     # Transferencias operativas en dos fases
+│   │   ├── 07_movements_kardex.md    # Salidas a cuadrillas y Kardex inmutable
+│   │   ├── 08_tool_custody.md  # Vales de prestamo de herramientas por DNI
+│   │   ├── 09_projects_s10.md  # Presupuestos S10 y analisis de brechas
+│   │   ├── 10_documents.md     # Documentos seguros y pipeline Sharp
+│   │   └── 11_admin_maintenance.md   # Backups de base de datos y salud
+│   └── todo.md                 # Roadmap y estado de ejecucion de fases
+├── prisma/                     # Modelado de datos relacional
+│   ├── schema.prisma           # 18 modelos y 8 enums de dominio
+│   ├── seed.ts                 # Poblacion de datos iniciales
+│   └── migrations/             # Historial de migraciones SQL
+├── src/                        # Codigo fuente de la aplicacion
+│   ├── common/                 # Decoradores, guards, interceptores y filtros
+│   ├── config/                 # Validacion y carga de variables de entorno
+│   ├── modules/                # Modulos desacoplados de dominio
+│   ├── app.module.ts           # Modulo raiz
+│   └── main.ts                 # Bootstrap de la aplicacion NestJS
+└── test/                       # Pruebas de integracion y e2e
 ```
 
-## Compile and run the project
+---
 
-```bash
-# development
-$ npm run start
+## 4. Instalacion y Puesta en Marcha Local
 
-# watch mode
-$ npm run start:dev
+### 4.1 Requisitos Previos
+- Node.js version 22 o superior instalado.
+- Docker y Docker Compose instalados y en ejecucion.
+- Gestor de paquetes `npm`.
 
-# production mode
-$ npm run start:prod
+### 4.2 Configuracion del Entorno
+Clonar el repositorio y verificar la configuracion del archivo de variables de entorno `.env` en la raiz del proyecto:
+
+```env
+PORT=3000
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/almacen_erp?schema=public"
+
+JWT_SECRET="clave_secreta_super_segura_de_desarrollo_2026"
+JWT_EXPIRES_IN="15m"
+JWT_REFRESH_SECRET="clave_refresh_secreta_super_segura_2026"
+JWT_REFRESH_EXPIRES_IN="7d"
+
+BCRYPT_SALT_ROUNDS=10
+THROTTLE_TTL=60000
+THROTTLE_LIMIT=100
+STORAGE_UPLOAD_PATH="./uploads"
 ```
 
-## Run tests
+### 4.3 Iniciar la Base de Datos en Docker
+Ejecutar el contenedor de PostgreSQL configurado para el proyecto:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+docker compose up -d
 ```
+El contenedor `almacen-postgres` se iniciara en el puerto `5432:5432` con volumen persistente `almacen_pgdata`.
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### 4.4 Ejecutar Migraciones de Base de Datos
+Aplicar el esquema de Prisma en la base de datos de desarrollo:
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npx prisma migrate dev
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-To add it to this project:
+### 4.5 Cargar Datos Iniciales (Seed)
+Poblar los datos de prueba y administracion (Almacen Central, Administrador y Almacenero de prueba):
 
 ```bash
-$ npm install @nestjs/observe
+npx prisma db seed
 ```
 
-Then follow the [setup guide](https://docs.nestjs.com/observability/overview) - it takes a single import and an app key.
+Credenciales de prueba generadas por el seed:
+- **Administrador:**
+  - Correo: `admin@almacen.com`
+  - Contrasena: `Admin1234!`
+  - Rol: `ADMIN`
+- **Almacenero:**
+  - Correo: `almacenero@obra.com`
+  - Contrasena: `Almacen1234!`
+  - Rol: `WAREHOUSE_KEEPER`
 
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
+### 4.6 Iniciar el Servidor de Desarrollo
+```bash
+npm run start:dev
+```
+La API estara disponible en:
+- **Endpoints de la API:** `http://localhost:3000/api/v1`
+- **Documentacion Swagger UI:** `http://localhost:3000/api/docs`
 
-## Resources
+---
 
-Check out a few resources that may come in handy when working with NestJS:
+## 5. Comandos de Verificacion y Calidad de Codigo
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+| Comando | Descripcion |
+|---|---|
+| `npm run build` | Compila el proyecto con TypeScript en modo ESM NodeNext. |
+| `npm run test` | Ejecuta la suite completa de pruebas unitarias con Vitest. |
+| `npm run lint` | Ejecuta el analisis estatico de codigo con Oxlint. |
+| `npx prisma studio` | Abre la consola visual de administracion de datos de Prisma en el navegador. |
 
-## Support
+---
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## 6. Documentacion Detallada
 
-## Stay in touch
+Para consultar la especificacion completa del sistema, revisar los documentos ubicados en `docs/`:
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- **[Documentacion Tecnica de Modulos (docs/modules)](docs/modules/README.md):** Guia de integracion de endpoints, headers requeridos, query params, DTOs y ejemplos de request/response en JSON.
+- **[Reglas de Negocio Core (docs/business/BUSINESS_RULES.md)](docs/business/BUSINESS_RULES.md):** Algoritmo del CPP, ciclo de vida de herramientas y protocolo de abastecimiento en 3 etapas.
+- **[Arquitectura de Software (docs/business/ARCHITECTURE.md)](docs/business/ARCHITECTURE.md):** Diagramas de arquitectura, flujo de datos y modelo de seguridad.
+- **[Roadmap del Proyecto (docs/todo.md)](docs/todo.md):** Estado detallado de implementacion de cada paso.
