@@ -95,14 +95,14 @@ Codigos HTTP comunes:
 
 ## 4. Indice de Modulos
 
-### Modulos Implementados (Fases 1 y 2)
+### Modulos Implementados (Fases 1, 2 y 3)
 1. [01 - Autenticacion](01_auth.md): Inicio de sesion, renovacion de tokens (Refresh Token) y perfil en sesion.
 2. [02 - Usuarios y RBAC](02_users.md): Administracion de usuarios, asignacion de almacenes y cambio de estado.
 3. [03 - Almacenes y Stock](03_warehouses.md): Gestion de almacenes Central y Obra, stock en tiempo real y alertas minimas.
 4. [04 - Catalogo de Items y Alias S10](04_items.md): Catalogo maestro, consumibles, herramientas, stock consolidado y homologacion S10.
+5. [05 - Proveedores y Compras](05_purchases_suppliers.md): Registro de proveedores con RUC de 11 digitos, facturas bimoneda con IGV y recalculo ponderado de CPP (WAC).
 
-### Modulos en Especificacion y Diseno (Fases 3 a 9)
-5. [05 - Proveedores y Compras](05_purchases_suppliers.md): Registro de proveedores, facturas con IGV y recalculo de CPP (Costo Promedio Ponderado).
+### Modulos en Especificacion y Diseno (Fases 4 a 9)
 6. [06 - Transferencias Operativas](06_transfers.md): Despacho en dos fases, transito, recepcion en caseta y discrepancias.
 7. [07 - Movimientos de Inventario y Kardex](07_movements_kardex.md): Vales de salida a cuadrillas, mermas y kardex inmutable.
 8. [08 - Custodia de Herramientas](08_tool_custody.md): Prestamo temporal a operarios por DNI, estados de devolucion y penalizaciones.
