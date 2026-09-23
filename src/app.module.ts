@@ -9,6 +9,8 @@ import { WarehousesModule } from './modules/warehouses/warehouses.module.js';
 import { ItemsModule } from './modules/items/items.module.js';
 import { SuppliersModule } from './modules/suppliers/suppliers.module.js';
 import { PurchasesModule } from './modules/purchases/purchases.module.js';
+import { ToolCustodyModule } from './modules/tool-custody/tool-custody.module.js';
+import { TransfersModule } from './modules/transfers/transfers.module.js';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 
@@ -37,6 +39,10 @@ import { AppService } from './app.service.js';
     // Modulos de proveedores y compras
     SuppliersModule,
     PurchasesModule,
+    // Modulo de custodia y prestamo de herramientas
+    ToolCustodyModule,
+    // Modulo de transferencias operativas entre almacenes
+    TransfersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

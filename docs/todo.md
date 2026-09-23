@@ -12,7 +12,7 @@ Este documento representa la hoja de ruta integral y el estado de avance para el
 - [x] **Paso 3: Proveedores, Compras y Algoritmo de Costo Promedio Ponderado (CPP / WAC)**
 - [ ] **Paso 4: Transferencias Operativas en Dos Fases y Control de Mermas**
 - [ ] **Paso 5: Salidas por Consumo en Obra y Kardex Inmutable (Append-Only)**
-- [ ] **Paso 6: Custodia, Prestamo y Devolucion de Herramientas**
+- [x] **Paso 6: Custodia, Prestamo y Devolucion de Herramientas**
 - [ ] **Paso 7: Proyectos, Ingesta S10, Matriz de Brechas y Liquidacion de Obra**
 - [ ] **Paso 8: Gestion de Archivos Seguros y Pipeline de Optimizacion Sharp**
 - [ ] **Paso 9: Mantenimiento, Backups Diarios y Hardening Final**
@@ -106,25 +106,25 @@ Ingreso formal de insumos a Almacen Central por adquisicion a proveedores, sopor
 
 ---
 
-## Paso 4: Transferencias Operativas en Dos Fases y Control de Mermas
+## Paso 4: Transferencias Operativas en Dos Fases y Control de Mermas (Completado)
 
 Traslado fisico de materiales desde Almacen Central hacia casetas de obra temporal con auditoria de despacho, recepcion y mermas en transito.
 
 ### Tareas:
-- [ ] **Modulo de Transferencias (`src/modules/transfers`):**
-  - [ ] DTOs: `DispatchTransferDto`, `ReceiveTransferDto`, `TransferItemDto`.
-  - [ ] **Fase 1: Despacho desde Almacen Origen:**
-    - Validacion de existencia fisica (`Stock.physicalQty >= Q`).
-    - Descuento de stock fisico en origen y descuento de `reservedQty` (si proviene de reserva).
-    - Descuento de `ProjectRequirement.allocatedQty` en la obra destino.
-    - Creacion de `Transfer` en estado `IN_TRANSIT` con correlativo automatico (`TR-YYYY-NNNNN`).
-    - Emision de `Movement` append-only (`TRANSFER_DISPATCH`) con snapshot de costo promedio vigente.
-  - [ ] **Fase 2: Recepcion y Conteo en Almacen Destino:**
-    - Caso Conforme (`receivedQty == dispatchedQty`): Estado `COMPLETED`, incremento de `Stock.physicalQty` en destino, actualizacion de CPP en destino y emision de `Movement` (`TRANSFER_RECEIPT`).
-    - Caso Discrepancia / Merma en Ruta (`receivedQty < dispatchedQty`): Ingreso de cantidad conforme en destino, cambio de estado a `DISCREPANCY` y generacion automatica de `Movement` (`SHRINKAGE_EXIT`) por perdida en transporte.
-  - [ ] Endpoints: `GET /transfers`, `GET /transfers/in-transit`, `POST /transfers/dispatch`, `POST /transfers/:id/receive`.
-- [ ] **Documentacion OpenAPI Swagger:**
-  - [ ] Decoradores `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth` y `@ApiProperty` para pruebas interactivas en `/api/docs`.
+- [x] **Modulo de Transferencias (`src/modules/transfers`):**
+  - [x] DTOs: `DispatchTransferDto`, `ReceiveTransferDto`, `TransferItemInputDto`, `ReceiveTransferItemDto`, `TransferFilterDto`.
+  - [x] **Fase 1: Despacho desde Almacen Origen:**
+    - [x] Validacion de existencia fisica (`Stock.physicalQty >= Q`).
+    - [x] Descuento de stock fisico en origen y descuento de `reservedQty` (si proviene de reserva).
+    - [x] Descuento de `ProjectRequirement.allocatedQty` en la obra destino.
+    - [x] Creacion de `Transfer` en estado `IN_TRANSIT` con correlativo automatico (`TR-YYYY-NNNNN`).
+    - [x] Emision de `Movement` append-only (`TRANSFER_DISPATCH`) con snapshot de costo promedio vigente.
+  - [x] **Fase 2: Recepcion y Conteo en Almacen Destino:**
+    - [x] Caso Conforme (`receivedQty == dispatchedQty`): Estado `COMPLETED`, incremento de `Stock.physicalQty` en destino, actualizacion de CPP en destino y emision de `Movement` (`TRANSFER_RECEIPT`).
+    - [x] Caso Discrepancia / Merma en Ruta (`receivedQty < dispatchedQty`): Ingreso de cantidad conforme en destino, cambio de estado a `DISCREPANCY` y generacion automatica de `Movement` (`SHRINKAGE_EXIT`) por perdida en transporte.
+  - [x] Endpoints: `GET /transfers`, `GET /transfers/in-transit`, `GET /transfers/:id`, `POST /transfers/dispatch`, `POST /transfers/:id/receive`.
+- [x] **Documentacion OpenAPI Swagger:**
+  - [x] Decoradores `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth` y `@ApiProperty` para pruebas interactivas en `/api/docs`.
 
 ---
 
@@ -151,25 +151,25 @@ Entrega de materiales consumibles a cuadrillas de construccion en caseta de obra
 
 ---
 
-## Paso 6: Custodia, Prestamo y Devolucion de Herramientas
+## Paso 6: Custodia, Prestamo y Devolucion de Herramientas (Completado)
 
 Administracion del ciclo de vida de herramientas y equipos (`ASSET_TOOL`), control de caseta vs campo y retorno con calificacion fisica.
 
 ### Tareas:
-- [ ] **Modulo de Custodia de Herramientas (`src/modules/custody`):**
-  - [ ] DTOs: `CreateLoanDto`, `ReturnLoanDto`.
-  - [ ] **Despacho en Prestamo:**
-    - Validacion de disponibilidad en caseta: `Stock.physicalQty - Stock.loanedQty >= Q`.
-    - Registro de numero de serie o codigo patrimonial para herramientas mayores.
-    - Incremento de `Stock.loanedQty`.
-    - Creacion de registro `ToolCustody` con correlativo (`VALE-YYYY-NNNNN`), DNI, nombre del operario y condicion de entrega (`OPERATIVE`).
-    - Emision de `Movement` (`LOAN_DISPATCH`).
-  - [ ] **Retorno y Calificacion Fisica:**
-    - Retorno Conforme (`OPERATIVE` o `DAMAGED_USABLE`): decrementa `Stock.loanedQty`, sella fecha de retorno y emite `Movement` (`LOAN_RETURN`).
-    - Retorno con Baja Patrimonial (`DAMAGED_UNUSABLE` o `LOST`): decrementa `Stock.loanedQty`, decrementa `Stock.physicalQty` y emite automaticamente un `Movement` (`SHRINKAGE_EXIT`) por baja de equipo con evidencia.
-  - [ ] Endpoints: `POST /custody/loans`, `PUT /custody/loans/:id/return`, `GET /custody/loans/active`, `GET /custody/loans/history-by-dni/:dni`.
-- [ ] **Documentacion OpenAPI Swagger:**
-  - [ ] Decoradores `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth` y `@ApiProperty` para pruebas interactivas en `/api/docs`.
+- [x] **Modulo de Custodia de Herramientas (`src/modules/tool-custody`):**
+  - [x] DTOs: `DispatchToolCustodyDto`, `ReturnToolCustodyDto`, `ToolCustodyFilterDto`.
+  - [x] **Despacho en Prestamo:**
+    - [x] Validacion de disponibilidad en caseta: `Stock.physicalQty - Stock.loanedQty >= Q`.
+    - [x] Registro de numero de serie o codigo patrimonial para herramientas mayores.
+    - [x] Incremento atomico de `Stock.loanedQty`.
+    - [x] Creacion de registro `ToolCustody` con correlativo (`VALE-YYYY-NNNNN`), DNI (8 digitos), nombre del operario y condicion de entrega (`OPERATIVE`).
+    - [x] Emision de `Movement` inmutable (`LOAN_DISPATCH`).
+  - [x] **Retorno y Calificacion Fisica:**
+    - [x] Retorno Conforme (`OPERATIVE`, `DAMAGED_USABLE` o `MAINTENANCE_REQUIRED`): decrementa `Stock.loanedQty`, sella fecha de retorno y emite `Movement` (`LOAN_RETURN`).
+    - [x] Retorno con Baja Patrimonial (`DAMAGED_UNUSABLE` o `LOST`): decrementa `Stock.loanedQty`, decrementa `Stock.physicalQty` y emite automaticamente un `Movement` (`SHRINKAGE_EXIT`) por baja de equipo con evidencia.
+  - [x] Endpoints: `GET /tools/custody`, `POST /tools/custody/dispatch`, `POST /tools/custody/:id/return`, `GET /tools/custody/worker/:dni`, `GET /tools/custody/:id`.
+- [x] **Documentacion OpenAPI Swagger:**
+  - [x] Decoradores `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth` y `@ApiProperty` para pruebas interactivas en `/api/docs`.
 
 ---
 
