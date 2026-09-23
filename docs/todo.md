@@ -9,7 +9,7 @@ Este documento representa la hoja de ruta integral y el estado de avance para el
 - [x] **Paso 0: Fundacion, Dependencias e Infraestructura Base**
 - [x] **Paso 1: Autenticacion, Usuarios y Contexto Multi-Almacen (RBAC)**
 - [x] **Paso 2: Almacenes, Catalogo Maestro de Items y Alias S10**
-- [ ] **Paso 3: Proveedores, Compras y Algoritmo de Costo Promedio Ponderado (CPP / WAC)**
+- [x] **Paso 3: Proveedores, Compras y Algoritmo de Costo Promedio Ponderado (CPP / WAC)**
 - [ ] **Paso 4: Transferencias Operativas en Dos Fases y Control de Mermas**
 - [ ] **Paso 5: Salidas por Consumo en Obra y Kardex Inmutable (Append-Only)**
 - [ ] **Paso 6: Custodia, Prestamo y Devolucion de Herramientas**
@@ -84,25 +84,25 @@ Gestion de almacenes fisicos (Central vs Obra), catalogo maestro de items (Consu
 
 ---
 
-## Paso 3: Proveedores, Compras y Algoritmo de Costo Promedio Ponderado (CPP / WAC)
+## Paso 3: Proveedores, Compras y Algoritmo de Costo Promedio Ponderado (CPP / WAC) (Completado)
 
 Ingreso formal de insumos a Almacen Central por adquisicion a proveedores, soporte bimoneda, separacion contable de IGV y recalculo ponderado de costos.
 
 ### Tareas:
-- [ ] **Modulo de Proveedores (`src/modules/suppliers`):**
-  - [ ] DTOs: `CreateSupplierDto`, `UpdateSupplierDto` con validacion de RUC (11 digitos).
-  - [ ] Servicio y controlador de proveedores (`/suppliers`).
-- [ ] **Modulo de Compras (`src/modules/purchases`):**
-  - [ ] DTOs: `CreatePurchaseDto`, `PurchaseDetailDto` (soporte de serie de comprobante, moneda PEN/USD, tipo de cambio `exchangeRate`, factor de conversion de compra).
-  - [ ] Logica financiera (NIC 2 / SUNAT):
-    - Computo del costo unitario neto sin IGV (18%) en Soles (`unitCostBasePEN`).
-    - Recalculo atómico de CPP en transaccion `prisma.$transaction`:
+- [x] **Modulo de Proveedores (`src/modules/suppliers`):**
+  - [x] DTOs: `CreateSupplierDto`, `UpdateSupplierDto` con validacion de RUC (11 digitos) y `SupplierFilterDto`.
+  - [x] Servicio y controlador de proveedores (`/suppliers`).
+- [x] **Modulo de Compras (`src/modules/purchases`):**
+  - [x] DTOs: `CreatePurchaseDto`, `PurchaseItemDto`, `PurchaseFilterDto` (soporte de serie de comprobante, moneda PEN/USD, tipo de cambio `exchangeRate`, factor de conversion de compra).
+  - [x] Logica financiera (NIC 2 / SUNAT):
+    - [x] Computo del costo unitario neto sin IGV (18%) en Soles (`unitCostBasePEN`).
+    - [x] Recalculo atomico de CPP en transaccion `prisma.$transaction`:
       `CPP_nuevo = ((S_ant * CPP_ant) + (Q_ing * C_unitPEN)) / (S_ant + Q_ing)`
-    - Actualizacion o creacion de registro `Stock` en el Almacen Central receptor.
-    - Generacion append-only de `Movement` (`PURCHASE_ENTRY`) y `MovementItem` congelando el snapshot de costo.
-  - [ ] Endpoints: `GET /purchases`, `POST /purchases`, `GET /purchases/:id` (acceso exclusivo `ADMIN`).
-- [ ] **Documentacion OpenAPI Swagger:**
-  - [ ] Decoradores `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth` y `@ApiProperty` para pruebas interactivas en `/api/docs`.
+    - [x] Actualizacion o creacion de registro `Stock` en el Almacen Central receptor.
+    - [x] Generacion append-only de `Movement` (`PURCHASE_ENTRY`) y `MovementItem` congelando el snapshot de costo.
+  - [x] Endpoints: `GET /purchases`, `POST /purchases`, `GET /purchases/:id` (acceso exclusivo `ADMIN`).
+- [x] **Documentacion OpenAPI Swagger:**
+  - [x] Decoradores `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth` y `@ApiProperty` para pruebas interactivas en `/api/docs`.
 
 ---
 

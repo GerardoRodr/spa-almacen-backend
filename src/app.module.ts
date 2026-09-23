@@ -7,6 +7,8 @@ import { UsersModule } from './modules/users/users.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { WarehousesModule } from './modules/warehouses/warehouses.module.js';
 import { ItemsModule } from './modules/items/items.module.js';
+import { SuppliersModule } from './modules/suppliers/suppliers.module.js';
+import { PurchasesModule } from './modules/purchases/purchases.module.js';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 
@@ -32,6 +34,9 @@ import { AppService } from './app.service.js';
     // Modulos de almacenes y catalogo de items
     WarehousesModule,
     ItemsModule,
+    // Modulos de proveedores y compras
+    SuppliersModule,
+    PurchasesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
