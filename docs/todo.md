@@ -8,7 +8,7 @@ Este documento representa la hoja de ruta integral y el estado de avance para el
 
 - [x] **Paso 0: Fundacion, Dependencias e Infraestructura Base**
 - [x] **Paso 1: Autenticacion, Usuarios y Contexto Multi-Almacen (RBAC)**
-- [ ] **Paso 2: Almacenes, Catalogo Maestro de Items y Alias S10**
+- [x] **Paso 2: Almacenes, Catalogo Maestro de Items y Alias S10**
 - [ ] **Paso 3: Proveedores, Compras y Algoritmo de Costo Promedio Ponderado (CPP / WAC)**
 - [ ] **Paso 4: Transferencias Operativas en Dos Fases y Control de Mermas**
 - [ ] **Paso 5: Salidas por Consumo en Obra y Kardex Inmutable (Append-Only)**
@@ -59,28 +59,28 @@ Establecer la capa de seguridad, emision de JWT, control de acceso por roles y r
 
 ---
 
-## Paso 2: Almacenes, Catalogo Maestro de Items y Alias S10
+## Paso 2: Almacenes, Catalogo Maestro de Items y Alias S10 (Completado)
 
 Gestion de almacenes fisicos (Central vs Obra), catalogo maestro de items (Consumibles vs Herramientas) y proteccion de datos financieros ciegos.
 
 ### Tareas:
-- [ ] **Modulo de Almacenes (`src/modules/warehouses`):**
-  - [ ] DTOs: `CreateWarehouseDto`, `UpdateWarehouseDto`.
-  - [ ] Servicio de almacenes: creacion de Almacen Central o Almacen de Obra temporal, listado filtrado segun autorizaciones de `UserWarehouse`.
-  - [ ] Consulta de stock en tiempo real por almacen: agregacion de `physicalQty`, `reservedQty`, `loanedQty` y `averageCost`.
-  - [ ] Consulta de alertas de reposicion: items con `physicalQty <= minStockAlert`.
-  - [ ] Endpoints: `GET /warehouses`, `POST /warehouses`, `GET /warehouses/:id/stock`, `GET /warehouses/:id/alerts`.
-- [ ] **Modulo de Catalogo de Items (`src/modules/items`):**
-  - [ ] DTOs: `CreateItemDto`, `UpdateItemDto`, `CreateItemAliasDto`.
-  - [ ] Servicio de items: alta de SKU maestro, clasificacion (`CONSUMABLE` vs `ASSET_TOOL`), unidad base (`baseUnit`), definicion de stock minimo.
-  - [ ] Listado paginado con filtros por SKU, nombre y tipo.
-  - [ ] Detalle de item con consolidado de stock existente en todos los almacenes de la empresa.
-  - [ ] Gestion de alias S10 (`ItemAlias`): asociacion de texto crudo del S10 con un SKU maestro y factor de conversion hacia `baseUnit`.
-  - [ ] Endpoints: `GET /items`, `POST /items`, `GET /items/:id`, `PUT /items/:id`, `POST /items/aliases`, `DELETE /items/aliases/:id`.
-- [ ] **Interceptor de Ocultamiento Financiero (`CostMaskingInterceptor`):**
-  - [ ] Interceptor de serializacion para detectar rol `WAREHOUSE_KEEPER` y omitir recursivamente propiedades sensibles: `averageCost`, `unitPriceOriginal`, `subtotalPEN`, `totalAmountPEN`, `unitCostSnapshot`.
-- [ ] **Documentacion OpenAPI Swagger:**
-  - [ ] Decoradores `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth` y `@ApiProperty` para pruebas interactivas en `/api/docs`.
+- [x] **Modulo de Almacenes (`src/modules/warehouses`):**
+  - [x] DTOs: `CreateWarehouseDto`, `UpdateWarehouseDto`.
+  - [x] Servicio de almacenes: creacion de Almacen Central o Almacen de Obra temporal, listado filtrado segun autorizaciones de `UserWarehouse`.
+  - [x] Consulta de stock en tiempo real por almacen: agregacion de `physicalQty`, `reservedQty`, `loanedQty` y `averageCost`.
+  - [x] Consulta de alertas de reposicion: items con `physicalQty <= minStockAlert`.
+  - [x] Endpoints: `GET /warehouses`, `POST /warehouses`, `GET /warehouses/:id/stock`, `GET /warehouses/:id/alerts`.
+- [x] **Modulo de Catalogo de Items (`src/modules/items`):**
+  - [x] DTOs: `CreateItemDto`, `UpdateItemDto`, `CreateItemAliasDto`.
+  - [x] Servicio de items: alta de SKU maestro, clasificacion (`CONSUMABLE` vs `ASSET_TOOL`), unidad base (`baseUnit`), definicion de stock minimo.
+  - [x] Listado paginado con filtros por SKU, nombre y tipo.
+  - [x] Detalle de item con consolidado de stock existente en todos los almacenes de la empresa.
+  - [x] Gestion de alias S10 (`ItemAlias`): asociacion de texto crudo del S10 con un SKU maestro y factor de conversion hacia `baseUnit`.
+  - [x] Endpoints: `GET /items`, `POST /items`, `GET /items/:id`, `PUT /items/:id`, `POST /items/aliases`, `DELETE /items/aliases/:id`.
+- [x] **Interceptor de Ocultamiento Financiero (`CostMaskingInterceptor`):**
+  - [x] Interceptor de serializacion para detectar rol `WAREHOUSE_KEEPER` y omitir recursivamente propiedades sensibles: `averageCost`, `unitPriceOriginal`, `subtotalPEN`, `totalAmountPEN`, `unitCostSnapshot`.
+- [x] **Documentacion OpenAPI Swagger:**
+  - [x] Decoradores `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth` y `@ApiProperty` para pruebas interactivas en `/api/docs`.
 
 ---
 

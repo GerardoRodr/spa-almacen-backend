@@ -5,6 +5,8 @@ import { configuration } from './config/configuration.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
+import { WarehousesModule } from './modules/warehouses/warehouses.module.js';
+import { ItemsModule } from './modules/items/items.module.js';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 
@@ -27,6 +29,9 @@ import { AppService } from './app.service.js';
     // Modulos de seguridad y usuarios
     UsersModule,
     AuthModule,
+    // Modulos de almacenes y catalogo de items
+    WarehousesModule,
+    ItemsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
