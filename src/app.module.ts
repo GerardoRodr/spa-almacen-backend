@@ -11,6 +11,7 @@ import { SuppliersModule } from './modules/suppliers/suppliers.module.js';
 import { PurchasesModule } from './modules/purchases/purchases.module.js';
 import { ToolCustodyModule } from './modules/tool-custody/tool-custody.module.js';
 import { TransfersModule } from './modules/transfers/transfers.module.js';
+import { MovementsModule } from './modules/movements/movements.module.js';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 
@@ -43,6 +44,8 @@ import { AppService } from './app.service.js';
     ToolCustodyModule,
     // Modulo de transferencias operativas entre almacenes
     TransfersModule,
+    // Modulo de movimientos de inventario y Kardex
+    MovementsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

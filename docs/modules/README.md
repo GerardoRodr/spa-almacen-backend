@@ -95,17 +95,17 @@ Codigos HTTP comunes:
 
 ## 4. Indice de Modulos
 
-### Modulos Implementados (Fases 1, 2, 3, 4 y 6)
+### Modulos Implementados (Fases 1, 2, 3, 4, 5 y 6)
 1. [01 - Autenticacion](01_auth.md): Inicio de sesion, renovacion de tokens (Refresh Token) y perfil en sesion.
 2. [02 - Usuarios y RBAC](02_users.md): Administracion de usuarios, asignacion de almacenes y cambio de estado.
 3. [03 - Almacenes y Stock](03_warehouses.md): Gestion de almacenes Central y Obra, stock en tiempo real y alertas minimas.
 4. [04 - Catalogo de Items y Alias S10](04_items.md): Catalogo maestro, consumibles, herramientas, stock consolidado y homologacion S10.
 5. [05 - Proveedores y Compras](05_purchases_suppliers.md): Registro de proveedores con RUC de 11 digitos, facturas bimoneda con IGV y recalculo ponderado de CPP (WAC).
 6. [06 - Transferencias Operativas](06_transfers.md): Despacho en dos fases, transito, recepcion en caseta y mermas en transporte.
-7. [08 - Custodia de Herramientas](08_tool_custody.md): Prestamo temporal a operarios por DNI, control de caseta vs campo, devolucion y bajas patrimoniales.
+7. [07 - Movimientos de Inventario y Kardex](07_movements_kardex.md): Vales de salida a cuadrillas, mermas y kardex inmutable.
+8. [08 - Custodia de Herramientas](08_tool_custody.md): Prestamo temporal a operarios por DNI, control de caseta vs campo, devolucion y bajas patrimoniales.
 
-### Modulos en Especificacion y Diseno (Fases 5, 7, 8 y 9)
-8. [07 - Movimientos de Inventario y Kardex](07_movements_kardex.md): Vales de salida a cuadrillas, mermas y kardex inmutable.
+### Modulos en Especificacion y Diseno (Fases 7, 8 y 9)
 9. [09 - Proyectos y Presupuestos S10](09_projects_s10.md): Carga de archivos S10, presupuesto de obra y matriz de brechas.
 10. [10 - Documentos y Evidencias](10_documents.md): Subida y visualizacion segura de facturas, guias y remisiones.
 11. [11 - Administracion y Mantenimiento](11_admin_maintenance.md): Copias de seguridad de PostgreSQL, metricas de salud y auditoria.

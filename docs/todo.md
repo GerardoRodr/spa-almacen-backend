@@ -128,26 +128,26 @@ Traslado fisico de materiales desde Almacen Central hacia casetas de obra tempor
 
 ---
 
-## Paso 5: Salidas por Consumo en Obra y Kardex Inmutable (Append-Only)
+## Paso 5: Salidas por Consumo en Obra y Kardex Inmutable (Append-Only) (Completado)
 
 Entrega de materiales consumibles a cuadrillas de construccion en caseta de obra, control por DNI y gestion del libro mayor Kardex.
 
 ### Tareas:
-- [ ] **Modulo de Movimientos y Kardex (`src/modules/movements`):**
-  - [ ] DTOs: `CreateConsumptionDto`, `CreateAdjustmentDto`.
-  - [ ] **Salida por Consumo en Obra:**
-    - Verificacion de que el item sea de tipo `CONSUMABLE`.
-    - Descuento de `Stock.physicalQty` en el Almacen de Obra.
-    - Incremento de `ProjectRequirement.consumedQty` en el proyecto vinculado.
-    - Creacion de `Movement` (`CONSUMPTION_EXIT`) con correlativo (`MOV-YYYY-NNNNN`), DNI y nombre del capataz o cuadrilla.
-  - [ ] **Ajustes de Inventario y Mermas:**
-    - Endpoint para regularizar descuadres fisicos con motivo obligatorio y evidencia.
-    - Requiere aprobacion exclusiva de rol `ADMIN` para consolidar el movimiento (`INVENTORY_ADJUSTMENT` o `SHRINKAGE_EXIT`).
-  - [ ] **Inmutabilidad:**
-    - Bloqueo estricto a nivel de servicio para operaciones de actualizacion o eliminacion sobre tablas `Movement` y `MovementItem`.
-  - [ ] Endpoints: `GET /movements` (con filtros de fecha, tipo, almacen e item), `POST /movements/consumption`, `POST /movements/adjustment`.
-- [ ] **Documentacion OpenAPI Swagger:**
-  - [ ] Decoradores `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth` y `@ApiProperty` para pruebas interactivas en `/api/docs`.
+- [x] **Modulo de Movimientos y Kardex (`src/modules/movements`):**
+  - [x] DTOs: `CreateConsumptionExitDto`, `CreateShrinkageExitDto`, `CreateInventoryAdjustmentDto`, `MovementItemInputDto`, `InventoryAdjustmentItemDto`, `MovementFilterDto`.
+  - [x] **Salida por Consumo en Obra:**
+    - [x] Verificacion de que el item sea de tipo `CONSUMABLE`.
+    - [x] Descuento de `Stock.physicalQty` en el Almacen de Obra.
+    - [x] Incremento de `ProjectRequirement.consumedQty` en el proyecto vinculado.
+    - [x] Creacion de `Movement` (`CONSUMPTION_EXIT`) con correlativo (`MOV-YYYY-NNNNN`), DNI y nombre del capataz o cuadrilla.
+  - [x] **Ajustes de Inventario y Mermas:**
+    - [x] Endpoint para regularizar mermas fisicas (`SHRINKAGE_EXIT`) con motivo obligatorio.
+    - [x] Endpoint exclusivo de rol `ADMIN` para regularizar inventario fisico (`INVENTORY_ADJUSTMENT`).
+  - [x] **Inmutabilidad:**
+    - [x] Bloqueo estricto a nivel de servicio para operaciones de actualizacion o eliminacion sobre tablas `Movement` y `MovementItem`.
+  - [x] Endpoints: `GET /movements` (con filtros de fecha, tipo, almacen e item), `GET /movements/:id`, `POST /movements/consumption`, `POST /movements/shrinkage`, `POST /movements/adjustment`.
+- [x] **Documentacion OpenAPI Swagger:**
+  - [x] Decoradores `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth` y `@ApiProperty` para pruebas interactivas en `/api/docs`.
 
 ---
 
