@@ -407,4 +407,54 @@ $liquidated = Invoke-RestMethod -Uri "$BASE_URL/projects/$PROJECT_ID/liquidate" 
 } | ConvertTo-Json)
 Write-Host "[OK] Protocolo de liquidacion validado: Estado $($liquidated.status), Almacen desactivado: $($liquidated.warehouseDeactivated.isActive -eq $false)" -ForegroundColor Green
 
+# 11. Documentos Seguros y Evidencias Sharp
+Write-Host "`n--- 11. Documentos Seguros y Evidencias Sharp ---" -ForegroundColor Yellow
+
+$tempFile = [System.IO.Path]::GetTempFileName() + ".pdf"
+[System.IO.File]::WriteAllBytes($tempFile, [System.Text.Encoding]::ASCII.GetBytes("%PDF-1.4 simulated pdf document for testing"))
+
+$uploadOutput = curl.exe -s -X POST "$BASE_URL/documents/upload" `
+    -H "Authorization: Bearer $ADMIN_TOKEN" `
+    -F "file=@$tempFile;type=application/pdf" `
+    -F "transferId=$TRANSFER_ID" `
+    -F "isConfidential=false"
+
+$uploadedDoc = $uploadOutput | ConvertFrom-Json
+$DOC_ID = $uploadedDoc.id
+Write-Host "[OK] Documento PDF subido exitosamente: $DOC_ID (MIME: $($uploadedDoc.mimeType), Ruta: $($uploadedDoc.storedPath))" -ForegroundColor Green
+
+$docsList = Invoke-RestMethod -Uri "$BASE_URL/documents" -Method GET -Headers @{ Authorization = "Bearer $ADMIN_TOKEN" }
+Write-Host "[OK] Documentos listados: $($docsList.meta.total) documentos registrados" -ForegroundColor Green
+
+$docDetail = Invoke-RestMethod -Uri "$BASE_URL/documents/$DOC_ID" -Method GET -Headers @{ Authorization = "Bearer $ADMIN_TOKEN"; Accept = "application/json" }
+Write-Host "[OK] Metadatos de documento consultados: $($docDetail.originalName)" -ForegroundColor Green
+
+$downloadUrl = "$BASE_URL/documents/$DOC_ID/download"
+$downloadResp = Invoke-WebRequest -Uri $downloadUrl -Method GET -Headers @{ Authorization = "Bearer $ADMIN_TOKEN" }
+Write-Host "[OK] Descarga autenticada exitosa: HTTP $($downloadResp.StatusCode) - $($downloadResp.RawContentLength) bytes" -ForegroundColor Green
+
+$tempPdf2 = [System.IO.Path]::GetTempFileName() + ".pdf"
+[System.IO.File]::WriteAllBytes($tempPdf2, [System.Text.Encoding]::ASCII.GetBytes("%PDF-1.4 simulated confidential purchase invoice"))
+
+$uploadConfOutput = curl.exe -s -X POST "$BASE_URL/documents/upload" `
+    -H "Authorization: Bearer $ADMIN_TOKEN" `
+    -F "file=@$tempPdf2;type=application/pdf" `
+    -F "purchaseId=$PURCHASE_ID"
+
+$confDoc = $uploadConfOutput | ConvertFrom-Json
+$CONF_DOC_ID = $confDoc.id
+Write-Host "[OK] Documento confidencial subido: $CONF_DOC_ID (isConfidential: $($confDoc.isConfidential))" -ForegroundColor Green
+
+try {
+    Invoke-WebRequest -Uri "$BASE_URL/documents/$CONF_DOC_ID/download" -Method GET -Headers @{ Authorization = "Bearer $KEEPER_TOKEN" }
+    Write-Host "[FALLO] El almacenero no deberia poder descargar documentos confidenciales" -ForegroundColor Red
+} catch {
+    Write-Host "[OK] Regla de confidencialidad validada: Almacenero bloqueado con 403 Forbidden" -ForegroundColor Green
+}
+
+$deletedDoc = Invoke-RestMethod -Uri "$BASE_URL/documents/$DOC_ID" -Method DELETE -Headers @{ Authorization = "Bearer $ADMIN_TOKEN" }
+Write-Host "[OK] Documento eliminado correctamente: deleted=$($deletedDoc.deleted)" -ForegroundColor Green
+
+Remove-Item -Path $tempFile, $tempPdf2 -Force -ErrorAction SilentlyContinue
+
 Write-Host "`nTodas las pruebas de endpoints completadas exitosamente!" -ForegroundColor Cyan

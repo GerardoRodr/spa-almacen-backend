@@ -13,6 +13,7 @@ import { ToolCustodyModule } from './modules/tool-custody/tool-custody.module.js
 import { TransfersModule } from './modules/transfers/transfers.module.js';
 import { MovementsModule } from './modules/movements/movements.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
+import { DocumentsModule } from './modules/documents/documents.module.js';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 
@@ -49,6 +50,8 @@ import { AppService } from './app.service.js';
     MovementsModule,
     // Modulo de proyectos civiles e ingesta de presupuestos S10
     ProjectsModule,
+    // Modulo de gestion de archivos seguros y evidencias Sharp
+    DocumentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
