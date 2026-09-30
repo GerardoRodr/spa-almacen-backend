@@ -322,7 +322,7 @@ Write-Host "[OK] Prestamo de herramienta emitido: Vale $CUSTODY_ID" -ForegroundC
 
 # Consultar deuda de herramientas por DNI
 $debts = Invoke-RestMethod -Uri "$BASE_URL/tools/custody/worker/70123456" -Method GET -Headers @{ Authorization = "Bearer $KEEPER_TOKEN" }
-Write-Host "[OK] Deuda consultada para DNI 70123456: $($debts.Count) herramientas prestadas" -ForegroundColor Green
+Write-Host "[OK] Deuda consultada para DNI 70123456: $($debts.pendingCount) herramientas prestadas" -ForegroundColor Green
 
 # Devolucion conforme
 Invoke-RestMethod -Uri "$BASE_URL/tools/custody/$CUSTODY_ID/return" -Method POST -Headers @{ Authorization = "Bearer $KEEPER_TOKEN" } -ContentType "application/json" -Body (@{
@@ -431,7 +431,7 @@ $docDetail = Invoke-RestMethod -Uri "$BASE_URL/documents/$DOC_ID" -Method GET -H
 Write-Host "[OK] Metadatos de documento consultados: $($docDetail.originalName)" -ForegroundColor Green
 
 $downloadUrl = "$BASE_URL/documents/$DOC_ID/download"
-$downloadResp = Invoke-WebRequest -Uri $downloadUrl -Method GET -Headers @{ Authorization = "Bearer $ADMIN_TOKEN" }
+$downloadResp = Invoke-WebRequest -Uri $downloadUrl -Method GET -Headers @{ Authorization = "Bearer $ADMIN_TOKEN" } -UseBasicParsing
 Write-Host "[OK] Descarga autenticada exitosa: HTTP $($downloadResp.StatusCode) - $($downloadResp.RawContentLength) bytes" -ForegroundColor Green
 
 $tempPdf2 = [System.IO.Path]::GetTempFileName() + ".pdf"
@@ -447,7 +447,7 @@ $CONF_DOC_ID = $confDoc.id
 Write-Host "[OK] Documento confidencial subido: $CONF_DOC_ID (isConfidential: $($confDoc.isConfidential))" -ForegroundColor Green
 
 try {
-    Invoke-WebRequest -Uri "$BASE_URL/documents/$CONF_DOC_ID/download" -Method GET -Headers @{ Authorization = "Bearer $KEEPER_TOKEN" }
+    Invoke-WebRequest -Uri "$BASE_URL/documents/$CONF_DOC_ID/download" -Method GET -Headers @{ Authorization = "Bearer $KEEPER_TOKEN" } -UseBasicParsing
     Write-Host "[FALLO] El almacenero no deberia poder descargar documentos confidenciales" -ForegroundColor Red
 }
 catch {
@@ -486,7 +486,7 @@ Write-Host "[OK] Copias de seguridad listadas: $($backupsList.Count) archivos en
 
 # Descargar respaldo por streaming autenticado
 $downloadBackupUrl = "$BASE_URL/admin/backups/$BACKUP_NAME"
-$downloadBackupResp = Invoke-WebRequest -Uri $downloadBackupUrl -Method GET -Headers @{ Authorization = "Bearer $ADMIN_TOKEN" }
+$downloadBackupResp = Invoke-WebRequest -Uri $downloadBackupUrl -Method GET -Headers @{ Authorization = "Bearer $ADMIN_TOKEN" } -UseBasicParsing
 Write-Host "[OK] Descarga de backup exitosa: HTTP $($downloadBackupResp.StatusCode) - $($downloadBackupResp.RawContentLength) bytes" -ForegroundColor Green
 
 # Eliminar copia de seguridad de prueba

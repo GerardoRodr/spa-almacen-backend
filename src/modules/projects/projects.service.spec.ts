@@ -9,7 +9,6 @@ import {
   ProjectStatus,
   Role,
   WarehouseType,
-  TransferStatus,
   ItemType,
 } from '@prisma/client';
 import { ProjectsService } from './projects.service.js';

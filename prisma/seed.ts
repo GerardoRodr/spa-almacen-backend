@@ -43,7 +43,7 @@ async function main() {
         id: pilotProjectId,
         name: 'Proyecto Piloto Torre Central',
         budgetCode: 'S10-PILOTO-2026',
-        status: ProjectStatus.IN_PROGRESS,
+        status: ProjectStatus.ACTIVE,
       },
     });
     console.log(`Proyecto Piloto creado con id: ${pilotProject.id}`);
