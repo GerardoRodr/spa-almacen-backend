@@ -96,10 +96,8 @@ Write-Host "[OK] Almacen de Obra creado: $obraWhName (Id: $OBRA_WH_ID)" -Foregro
 
 # Asignar almacen de obra al almacenero
 Invoke-RestMethod -Uri "$BASE_URL/users/$($keeperLogin.user.id)/warehouses" -Method PUT -Headers @{ Authorization = "Bearer $ADMIN_TOKEN" } -ContentType "application/json" -Body (@{
-        warehouses = @(
-            @{ warehouseId = $CENTRAL_WH_ID; isDefault = $false },
-            @{ warehouseId = $OBRA_WH_ID; isDefault = $true }
-        )
+        warehouseIds       = @($CENTRAL_WH_ID, $OBRA_WH_ID)
+        defaultWarehouseId = $OBRA_WH_ID
     } | ConvertTo-Json) | Out-Null
 Write-Host "[OK] Almacenes asignados al almacenero de prueba" -ForegroundColor Green
 
@@ -160,10 +158,8 @@ $taxId = "20" + (Get-Random -Minimum 100000000 -Maximum 999999999)
 $supplier = Invoke-RestMethod -Uri "$BASE_URL/suppliers" -Method POST -Headers @{ Authorization = "Bearer $ADMIN_TOKEN" } -ContentType "application/json" -Body (@{
         taxId        = $taxId
         businessName = "CORPORACION LOGISTICA DEL CENTRO S.A.C."
-        tradeName    = "LOGISTICA CENTRO"
-        contactName  = "Jorge Valdivia"
-        phone        = "987654321"
-        email        = "contacto@logcentro.com"
+        contactPhone = "987654321"
+        contactEmail = "contacto@logcentro.com"
         address      = "Av. Materiales 450, Lima"
     } | ConvertTo-Json)
 $SUPPLIER_ID = $supplier.id
@@ -211,12 +207,12 @@ Write-Host "[OK] Compra registrada: $invoiceSeries (Id: $PURCHASE_ID)" -Foregrou
 
 # Verificar que el stock de Central y CPP se calcularon correctamente
 $centralStock = Invoke-RestMethod -Uri "$BASE_URL/warehouses/$CENTRAL_WH_ID/stock" -Method GET -Headers @{ Authorization = "Bearer $ADMIN_TOKEN" }
-$cemStock = $centralStock.data | Where-Object { $_.itemId -eq $ITEM_CONSUMABLE_ID }
+$cemStock = $centralStock | Where-Object { $_.itemId -eq $ITEM_CONSUMABLE_ID }
 Write-Host "[OK] Stock Central Cemento: Cantidad=$($cemStock.physicalQty), CPP=S/ $($cemStock.averageCost)" -ForegroundColor Green
 
 # Verificar enmascaramiento financiero para almacenero
 $keeperStockView = Invoke-RestMethod -Uri "$BASE_URL/warehouses/$CENTRAL_WH_ID/stock" -Method GET -Headers @{ Authorization = "Bearer $KEEPER_TOKEN"; "x-warehouse-id" = $CENTRAL_WH_ID }
-$keeperCemStock = $keeperStockView.data | Where-Object { $_.itemId -eq $ITEM_CONSUMABLE_ID }
+$keeperCemStock = $keeperStockView | Where-Object { $_.itemId -eq $ITEM_CONSUMABLE_ID }
 if ($null -eq $keeperCemStock.averageCost) {
     Write-Host "[OK] Data Masking confirmado: averageCost oculto para el rol Almacenero" -ForegroundColor Green
 }
@@ -242,7 +238,7 @@ $TRANSFER_ITEM_TOOL = ($dispatch.items | Where-Object { $_.itemId -eq $ITEM_TOOL
 Write-Host "[OK] Transferencia despachada: $($dispatch.transferNumber) en estado $($dispatch.status)" -ForegroundColor Green
 
 $inTransit = Invoke-RestMethod -Uri "$BASE_URL/transfers/in-transit?destWarehouseId=$OBRA_WH_ID" -Method GET -Headers @{ Authorization = "Bearer $ADMIN_TOKEN" }
-Write-Host "[OK] Transferencias en transito listadas: $($inTransit.Count)" -ForegroundColor Green
+Write-Host "[OK] Transferencias en transito listadas: $($inTransit.meta.total)" -ForegroundColor Green
 
 # Recepcion con discrepancia: 38 bolsas recibidas conformes, 2 bolsas de merma faltante
 $receive = Invoke-RestMethod -Uri "$BASE_URL/transfers/$TRANSFER_ID/receive" -Method POST -Headers @{ Authorization = "Bearer $KEEPER_TOKEN" } -ContentType "application/json" -Body (@{
@@ -257,7 +253,8 @@ Write-Host "[OK] Recepcion confirmada con discrepancia: Estado final $($receive.
 # 8. Movimientos y Kardex
 Write-Host "`n--- 8. Salidas de Consumo y Kardex ---" -ForegroundColor Yellow
 
-$PROJECT_ID = "c0000000-0000-0000-0000-000000000001"
+$existingProjects = Invoke-RestMethod -Uri "$BASE_URL/projects" -Method GET -Headers @{ Authorization = "Bearer $ADMIN_TOKEN" }
+$PROJECT_ID = ($existingProjects | Select-Object -First 1).id
 
 $consumption = Invoke-RestMethod -Uri "$BASE_URL/movements/consumption" -Method POST -Headers @{ Authorization = "Bearer $KEEPER_TOKEN"; "x-warehouse-id" = $OBRA_WH_ID } -ContentType "application/json" -Body (@{
         warehouseId   = $OBRA_WH_ID
@@ -303,7 +300,7 @@ $adjustment = Invoke-RestMethod -Uri "$BASE_URL/movements/adjustment" -Method PO
         warehouseId = $OBRA_WH_ID
         observation = "Conteo formal fin de mes"
         items       = @(
-            @{ itemId = $ITEM_CONSUMABLE_ID; direction = "INCREMENT"; quantity = 2.0 }
+            @{ itemId = $ITEM_CONSUMABLE_ID; direction = "INCREASE"; quantity = 2.0 }
         )
     } | ConvertTo-Json)
 Write-Host "[OK] Ajuste de inventario procesado: $($adjustment.movementNumber)" -ForegroundColor Green
