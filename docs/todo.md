@@ -15,7 +15,7 @@ Este documento representa la hoja de ruta integral y el estado de avance para el
 - [x] **Paso 6: Custodia, Prestamo y Devolucion de Herramientas**
 - [x] **Paso 7: Proyectos, Ingesta S10, Matriz de Brechas y Liquidacion de Obra**
 - [x] **Paso 8: Gestion de Archivos Seguros y Pipeline de Optimizacion Sharp**
-- [ ] **Paso 9: Mantenimiento, Backups Diarios y Hardening Final**
+- [x] **Paso 9: Mantenimiento, Backups Diarios y Hardening Final**
 
 ---
 

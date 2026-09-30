@@ -75,7 +75,153 @@ Consulta la relacion de guias y ordenes de traslado con filtros por estado, alma
 
 ---
 
-### 2.2 Registrar y Despachar Transferencia (Fase 1)
+### 2.2 Listar Transferencias en Transito Pendientes de Recepcion
+Permite a los almaceneros de caseta de obra listar rapidamente las cargas despachadas que estan en ruta (`IN_TRANSIT`) dirigidas a su instalacion para proceder con la descarga y verificacion fisica.
+
+- **Metodo:** `GET`
+- **Ruta:** `/api/v1/transfers/in-transit`
+- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+
+#### Parametros Query
+- `destWarehouseId` (UUID, opcional): Filtrar por caseta de obra destino. Si no se especifica y el usuario es `WAREHOUSE_KEEPER`, el backend filtra automaticamente sus almacenes autorizados.
+
+#### Respuestas
+**200 OK - Transferencias en transito:**
+```json
+{
+  "data": [
+    {
+      "id": "transf-uuid-1",
+      "transferNumber": "TR-2026-00001",
+      "status": "IN_TRANSIT",
+      "originWarehouseId": "22222222-2222-2222-2222-222222222222",
+      "destWarehouseId": "44444444-4444-4444-4444-444444444444",
+      "dispatchedAt": "2026-09-23T09:00:00.000Z",
+      "dispatchNotes": "Despacho en camioneta placa ABC-123",
+      "originWarehouse": {
+        "id": "22222222-2222-2222-2222-222222222222",
+        "name": "Almacen Central Lima",
+        "type": "CENTRAL"
+      },
+      "destWarehouse": {
+        "id": "44444444-4444-4444-4444-444444444444",
+        "name": "Almacen Obra San Isidro",
+        "type": "PROJECT_SITE"
+      },
+      "dispatchedBy": {
+        "id": "user-uuid-1",
+        "fullName": "Administrador Principal",
+        "email": "admin@spa.com"
+      },
+      "receivedBy": null,
+      "items": [
+        {
+          "id": "transf-item-uuid-1",
+          "itemId": "item-uuid-cemento",
+          "dispatchedQty": "100.0000",
+          "receivedQty": null,
+          "discrepancyQty": null,
+          "item": {
+            "id": "item-uuid-cemento",
+            "sku": "CEM-PORT-T1",
+            "name": "Cemento Portland Tipo I (Bolsa 42.5 kg)",
+            "baseUnit": "BOLSA",
+            "type": "CONSUMABLE"
+          }
+        }
+      ],
+      "_count": {
+        "items": 1,
+        "movements": 1,
+        "documents": 0
+      }
+    }
+  ],
+  "meta": {
+    "total": 1,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 1
+  }
+}
+```
+
+---
+
+### 2.3 Obtener Detalle de Transferencia
+Recupera los datos completos de la orden de transferencia, datos de almacenes, personal que intervino en despacho y recepcion, renglones detallados, movimientos generados y documentos adjuntos.
+
+- **Metodo:** `GET`
+- **Ruta:** `/api/v1/transfers/:id`
+- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+
+#### Parametros
+- `id` (URL Path): UUID de la transferencia.
+
+#### Respuestas
+**200 OK - Transferencia encontrada:**
+```json
+{
+  "id": "transf-uuid-1",
+  "transferNumber": "TR-2026-00001",
+  "status": "IN_TRANSIT",
+  "originWarehouseId": "22222222-2222-2222-2222-222222222222",
+  "destWarehouseId": "44444444-4444-4444-4444-444444444444",
+  "projectId": "77777777-7777-7777-7777-777777777777",
+  "dispatchedAt": "2026-09-23T09:30:00.000Z",
+  "receivedAt": null,
+  "dispatchNotes": "Despacho en camioneta placa ABC-123",
+  "receptionNotes": null,
+  "originWarehouse": {
+    "id": "22222222-2222-2222-2222-222222222222",
+    "name": "Almacen Central Lima",
+    "type": "CENTRAL"
+  },
+  "destWarehouse": {
+    "id": "44444444-4444-4444-4444-444444444444",
+    "name": "Almacen Obra San Isidro",
+    "type": "PROJECT_SITE"
+  },
+  "project": {
+    "id": "77777777-7777-7777-7777-777777777777",
+    "name": "Residencial Las Palmeras - San Isidro",
+    "budgetCode": "S10-OBRA-2026-01"
+  },
+  "dispatchedBy": {
+    "id": "user-uuid-1",
+    "fullName": "Administrador Principal",
+    "email": "admin@spa.com"
+  },
+  "receivedBy": null,
+  "items": [
+    {
+      "id": "transf-item-uuid-1",
+      "transferId": "transf-uuid-1",
+      "itemId": "item-uuid-cemento",
+      "dispatchedQty": "100.0000",
+      "receivedQty": null,
+      "discrepancyQty": null,
+      "item": {
+        "id": "item-uuid-cemento",
+        "sku": "CEM-PORT-T1",
+        "name": "Cemento Portland Tipo I (Bolsa 42.5 kg)",
+        "baseUnit": "BOLSA",
+        "type": "CONSUMABLE"
+      }
+    }
+  ],
+  "movements": [],
+  "documents": []
+}
+```
+
+---
+
+### 2.4 Registrar y Despachar Transferencia (Fase 1)
 Inicia el traslado de materiales desde un almacen de origen hacia una caseta de obra. Decrementa inmediatamente el inventario fisico del origen y crea el movimiento `TRANSFER_DISPATCH`.
 
 - **Metodo:** `POST`
@@ -147,18 +293,7 @@ Inicia el traslado de materiales desde un almacen de origen hacia una caseta de 
 
 ---
 
-### 2.3 Obtener Detalle de Transferencia
-Recupera los datos completos de la orden de transferencia, renglones, cantidades despachadas vs recibidas y notas de recepcion.
-
-- **Metodo:** `GET`
-- **Ruta:** `/api/v1/transfers/:id`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado)
-- **Cabeceras:**
-  - `Authorization: Bearer <accessToken>`
-
----
-
-### 2.4 Confirmar Recepcion e Inspeccion en Obra (Fase 2)
+### 2.5 Confirmar Recepcion e Inspeccion en Obra (Fase 2)
 El almacenero receptor sella la entrada de los materiales en la caseta de obra, ingresando las cantidades fisicamente verificadas.
 
 - **Metodo:** `POST`

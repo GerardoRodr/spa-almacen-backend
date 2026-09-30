@@ -17,7 +17,7 @@ Este modulo gestiona el registro de proveedores comerciales (con RUC tributario 
 ## 2. Endpoints de Proveedores (`/api/v1/suppliers`)
 
 ### 2.1 Listar Proveedores
-Retorna la relacion de proveedores comerciales registrados con conteo de facturas emitidas.
+Retorna la relacion de proveedores comerciales registrados con conteo de facturas emitidas y paginacion.
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/suppliers`
@@ -25,28 +25,44 @@ Retorna la relacion de proveedores comerciales registrados con conteo de factura
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
+#### Parametros Query (`SupplierFilterDto`)
+| Parametro | Tipo | Por Defecto | Descripcion |
+|---|---|---|---|
+| `page` | integer | `1` | Numero de pagina. |
+| `limit` | integer | `20` | Cantidad de registros por pagina. |
+| `search` | string | opcional | Termino de busqueda por RUC o razon social. |
+
 #### Respuestas
 **200 OK - Listado obtenido:**
 ```json
-[
-  {
-    "id": "sup-uuid-aceros-arequipa",
-    "taxId": "20100138112",
-    "businessName": "CORPORACION ACEROS AREQUIPA S.A.",
-    "contactPhone": "+51 1 5171800",
-    "contactEmail": "ventas@acerosarequipa.com",
-    "address": "Av. Enrique Meiggs 297, Callao",
-    "_count": {
-      "purchases": 8
+{
+  "data": [
+    {
+      "id": "sup-uuid-aceros-arequipa",
+      "taxId": "20100138112",
+      "businessName": "CORPORACION ACEROS AREQUIPA S.A.",
+      "contactPhone": "+51 1 5171800",
+      "contactEmail": "ventas@acerosarequipa.com",
+      "address": "Av. Enrique Meiggs 297, Callao",
+      "createdAt": "2026-09-20T22:55:00.000Z",
+      "_count": {
+        "purchases": 8
+      }
     }
+  ],
+  "meta": {
+    "total": 1,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 1
   }
-]
+}
 ```
 
 ---
 
 ### 2.2 Registrar Nuevo Proveedor
-Registra una persona juridica o natural proveedora validando unicidad de RUC (11 digitos).
+Registra una persona juridica o natural proveedora validando unicidad de RUC (11 digitos numericos).
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/suppliers`
@@ -55,7 +71,16 @@ Registra una persona juridica o natural proveedora validando unicidad de RUC (11
   - `Authorization: Bearer <accessToken_admin>`
   - `Content-Type: application/json`
 
-#### Request Body
+#### Request Body (`CreateSupplierDto`)
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `taxId` | string (11 digitos) | Si | Numero de RUC del proveedor. |
+| `businessName` | string | Si | Razon social o nombre comercial. |
+| `contactPhone` | string | No | Telefono de contacto. |
+| `contactEmail` | string (email) | No | Correo electronico. |
+| `address` | string | No | Direccion fiscal. |
+
+**Ejemplo de Peticion:**
 ```json
 {
   "taxId": "20100138112",
@@ -76,7 +101,8 @@ Registra una persona juridica o natural proveedora validando unicidad de RUC (11
   "contactPhone": "+51 1 5171800",
   "contactEmail": "ventas@acerosarequipa.com",
   "address": "Av. Enrique Meiggs 297, Callao",
-  "createdAt": "2026-09-23T12:20:00.000Z"
+  "createdAt": "2026-09-23T12:20:00.000Z",
+  "updatedAt": "2026-09-23T12:20:00.000Z"
 }
 ```
 
@@ -92,16 +118,82 @@ Registra una persona juridica o natural proveedora validando unicidad de RUC (11
 ---
 
 ### 2.3 Obtener Detalle de Proveedor por ID
+Consulta la ficha del proveedor junto con sus ultimas 10 compras registradas y el conteo historico.
+
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/suppliers/:id`
 - **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+
+#### Parametros
+- `id` (URL Path): UUID del proveedor.
+
+#### Respuestas
+**200 OK - Proveedor encontrado:**
+```json
+{
+  "id": "sup-uuid-aceros-arequipa",
+  "taxId": "20100138112",
+  "businessName": "CORPORACION ACEROS AREQUIPA S.A.",
+  "contactPhone": "+51 1 5171800",
+  "contactEmail": "ventas@acerosarequipa.com",
+  "address": "Av. Enrique Meiggs 297, Callao",
+  "createdAt": "2026-09-20T22:55:00.000Z",
+  "updatedAt": "2026-09-20T22:55:00.000Z",
+  "purchases": [
+    {
+      "id": "purch-uuid-1",
+      "invoiceSeries": "F001-0004523",
+      "currency": "PEN",
+      "issueDate": "2026-09-22T00:00:00.000Z",
+      "subtotalPEN": "28500.00",
+      "totalAmountPEN": "33630.00"
+    }
+  ],
+  "_count": {
+    "purchases": 1
+  }
+}
+```
 
 ---
 
 ### 2.4 Actualizar Proveedor
+Modifica los datos generales de un proveedor comercial.
+
 - **Metodo:** `PUT`
 - **Ruta:** `/api/v1/suppliers/:id`
 - **Acceso:** Protegido (`ADMIN`)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken_admin>`
+  - `Content-Type: application/json`
+
+#### Parametros
+- `id` (URL Path): UUID del proveedor.
+
+#### Request Body (`UpdateSupplierDto`)
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `taxId` | string (11 digitos) | No | RUC del proveedor. |
+| `businessName` | string | No | Razon social. |
+| `contactPhone` | string | No | Telefono de contacto. |
+| `contactEmail` | string (email) | No | Correo electronico. |
+| `address` | string | No | Direccion fiscal. |
+
+#### Respuestas
+**200 OK - Actualizado correctamente:**
+```json
+{
+  "id": "sup-uuid-aceros-arequipa",
+  "taxId": "20100138112",
+  "businessName": "CORPORACION ACEROS AREQUIPA S.A.",
+  "contactPhone": "+51 1 5171800",
+  "contactEmail": "ventas@acerosarequipa.com",
+  "address": "Av. Enrique Meiggs 297, Callao",
+  "updatedAt": "2026-09-23T12:22:00.000Z"
+}
+```
 
 ---
 
@@ -229,16 +321,23 @@ Registra la factura de compra, ingresa la mercaderia al Almacen Central, recalcu
 {
   "id": "purch-uuid-1",
   "invoiceSeries": "F001-0004523",
-  "movementNumber": "MOV-2026-00001",
+  "currency": "PEN",
+  "exchangeRate": "1.0000",
+  "issueDate": "2026-09-22T10:00:00.000Z",
   "subtotalPEN": "28500.00",
+  "igvAmountPEN": "5130.00",
   "totalAmountPEN": "33630.00",
+  "movementId": "movement-uuid-1",
+  "movementNumber": "MOV-2026-00001",
   "details": [
     {
+      "id": "detail-uuid-1",
       "itemId": "item-uuid-cemento",
-      "purchaseQty": "1000.0000",
-      "baseQty": "1000.0000",
-      "unitCostBasePEN": "28.5000",
-      "newWarehouseAverageCost": "28.0000"
+      "purchaseQty": 1000,
+      "baseQty": 1000,
+      "unitCostBasePEN": 28.5,
+      "newWarehouseAverageCost": 28,
+      "newWarehousePhysicalQty": 1500
     }
   ]
 }
@@ -247,9 +346,61 @@ Registra la factura de compra, ingresa la mercaderia al Almacen Central, recalcu
 ---
 
 ### 3.3 Obtener Detalle de Compra
+Obtiene la informacion completa de la factura, proveedor emisor, renglones comprados con sus items y documentos adjuntos.
+
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/purchases/:id`
 - **Acceso:** Protegido (`ADMIN`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
-- **Respuesta:** Objeto completo de compra con proveedor, renglones detallados y documentos adjuntos.
+
+#### Parametros
+- `id` (URL Path): UUID de la compra.
+
+#### Respuestas
+**200 OK - Compra encontrada:**
+```json
+{
+  "id": "purch-uuid-1",
+  "supplierId": "sup-uuid-aceros-arequipa",
+  "centralWarehouseId": "22222222-2222-2222-2222-222222222222",
+  "invoiceSeries": "F001-0004523",
+  "currency": "PEN",
+  "exchangeRate": "1.0000",
+  "issueDate": "2026-09-22T10:00:00.000Z",
+  "subtotalPEN": "28500.00",
+  "igvAmountPEN": "5130.00",
+  "totalAmountPEN": "33630.00",
+  "createdAt": "2026-09-22T10:05:00.000Z",
+  "supplier": {
+    "id": "sup-uuid-aceros-arequipa",
+    "taxId": "20100138112",
+    "businessName": "CORPORACION ACEROS AREQUIPA S.A.",
+    "contactPhone": "+51 1 5171800",
+    "contactEmail": "ventas@acerosarequipa.com",
+    "address": "Av. Enrique Meiggs 297, Callao"
+  },
+  "details": [
+    {
+      "id": "detail-uuid-1",
+      "purchaseId": "purch-uuid-1",
+      "itemId": "item-uuid-cemento",
+      "purchaseUnit": "BOLSA",
+      "conversionFactor": "1.0000",
+      "purchaseQty": "1000.0000",
+      "baseQty": "1000.0000",
+      "unitPriceOriginal": "28.5000",
+      "unitCostBasePEN": "28.5000",
+      "subtotalPEN": "28500.00",
+      "item": {
+        "id": "item-uuid-cemento",
+        "sku": "CEM-PORT-T1",
+        "name": "Cemento Portland Tipo I (Bolsa 42.5 kg)",
+        "baseUnit": "BOLSA",
+        "type": "CONSUMABLE"
+      }
+    }
+  ],
+  "documents": []
+}
+```

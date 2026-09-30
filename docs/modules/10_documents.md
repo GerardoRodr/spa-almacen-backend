@@ -74,11 +74,60 @@ curl -X POST "http://localhost:3000/api/v1/documents/upload" \
 
 ---
 
-### 2.2 Descargar o Visualizar Documento
-Descarga o transmite en flujo binario el documento solicitado. Verifica permisos de confidencialidad antes de emitir los bytes.
+### 2.2 Listar Documentos Registrados
+Consulta el listado de documentos y evidencias adjuntas con filtros por entidad foranea y paginacion. Si el usuario tiene rol `WAREHOUSE_KEEPER`, el backend filtra de forma transparente los documentos marcados como confidenciales (`isConfidential = false`).
 
 - **Metodo:** `GET`
-- **Ruta:** `/api/v1/documents/:id` (alias `/api/v1/documents/:id/download`)
+- **Ruta:** `/api/v1/documents`
+- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+
+#### Parametros Query (`DocumentFilterDto`)
+| Parametro | Tipo | Por Defecto | Descripcion |
+|---|---|---|---|
+| `purchaseId` | UUID | opcional | Filtrar por factura de compra vinculada. |
+| `transferId` | UUID | opcional | Filtrar por guia de traslado vinculada. |
+| `movementId` | UUID | opcional | Filtrar por salida de consumo o merma. |
+| `custodyId` | UUID | opcional | Filtrar por vale de custodia o acta de dano. |
+| `page` | integer | `1` | Numero de pagina. |
+| `limit` | integer | `20` | Cantidad de registros por pagina. |
+
+#### Respuestas
+**200 OK - Listado obtenido:**
+```json
+{
+  "data": [
+    {
+      "id": "doc-uuid-1",
+      "originalName": "guia_remision_obra.jpg",
+      "storedPath": "uploads/transfers/2026/09/transf-uuid-1-1784745600.webp",
+      "mimeType": "image/webp",
+      "fileSizeBytes": 184200,
+      "isConfidential": false,
+      "purchaseId": null,
+      "transferId": "transf-uuid-1",
+      "movementId": null,
+      "custodyId": null,
+      "createdAt": "2026-09-23T12:30:00.000Z"
+    }
+  ],
+  "meta": {
+    "total": 1,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 1
+  }
+}
+```
+
+---
+
+### 2.3 Descargar Archivo Binario
+Descarga o transmite en flujo binario protegido el documento solicitado. Verifica permisos de confidencialidad antes de emitir los bytes.
+
+- **Metodo:** `GET`
+- **Ruta:** `/api/v1/documents/:id/download` (o `GET /api/v1/documents/:id` sin cabecera JSON)
 - **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` autorizado)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
@@ -90,7 +139,8 @@ Descarga o transmite en flujo binario el documento solicitado. Verifica permisos
 **200 OK - Flujo binario retornado:**
 - Cabeceras retornadas:
   - `Content-Type: image/webp` (o `application/pdf`)
-  - `Content-Disposition: inline; filename="guia_remision_obra.webp"`
+  - `Content-Disposition: inline; filename="guia_remision_obra.jpg"`
+  - `Content-Length: 184200`
 
 **403 Forbidden - Intento de acceso a documento confidencial por almacenero:**
 ```json
@@ -103,7 +153,37 @@ Descarga o transmite en flujo binario el documento solicitado. Verifica permisos
 
 ---
 
-### 2.3 Eliminar Documento Adjunto
+### 2.4 Consultar Metadatos del Documento
+Obtiene la ficha JSON de metadatos de un archivo adjunto sin transmitir el flujo binario.
+
+- **Metodo:** `GET`
+- **Ruta:** `/api/v1/documents/:id`
+- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` autorizado)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+  - `Accept: application/json`
+
+#### Respuestas
+**200 OK - Metadatos JSON:**
+```json
+{
+  "id": "doc-uuid-1",
+  "originalName": "guia_remision_obra.jpg",
+  "storedPath": "uploads/transfers/2026/09/transf-uuid-1-1784745600.webp",
+  "mimeType": "image/webp",
+  "fileSizeBytes": 184200,
+  "isConfidential": false,
+  "purchaseId": null,
+  "transferId": "transf-uuid-1",
+  "movementId": null,
+  "custodyId": null,
+  "createdAt": "2026-09-23T12:30:00.000Z"
+}
+```
+
+---
+
+### 2.5 Eliminar Documento Adjunto
 Elimina el registro de la base de datos y borra el archivo fisico del almacenamiento en disco.
 
 - **Metodo:** `DELETE`
@@ -111,6 +191,9 @@ Elimina el registro de la base de datos y borra el archivo fisico del almacenami
 - **Acceso:** Protegido (`ADMIN`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
+
+#### Parametros
+- `id` (URL Path): UUID del documento.
 
 #### Respuestas
 **200 OK - Documento eliminado:**

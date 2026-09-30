@@ -47,13 +47,13 @@ Valida las credenciales del usuario y retorna los tokens de sesion junto con el 
     "email": "admin@almacen.com",
     "fullName": "Administrador Principal",
     "role": "ADMIN",
-    "defaultWarehouseId": "22222222-2222-2222-2222-222222222222",
-    "warehouses": [
+    "assignedWarehouses": [
       {
-        "id": "22222222-2222-2222-2222-222222222222",
+        "warehouseId": "22222222-2222-2222-2222-222222222222",
+        "isDefault": true,
         "name": "Almacen Central Lima",
         "type": "CENTRAL",
-        "isDefault": true
+        "isTemporary": false
       }
     ]
   }
@@ -145,13 +145,20 @@ No requiere parametros en URL ni cuerpo de peticion.
   "fullName": "Carlos Almacenero",
   "role": "WAREHOUSE_KEEPER",
   "isActive": true,
-  "defaultWarehouseId": "44444444-4444-4444-4444-444444444444",
-  "warehouses": [
+  "createdAt": "2026-09-30T10:00:00.000Z",
+  "updatedAt": "2026-09-30T10:00:00.000Z",
+  "assignedWarehouses": [
     {
-      "id": "44444444-4444-4444-4444-444444444444",
-      "name": "Almacen Obra San Isidro",
-      "type": "PROJECT_SITE",
-      "isDefault": true
+      "id": "55555555-5555-5555-5555-555555555555",
+      "warehouseId": "44444444-4444-4444-4444-444444444444",
+      "isDefault": true,
+      "warehouse": {
+        "id": "44444444-4444-4444-4444-444444444444",
+        "name": "Almacen Obra San Isidro",
+        "type": "PROJECT_SITE",
+        "isTemporary": true,
+        "isActive": true
+      }
     }
   ]
 }

@@ -146,12 +146,18 @@ Obtiene la ficha del item junto con el desglose de existencias por almacen, calc
   "id": "item-uuid-rotomartillo",
   "sku": "HERR-TALADRO-ROTO",
   "name": "Rotomartillo SDS-Plus 800W",
+  "description": "Equipo para perforacion en concreto con maletin y accesorios",
   "baseUnit": "UND",
   "type": "ASSET_TOOL",
   "minStockAlert": "3.0000",
-  "totalPhysicalQty": 12,
-  "totalReservedQty": 2,
-  "totalLoanedQty": 4,
+  "createdAt": "2026-09-23T12:15:00.000Z",
+  "updatedAt": "2026-09-23T12:15:00.000Z",
+  "totals": {
+    "totalPhysicalQty": 12,
+    "totalReservedQty": 2,
+    "totalLoanedQty": 4,
+    "netAvailableCentralQty": 6
+  },
   "stocks": [
     {
       "id": "stock-uuid-1",
@@ -163,7 +169,8 @@ Obtiene la ficha del item junto con el desglose de existencias por almacen, calc
       "warehouse": {
         "id": "22222222-2222-2222-2222-222222222222",
         "name": "Almacen Central Lima",
-        "type": "CENTRAL"
+        "type": "CENTRAL",
+        "isActive": true
       }
     },
     {
@@ -176,7 +183,8 @@ Obtiene la ficha del item junto con el desglose de existencias por almacen, calc
       "warehouse": {
         "id": "44444444-4444-4444-4444-444444444444",
         "name": "Almacen Obra San Isidro",
-        "type": "PROJECT_SITE"
+        "type": "PROJECT_SITE",
+        "isActive": true
       }
     }
   ],
@@ -190,12 +198,18 @@ Obtiene la ficha del item junto con el desglose de existencias por almacen, calc
   "id": "item-uuid-rotomartillo",
   "sku": "HERR-TALADRO-ROTO",
   "name": "Rotomartillo SDS-Plus 800W",
+  "description": "Equipo para perforacion en concreto con maletin y accesorios",
   "baseUnit": "UND",
   "type": "ASSET_TOOL",
   "minStockAlert": "3.0000",
-  "totalPhysicalQty": 12,
-  "totalReservedQty": 2,
-  "totalLoanedQty": 4,
+  "createdAt": "2026-09-23T12:15:00.000Z",
+  "updatedAt": "2026-09-23T12:15:00.000Z",
+  "totals": {
+    "totalPhysicalQty": 12,
+    "totalReservedQty": 2,
+    "totalLoanedQty": 4,
+    "netAvailableCentralQty": 6
+  },
   "stocks": [
     {
       "id": "stock-uuid-1",
@@ -206,7 +220,8 @@ Obtiene la ficha del item junto con el desglose de existencias por almacen, calc
       "warehouse": {
         "id": "22222222-2222-2222-2222-222222222222",
         "name": "Almacen Central Lima",
-        "type": "CENTRAL"
+        "type": "CENTRAL",
+        "isActive": true
       }
     },
     {
@@ -218,7 +233,8 @@ Obtiene la ficha del item junto con el desglose de existencias por almacen, calc
       "warehouse": {
         "id": "44444444-4444-4444-4444-444444444444",
         "name": "Almacen Obra San Isidro",
-        "type": "PROJECT_SITE"
+        "type": "PROJECT_SITE",
+        "isActive": true
       }
     }
   ],
@@ -244,7 +260,6 @@ Modifica datos descriptivos, unidad base o limite de alerta de un SKU maestro.
 #### Request Body (`UpdateItemDto`)
 | Campo | Tipo | Obligatorio | Descripcion |
 |---|---|---|---|
-| `sku` | string | No | Nuevo codigo SKU. |
 | `name` | string | No | Nombre del item. |
 | `description` | string | No | Descripcion tecnica. |
 | `baseUnit` | string | No | Unidad base. |
@@ -265,7 +280,11 @@ Modifica datos descriptivos, unidad base o limite de alerta de un SKU maestro.
   "id": "item-uuid-rotomartillo",
   "sku": "HERR-TALADRO-ROTO",
   "name": "Rotomartillo SDS-Plus 800W",
+  "description": "Equipo para perforacion en concreto con maletin y accesorios",
+  "baseUnit": "UND",
+  "type": "ASSET_TOOL",
   "minStockAlert": "5.0000",
+  "createdAt": "2026-09-23T12:15:00.000Z",
   "updatedAt": "2026-09-23T12:18:00.000Z"
 }
 ```
@@ -343,9 +362,7 @@ Elimina un mapeo de equivalencia de S10 existente sin alterar el registro maestr
 **200 OK - Alias eliminado:**
 ```json
 {
-  "id": "alias-uuid-cemento-1",
-  "itemId": "item-uuid-cemento",
-  "s10RawName": "CEMENTO PORTLAND TIPO I EN BOLSA DE 42.5 KG"
+  "message": "Alias eliminado exitosamente"
 }
 ```
 

@@ -33,7 +33,7 @@ Verifica la disponibilidad de la base de datos PostgreSQL, espacio de almacenami
     "storage": {
       "status": "up"
     },
-    "memory_heap": {
+    "memory": {
       "status": "up"
     }
   },
@@ -45,7 +45,7 @@ Verifica la disponibilidad de la base de datos PostgreSQL, espacio de almacenami
     "storage": {
       "status": "up"
     },
-    "memory_heap": {
+    "memory": {
       "status": "up"
     }
   }
@@ -55,10 +55,10 @@ Verifica la disponibilidad de la base de datos PostgreSQL, espacio de almacenami
 ---
 
 ### 2.2 Disparar Respaldo Manual de Base de Datos
-Ejecuta la orden de extraccion `pg_dump` sobre la base de datos `almacen_erp` en el contenedor `almacen-postgres` y almacena el archivo comprimido `.dump` en la ruta segura de copias de seguridad.
+Ejecuta la orden de extraccion `pg_dump` sobre la base de datos `almacen_erp` en el contenedor `almacen-postgres` (o vuelco de emergencia) y almacena el archivo comprimido `.dump` en la ruta segura de copias de seguridad.
 
 - **Metodo:** `POST`
-- **Ruta:** `/api/v1/admin/backups`
+- **Ruta:** `/api/v1/admin/backups` (alias `/api/v1/admin/backups/generate`)
 - **Acceso:** Protegido (`ADMIN`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
@@ -78,7 +78,7 @@ Ejecuta la orden de extraccion `pg_dump` sobre la base de datos `almacen_erp` en
 ---
 
 ### 2.3 Listar Copias de Seguridad Disponibles
-Retorna el historial de archivos de backup existentes en el servidor con su peso y fecha de creacion.
+Retorna el historial de archivos de backup existentes en el servidor ordenados por fecha descendente con su tamano en bytes y fecha de creacion.
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/admin/backups`
@@ -109,7 +109,7 @@ Retorna el historial de archivos de backup existentes en el servidor con su peso
 Descarga el archivo `.dump` binario para custodia off-site.
 
 - **Metodo:** `GET`
-- **Ruta:** `/api/v1/admin/backups/:fileName`
+- **Ruta:** `/api/v1/admin/backups/:fileName` (alias `/api/v1/admin/backups/:fileName/download`)
 - **Acceso:** Protegido (`ADMIN`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
@@ -117,17 +117,47 @@ Descarga el archivo `.dump` binario para custodia off-site.
 #### Parametros
 - `fileName` (URL Path): Nombre del archivo (ej. `almacen_erp_20260923_123500.dump`).
 
+#### Respuestas
+**200 OK - Flujo binario retornado:**
+- Cabeceras retornadas:
+  - `Content-Type: application/octet-stream`
+  - `Content-Disposition: attachment; filename="almacen_erp_20260923_123500.dump"`
+  - `Content-Length: 2845920`
+
 ---
 
-### 2.5 Respaldo Programado (Cron) y Politica de Retencion
-El servicio incluye un cron job programado a las 02:00 UTC diario:
+### 2.5 Eliminar Copia de Seguridad
+Elimina un archivo de respaldo especifico del disco del servidor.
+
+- **Metodo:** `DELETE`
+- **Ruta:** `/api/v1/admin/backups/:fileName`
+- **Acceso:** Protegido (`ADMIN`)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken_admin>`
+
+#### Parametros
+- `fileName` (URL Path): Nombre del archivo a eliminar.
+
+#### Respuestas
+**200 OK - Copia eliminada:**
+```json
+{
+  "fileName": "almacen_erp_20260923_123500.dump",
+  "deleted": true
+}
+```
+
+---
+
+### 2.6 Respaldo Programado (Cron) y Politica de Retencion
+El servicio incluye un cron job programado a las 02:00 UTC diario (`0 2 * * *`):
 - Ejecuta el respaldo automatico comprimido con marca de tiempo.
 - Aplica purga de archivos antiguos: elimina de forma automatica copias de seguridad con mas de 7 dias de antiguedad para preservar espacio en disco.
 - Emite logs estructurados de auditoria del proceso de respaldo.
 
 ---
 
-### 2.6 Suite de Pruebas E2E y Resiliencia
+### 2.7 Suite de Pruebas E2E y Resiliencia
 Para garantizar la estabilidad previa a produccion, el modulo integra:
 - Pruebas E2E sobre flujos criticos de negocio (ciclo de compra con CPP, transferencias operativas en dos fases con mermas, custodia de herramientas con devolucion, salidas por consumo e ingesta S10).
 - Verificacion de conexion a PostgreSQL y resiliencia ante reconexiones.

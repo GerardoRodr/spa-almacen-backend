@@ -201,9 +201,8 @@ Permite modificar datos personales, rol o estado activo/inactivo de una cuenta.
 #### Request Body (`UpdateUserDto`)
 | Campo | Tipo | Obligatorio | Descripcion |
 |---|---|---|---|
-| `email` | string | No | Nuevo correo electronico. |
-| `password` | string | No | Nueva contrasena (minimo 6 caracteres). |
 | `fullName` | string | No | Nombres y apellidos actualizados. |
+| `password` | string | No | Nueva contrasena si se desea cambiar (minimo 6 caracteres). |
 | `role` | `ADMIN` \| `WAREHOUSE_KEEPER` | No | Nuevo rol asignado. |
 | `isActive` | boolean | No | Desactivar o reactivar acceso. |
 
@@ -224,7 +223,22 @@ Permite modificar datos personales, rol o estado activo/inactivo de una cuenta.
   "fullName": "Carlos Almacenero Martinez",
   "role": "WAREHOUSE_KEEPER",
   "isActive": true,
-  "updatedAt": "2026-09-23T12:05:00.000Z"
+  "createdAt": "2026-09-21T08:30:00.000Z",
+  "updatedAt": "2026-09-23T12:05:00.000Z",
+  "assignedWarehouses": [
+    {
+      "id": "66666666-6666-6666-6666-666666666666",
+      "warehouseId": "44444444-4444-4444-4444-444444444444",
+      "isDefault": true,
+      "warehouse": {
+        "id": "44444444-4444-4444-4444-444444444444",
+        "name": "Almacen Obra San Isidro",
+        "type": "PROJECT_SITE",
+        "isTemporary": true,
+        "isActive": true
+      }
+    }
+  ]
 }
 ```
 

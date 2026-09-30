@@ -166,7 +166,8 @@ Registra el retorno de la herramienta a la caseta de obra y asienta su calificac
   "returnDate": "2026-09-23T16:45:00.000Z",
   "conditionOnReturn": "OPERATIVE",
   "returnNotes": "Devuelto completo en orden y limpio",
-  "movementNumber": "MOV-2026-00007"
+  "movementNumber": "MOV-2026-00007",
+  "action": "CONFORMING_RETURN"
 }
 ```
 
@@ -192,13 +193,80 @@ Permite consultar todas las herramientas que actualmente tiene en su poder un op
   "pendingCount": 1,
   "loans": [
     {
+      "id": "vale-uuid-1",
       "custodyNumber": "VALE-2026-00001",
-      "itemName": "Rotomartillo SDS-Plus 800W",
+      "quantity": "1.0000",
       "serialOrCode": "ROTO-BOSCH-004",
-      "quantity": 1,
+      "assignedToName": "Pedro Quispe Ramirez",
       "dispatchDate": "2026-09-23T08:00:00.000Z",
-      "expectedReturnDate": "2026-09-23T17:00:00.000Z"
+      "expectedReturnDate": "2026-09-23T17:00:00.000Z",
+      "conditionOnDispatch": "OPERATIVE",
+      "item": {
+        "id": "item-uuid-rotomartillo",
+        "sku": "HERR-TALADRO-ROTO",
+        "name": "Rotomartillo SDS-Plus 800W",
+        "baseUnit": "UND"
+      },
+      "warehouse": {
+        "id": "44444444-4444-4444-4444-444444444444",
+        "name": "Almacen Obra San Isidro"
+      }
     }
   ]
+}
+```
+
+---
+
+### 2.5 Obtener Detalle de un Vale de Custodia
+Consulta la ficha completa de un vale de prestamo por su identificador.
+
+- **Metodo:** `GET`
+- **Ruta:** `/api/v1/tools/custody/:id`
+- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+
+#### Parametros
+- `id` (URL Path): UUID del vale de custodia.
+
+#### Respuestas
+**200 OK - Vale encontrado:**
+```json
+{
+  "id": "vale-uuid-1",
+  "custodyNumber": "VALE-2026-00001",
+  "warehouseId": "44444444-4444-4444-4444-444444444444",
+  "itemId": "item-uuid-rotomartillo",
+  "quantity": "1.0000",
+  "serialOrCode": "ROTO-BOSCH-004",
+  "assignedToName": "Pedro Quispe Ramirez",
+  "assignedToDni": "70123456",
+  "dispatchDate": "2026-09-23T08:00:00.000Z",
+  "expectedReturnDate": "2026-09-23T17:00:00.000Z",
+  "returnDate": null,
+  "conditionOnDispatch": "OPERATIVE",
+  "conditionOnReturn": null,
+  "notes": "Entregado con maletin de transporte y 2 brocas para concreto",
+  "returnNotes": null,
+  "item": {
+    "id": "item-uuid-rotomartillo",
+    "sku": "HERR-TALADRO-ROTO",
+    "name": "Rotomartillo SDS-Plus 800W",
+    "baseUnit": "UND",
+    "type": "ASSET_TOOL"
+  },
+  "warehouse": {
+    "id": "44444444-4444-4444-4444-444444444444",
+    "name": "Almacen Obra San Isidro",
+    "type": "PROJECT_SITE"
+  },
+  "dispatchedBy": {
+    "id": "user-uuid-1",
+    "fullName": "Juan Perez",
+    "email": "juan.perez@spa.com"
+  },
+  "receivedBy": null,
+  "documents": []
 }
 ```

@@ -176,10 +176,8 @@ Modifica nombre, estado o proyecto vinculado de una instalacion.
 | Campo | Tipo | Obligatorio | Descripcion |
 |---|---|---|---|
 | `name` | string | No | Nuevo nombre del almacen. |
-| `type` | `CENTRAL` \| `PROJECT_SITE` | No | Tipo de almacen. |
 | `isTemporary` | boolean | No | Es caseta temporal de obra. |
 | `isActive` | boolean | No | Habilitado o deshabilitado. |
-| `projectId` | string (UUID) | No | Identificador del proyecto civil. |
 
 **Ejemplo de Peticion:**
 ```json
@@ -291,19 +289,25 @@ Determina y lista de manera reactiva todos los insumos cuyo stock fisico (`physi
 ```json
 [
   {
+    "stockId": "stock-uuid-1",
+    "warehouseId": "44444444-4444-4444-4444-444444444444",
     "itemId": "item-uuid-cemento",
     "sku": "CEM-PORT-T1",
     "name": "Cemento Portland Tipo I (Bolsa 42.5 kg)",
     "baseUnit": "BOLSA",
+    "type": "CONSUMABLE",
     "physicalQty": 15,
     "minStockAlert": 50,
     "deficitQty": 35
   },
   {
+    "stockId": "stock-uuid-2",
+    "warehouseId": "44444444-4444-4444-4444-444444444444",
     "itemId": "item-uuid-disco",
     "sku": "HERR-DISC-07",
     "name": "Disco de Corte Diamantado 7 pulg",
     "baseUnit": "UND",
+    "type": "ASSET_TOOL",
     "physicalQty": 2,
     "minStockAlert": 10,
     "deficitQty": 8
