@@ -116,3 +116,18 @@ Descarga el archivo `.dump` binario para custodia off-site.
 
 #### Parametros
 - `fileName` (URL Path): Nombre del archivo (ej. `almacen_erp_20260923_123500.dump`).
+
+---
+
+### 2.5 Respaldo Programado (Cron) y Politica de Retencion
+El servicio incluye un cron job programado a las 02:00 UTC diario:
+- Ejecuta el respaldo automatico comprimido con marca de tiempo.
+- Aplica purga de archivos antiguos: elimina de forma automatica copias de seguridad con mas de 7 dias de antiguedad para preservar espacio en disco.
+- Emite logs estructurados de auditoria del proceso de respaldo.
+
+---
+
+### 2.6 Suite de Pruebas E2E y Resiliencia
+Para garantizar la estabilidad previa a produccion, el modulo integra:
+- Pruebas E2E sobre flujos criticos de negocio (ciclo de compra con CPP, transferencias operativas en dos fases con mermas, custodia de herramientas con devolucion, salidas por consumo e ingesta S10).
+- Verificacion de conexion a PostgreSQL y resiliencia ante reconexiones.

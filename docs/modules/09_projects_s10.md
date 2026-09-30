@@ -163,21 +163,21 @@ Calcula el estado del abastecimiento del proyecto comparando:
 ---
 
 ### 2.5 Reservar Insumos en Almacen Central para el Proyecto
-Incrementa `allocatedQty` en el proyecto y `Stock.reservedQty` en el Almacen Central tras validar que existe stock fisico disponible no comprometido.
+Incrementa `allocatedQty` en el requerimiento del proyecto y `Stock.reservedQty` en el Almacen Central tras validar que existe stock fisico disponible no comprometido (`physicalQty - reservedQty >= Q`).
 
 - **Metodo:** `POST`
-- **Ruta:** `/api/v1/projects/:id/reserve`
+- **Ruta:** `/api/v1/projects/:id/allocate-stock` (alias `/api/v1/projects/:id/reserve`)
 - **Acceso:** Protegido (`ADMIN`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
   - `Content-Type: application/json`
 
-#### Request Body (`ReserveProjectRequirementDto`)
+#### Request Body (`AllocateStockDto`)
 ```json
 {
   "centralWarehouseId": "22222222-2222-2222-2222-222222222222",
   "itemId": "item-uuid-cemento",
-  "quantityToReserve": 300
+  "quantityToAllocate": 300
 }
 ```
 
@@ -189,5 +189,127 @@ Incrementa `allocatedQty` en el proyecto y `Stock.reservedQty` en el Almacen Cen
   "itemId": "item-uuid-cemento",
   "allocatedQty": "800.0000",
   "centralWarehouseAvailableStock": "700.0000"
+}
+```
+
+---
+
+### 2.6 Liberar Stock Reservado en Almacen Central
+Permite liberar de forma manual o correctiva existencias que fueron reservadas previamente pero que no seran despachadas a la obra. Decrementa `Stock.reservedQty` en Central y `ProjectRequirement.allocatedQty`.
+
+- **Metodo:** `POST`
+- **Ruta:** `/api/v1/projects/:id/release-stock`
+- **Acceso:** Protegido (`ADMIN`)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken_admin>`
+  - `Content-Type: application/json`
+
+#### Request Body (`ReleaseStockDto`)
+```json
+{
+  "centralWarehouseId": "22222222-2222-2222-2222-222222222222",
+  "itemId": "item-uuid-cemento",
+  "quantityToRelease": 100
+}
+```
+
+#### Respuestas
+**200 OK - Stock liberado:**
+```json
+{
+  "projectId": "77777777-7777-7777-7777-777777777777",
+  "itemId": "item-uuid-cemento",
+  "allocatedQty": "700.0000",
+  "releasedQty": "100.0000"
+}
+```
+
+---
+
+### 2.7 Importacion de Archivo S10 por Streaming (CSV / TXT)
+Sube y procesa por streaming un archivo exportado de presupuesto S10 utilizando `papaparse` e `iconv-lite`:
+- Deteccion automatica de delimitador (`;` o `,`).
+- Deteccion de codificacion (`Windows-1252` vs `UTF-8`).
+- Filtrado de recursos: se descartan `01 MANO DE OBRA` y `04 SUBCONTRATOS`; se procesan unicamente `02 MATERIALES` y `03 EQUIPOS`.
+- Mapeo automatico con `ItemAlias` y conversion a unidad base.
+
+- **Metodo:** `POST`
+- **Ruta:** `/api/v1/projects/:id/s10-import`
+- **Acceso:** Protegido (`ADMIN`)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken_admin>`
+  - `Content-Type: multipart/form-data`
+
+#### Parametros Form-Data
+- `file`: Archivo CSV o TXT delimitado de exportacion S10.
+
+#### Respuestas
+**200 OK - Resumen de importacion:**
+```json
+{
+  "projectId": "77777777-7777-7777-7777-777777777777",
+  "totalRowsParsed": 120,
+  "materialsAndEquipmentRows": 85,
+  "mappedItems": 80,
+  "unmappedItems": [
+    {
+      "s10Code": "0205010099",
+      "s10RawName": "ADITIVO ACELERANTE ULTRA RAPIDO",
+      "s10Unit": "GLN",
+      "quantity": 15
+    }
+  ],
+  "requirementsCreatedOrUpdated": 80
+}
+```
+
+---
+
+### 2.8 Protocolo de Liquidacion y Cierre Formal de Obra
+Permite sellar la finalizacion de una obra civil pasando su estado a `LIQUIDATED` y desactivando su almacen de obra (`Warehouse.isActive = false`).
+
+Exige el cumplimiento estricto e indivisible de **3 condiciones previas**:
+1. **Stock Fisico Cero:** El almacen de obra no debe tener insumos remanentes en piso (`sum(Stock.physicalQty) == 0`). Todo remanente debe haberse consumido o retornado a Central via transferencia.
+2. **Cero Prestamos de Herramientas Abiertos:** No deben existir vales de custodia pendientes de retorno vinculados a esta caseta (`ToolCustody` con `returnDate == null`).
+3. **Cero Transferencias en Transito:** No deben existir traslados hacia o desde este almacen en estado `PENDING` o `IN_TRANSIT`.
+
+- **Metodo:** `POST`
+- **Ruta:** `/api/v1/projects/:id/liquidate`
+- **Acceso:** Protegido (`ADMIN`)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken_admin>`
+  - `Content-Type: application/json`
+
+#### Request Body
+```json
+{
+  "liquidationNotes": "Obra concluida al 100% segun acta final de entrega y recepcion de obra"
+}
+```
+
+#### Respuestas
+**200 OK - Obra liquidada y almacen desactivado:**
+```json
+{
+  "id": "77777777-7777-7777-7777-777777777777",
+  "name": "Residencial Las Palmeras - San Isidro",
+  "status": "LIQUIDATED",
+  "liquidatedAt": "2026-09-30T14:40:00.000Z",
+  "warehouseDeactivated": {
+    "id": "44444444-4444-4444-4444-444444444444",
+    "isActive": false
+  }
+}
+```
+
+**400 Bad Request - Incumplimiento de condiciones de liquidacion:**
+```json
+{
+  "statusCode": 400,
+  "message": [
+    "No se puede liquidar la obra: existen 25 unidades de stock fisico remanente en el almacen de obra",
+    "No se puede liquidar la obra: existen 2 vales de herramientas pendientes de devolucion"
+  ],
+  "error": "Bad Request"
 }
 ```

@@ -10,7 +10,7 @@ Este modulo proporciona almacenamiento seguro para evidencias fisicas, guias de 
 - **Pipeline de Optimizacion de Imagenes con Sharp:**
   - Las fotos capturadas desde smartphones en obra (formatos JPEG, PNG) se procesan y convierten automaticamente al formato optimizado WebP con calidad del 85% para reducir el consumo de datos moviles.
 - **Validacion Estricta de Mime-Type:**
-  - Tipos permitidos: `image/jpeg`, `image/png`, `image/webp`, `application/pdf`. Tamano maximo por archivo: 10 MB.
+  - Tipos permitidos: `image/jpeg`, `image/png`, `image/webp`, `application/pdf`. Tamano maximo por archivo: 10 MB para fotografias e imagenes, 15 MB para expedientes tecnicos y facturas PDF.
 
 - **Ruta Base:** `/api/v1/documents`
 - **Entidades Vinculadas:** `DocumentAttachment`, `Purchase`, `Transfer`, `Movement`, `ToolCustody`
@@ -67,7 +67,7 @@ curl -X POST "http://localhost:3000/api/v1/documents/upload" \
 ```json
 {
   "statusCode": 400,
-  "message": "Tipo de archivo no permitido. Solo se aceptan PDF, JPEG, PNG y WebP con tamano maximo de 10MB",
+  "message": "Tipo de archivo no permitido. Solo se aceptan PDF (hasta 15MB) o JPEG, PNG y WebP (hasta 10MB)",
   "error": "Bad Request"
 }
 ```
@@ -78,7 +78,7 @@ curl -X POST "http://localhost:3000/api/v1/documents/upload" \
 Descarga o transmite en flujo binario el documento solicitado. Verifica permisos de confidencialidad antes de emitir los bytes.
 
 - **Metodo:** `GET`
-- **Ruta:** `/api/v1/documents/:id`
+- **Ruta:** `/api/v1/documents/:id` (alias `/api/v1/documents/:id/download`)
 - **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` autorizado)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
