@@ -347,4 +347,64 @@ Invoke-RestMethod -Uri "$BASE_URL/tools/custody/$CUSTODY_ID_2/return" -Method PO
 } | ConvertTo-Json) | Out-Null
 Write-Host "[OK] Devolucion danada procesada: Baja patrimonial y merma generada" -ForegroundColor Green
 
+# 10. Proyectos, Ingesta S10, Reserva, Matriz de Brechas y Liquidacion
+Write-Host "`n--- 10. Proyectos, Ingesta S10, Matriz de Brechas y Liquidacion ---" -ForegroundColor Yellow
+
+$projectName = "Residencial Las Acacias $(Get-Random)"
+$project = Invoke-RestMethod -Uri "$BASE_URL/projects" -Method POST -Headers @{ Authorization = "Bearer $ADMIN_TOKEN" } -ContentType "application/json" -Body (@{
+    name = $projectName
+    budgetCode = "S10-ACACIAS-2026"
+    status = "PLANNING"
+} | ConvertTo-Json)
+$PROJECT_ID = $project.id
+$PROJECT_WH_ID = $project.warehouse.id
+Write-Host "[OK] Proyecto registrado: $projectName (Id: $PROJECT_ID, Almacen: $($project.warehouse.name))" -ForegroundColor Green
+
+$projectsList = Invoke-RestMethod -Uri "$BASE_URL/projects" -Method GET -Headers @{ Authorization = "Bearer $ADMIN_TOKEN" }
+Write-Host "[OK] Proyectos listados: $($projectsList.Count) obras registradas" -ForegroundColor Green
+
+$projectDetail = Invoke-RestMethod -Uri "$BASE_URL/projects/$PROJECT_ID" -Method GET -Headers @{ Authorization = "Bearer $ADMIN_TOKEN" }
+Write-Host "[OK] Detalle de proyecto obtenido: $($projectDetail.name)" -ForegroundColor Green
+
+$s10AliasRawName = "CEMENTO PORTLAND SOL T1 $(Get-Random)"
+Invoke-RestMethod -Uri "$BASE_URL/items/aliases" -Method POST -Headers @{ Authorization = "Bearer $ADMIN_TOKEN" } -ContentType "application/json" -Body (@{
+    itemId = $ITEM_CONSUMABLE_ID
+    s10RawName = $s10AliasRawName
+    s10Code = "0201010001"
+    s10Unit = "BLS"
+    conversionFactor = 1.0
+} | ConvertTo-Json) | Out-Null
+
+$ingestRes = Invoke-RestMethod -Uri "$BASE_URL/projects/$PROJECT_ID/ingest-s10" -Method POST -Headers @{ Authorization = "Bearer $ADMIN_TOKEN" } -ContentType "application/json" -Body (@{
+    budgetCode = "S10-ACACIAS-2026"
+    resources = @(
+        @{ s10Code = "010101"; s10RawName = "PEON DE OBRA"; quantity = 50 },
+        @{ s10Code = "0201010001"; s10RawName = $s10AliasRawName; quantity = 300 },
+        @{ s10Code = "0209999999"; s10RawName = "PINTURA LATEX ESPECIAL NO REGISTRADA"; quantity = 20 }
+    )
+} | ConvertTo-Json)
+Write-Host "[OK] Ingesta S10 procesada: $($ingestRes.mappedCount) mapeados, $($ingestRes.unmappedCount) no mapeados" -ForegroundColor Green
+
+$gap = Invoke-RestMethod -Uri "$BASE_URL/projects/$PROJECT_ID/gap-analysis" -Method GET -Headers @{ Authorization = "Bearer $ADMIN_TOKEN" }
+Write-Host "[OK] Matriz de brechas consultada: $($gap.analysis.Count) insumos analizados" -ForegroundColor Green
+
+$allocated = Invoke-RestMethod -Uri "$BASE_URL/projects/$PROJECT_ID/allocate-stock" -Method POST -Headers @{ Authorization = "Bearer $ADMIN_TOKEN" } -ContentType "application/json" -Body (@{
+    centralWarehouseId = $CENTRAL_WH_ID
+    itemId = $ITEM_CONSUMABLE_ID
+    quantityToAllocate = 10.0
+} | ConvertTo-Json)
+Write-Host "[OK] Reserva confirmada: $($allocated.allocatedQty) unidades reservadas" -ForegroundColor Green
+
+$released = Invoke-RestMethod -Uri "$BASE_URL/projects/$PROJECT_ID/release-stock" -Method POST -Headers @{ Authorization = "Bearer $ADMIN_TOKEN" } -ContentType "application/json" -Body (@{
+    centralWarehouseId = $CENTRAL_WH_ID
+    itemId = $ITEM_CONSUMABLE_ID
+    quantityToRelease = 5.0
+} | ConvertTo-Json)
+Write-Host "[OK] Reserva liberada: $($released.releasedQty) unidades liberadas (nueva reserva: $($released.allocatedQty))" -ForegroundColor Green
+
+$liquidated = Invoke-RestMethod -Uri "$BASE_URL/projects/$PROJECT_ID/liquidate" -Method POST -Headers @{ Authorization = "Bearer $ADMIN_TOKEN" } -ContentType "application/json" -Body (@{
+    liquidationNotes = "Obra liquidada formalmente en prueba de integracion"
+} | ConvertTo-Json)
+Write-Host "[OK] Protocolo de liquidacion validado: Estado $($liquidated.status), Almacen desactivado: $($liquidated.warehouseDeactivated.isActive -eq $false)" -ForegroundColor Green
+
 Write-Host "`nTodas las pruebas de endpoints completadas exitosamente!" -ForegroundColor Cyan

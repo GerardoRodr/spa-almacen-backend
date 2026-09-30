@@ -10,10 +10,10 @@ Este documento representa la hoja de ruta integral y el estado de avance para el
 - [x] **Paso 1: Autenticacion, Usuarios y Contexto Multi-Almacen (RBAC)**
 - [x] **Paso 2: Almacenes, Catalogo Maestro de Items y Alias S10**
 - [x] **Paso 3: Proveedores, Compras y Algoritmo de Costo Promedio Ponderado (CPP / WAC)**
-- [ ] **Paso 4: Transferencias Operativas en Dos Fases y Control de Mermas**
-- [ ] **Paso 5: Salidas por Consumo en Obra y Kardex Inmutable (Append-Only)**
+- [x] **Paso 4: Transferencias Operativas en Dos Fases y Control de Mermas**
+- [x] **Paso 5: Salidas por Consumo en Obra y Kardex Inmutable (Append-Only)**
 - [x] **Paso 6: Custodia, Prestamo y Devolucion de Herramientas**
-- [ ] **Paso 7: Proyectos, Ingesta S10, Matriz de Brechas y Liquidacion de Obra**
+- [x] **Paso 7: Proyectos, Ingesta S10, Matriz de Brechas y Liquidacion de Obra**
 - [ ] **Paso 8: Gestion de Archivos Seguros y Pipeline de Optimizacion Sharp**
 - [ ] **Paso 9: Mantenimiento, Backups Diarios y Hardening Final**
 
@@ -173,33 +173,33 @@ Administracion del ciclo de vida de herramientas y equipos (`ASSET_TOOL`), contr
 
 ---
 
-## Paso 7: Proyectos, Ingesta S10, Matriz de Brechas y Liquidacion de Obra
+## Paso 7: Proyectos, Ingesta S10, Matriz de Brechas y Liquidacion de Obra (Completado)
 
 Carga masiva de presupuestos S10 por streams, resolucion de equivalencias, matriz de deficit de compra (Gap Analysis), reserva de stock y cierre formal de obras.
 
 ### Tareas:
-- [ ] **Modulo de Proyectos (`src/modules/projects`):**
-  - [ ] DTOs: `CreateProjectDto`, `AllocateStockDto`, `ReleaseStockDto`.
-  - [ ] Creacion de obra civil con creacion automatica de su Almacen de Obra temporal asociado (`PROJECT_SITE`).
-- [ ] **Motor de Ingesta S10 (`S10ParserService`):**
-  - [ ] Procesamiento por streams con `papaparse` e `iconv-lite` con deteccion de delimitadores (`;` o `,`) y codificaciones (`Windows-1252` y `UTF-8`).
-  - [ ] Filtrado estricto: descarte de `01 MANO DE OBRA` y `04 SUBCONTRATOS`; inclusion exclusiva de `02 MATERIALES` y `03 EQUIPOS`.
-  - [ ] Resolucion automatica de `ItemAlias` y conversion a unidad base (`requiredQty = s10Qty * conversionFactor`). Identificacion de insumos pendientes de mapeo.
-- [ ] **Matriz de Brechas (Gap Analysis):**
-  - [ ] Calculo de `Stock Neto Disponible Central = sum(physicalQty - reservedQty)`.
-  - [ ] Calculo de `Deficit a Comprar = max(0, Demanda S10 - Stock Neto Disponible Central)`.
-- [ ] **Reserva Logica en Almacen Central (Opcion A):**
-  - [ ] Incremento atómico de `Stock.reservedQty` en Central e incremento de `ProjectRequirement.allocatedQty`.
-  - [ ] Liberacion manual de stock reservado.
-- [ ] **Protocolo de Liquidacion de Obra:**
-  - [ ] Validacion estricta de las 3 condiciones:
+- [x] **Modulo de Proyectos (`src/modules/projects`):**
+  - [x] DTOs: `CreateProjectDto`, `UpdateProjectDto`, `ProjectFilterDto`, `IngestS10Dto`, `AllocateStockDto`, `ReleaseStockDto`, `LiquidateProjectDto`.
+  - [x] Creacion de obra civil con creacion automatica de su Almacen de Obra temporal asociado (`PROJECT_SITE`).
+- [x] **Motor de Ingesta S10 (`S10ParserService`):**
+  - [x] Procesamiento por streams con `papaparse` e `iconv-lite` con deteccion de delimitadores (`;` o `,`) y codificaciones (`Windows-1252` y `UTF-8`).
+  - [x] Filtrado estricto: descarte de `01 MANO DE OBRA` y `04 SUBCONTRATOS`; inclusion exclusiva de `02 MATERIALES` y `03 EQUIPOS`.
+  - [x] Resolucion automatica de `ItemAlias` y conversion a unidad base (`requiredQty = s10Qty * conversionFactor`). Identificacion de insumos pendientes de mapeo.
+- [x] **Matriz de Brechas (Gap Analysis):**
+  - [x] Calculo de `Stock Neto Disponible Central = sum(physicalQty - reservedQty)`.
+  - [x] Calculo de `Deficit a Comprar = max(0, Demanda S10 - Stock Neto Disponible Central)`.
+- [x] **Reserva Logica en Almacen Central (Opcion A):**
+  - [x] Incremento atómico de `Stock.reservedQty` en Central e incremento de `ProjectRequirement.allocatedQty`.
+  - [x] Liberacion manual de stock reservado.
+- [x] **Protocolo de Liquidacion de Obra:**
+  - [x] Validacion estricta de las 3 condiciones:
     1. Stock fisico cero en el almacen de obra (`sum(Stock.physicalQty) == 0`).
     2. Cero prestamos de herramientas abiertos (`ToolCustody` con `returnDate == null`).
     3. Cero transferencias en transito (`IN_TRANSIT` o `PENDING`).
-  - [ ] Marcado de obra como `LIQUIDATED` y desactivacion del almacen.
-- [ ] Endpoints: `GET /projects`, `POST /projects`, `POST /projects/:id/s10-import`, `GET /projects/:id/gap-analysis`, `POST /projects/:id/allocate-stock`, `POST /projects/:id/release-stock`, `POST /projects/:id/liquidate`.
-- [ ] **Documentacion OpenAPI Swagger:**
-  - [ ] Decoradores `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth` y `@ApiProperty` para pruebas interactivas en `/api/docs`.
+  - [x] Marcado de obra como `LIQUIDATED` y desactivacion del almacen.
+- [x] Endpoints: `GET /projects`, `POST /projects`, `GET /projects/:id`, `PUT /projects/:id`, `POST /projects/:id/ingest-s10`, `POST /projects/:id/s10-import`, `GET /projects/:id/gap-analysis`, `POST /projects/:id/allocate-stock`, `POST /projects/:id/release-stock`, `POST /projects/:id/liquidate`.
+- [x] **Documentacion OpenAPI Swagger:**
+  - [x] Decoradores `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth` y `@ApiProperty` para pruebas interactivas en `/api/docs`.
 
 ---
 
