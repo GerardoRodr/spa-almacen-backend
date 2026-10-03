@@ -1,367 +1,336 @@
-import {
-  PrismaClient,
-  Role,
-  WarehouseType,
-  ItemType,
-  ProjectStatus,
-} from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Iniciando siembra de datos iniciales...');
+  console.log('Iniciando siembra de datos desde seed-data.json...');
 
-  // 1. Crear o recuperar Almacen Central Principal
-  let centralWarehouse = await prisma.warehouse.findFirst({
-    where: { type: WarehouseType.CENTRAL },
-  });
+  const rawData = fs.readFileSync(path.join(__dirname, 'seed-data.json'), 'utf-8');
+  const data = JSON.parse(rawData);
 
-  if (!centralWarehouse) {
-    centralWarehouse = await prisma.warehouse.create({
+  // Limpieza previa en orden inverso de dependencias para garantizar idempotencia
+  console.log('Limpiando datos existentes...');
+  await prisma.documentAttachment.deleteMany();
+  await prisma.movementItem.deleteMany();
+  await prisma.movement.deleteMany();
+  await prisma.transferItem.deleteMany();
+  await prisma.transfer.deleteMany();
+  await prisma.toolCustody.deleteMany();
+  await prisma.purchaseDetail.deleteMany();
+  await prisma.purchase.deleteMany();
+  await prisma.stock.deleteMany();
+  await prisma.projectRequirement.deleteMany();
+  await prisma.itemAlias.deleteMany();
+  await prisma.item.deleteMany();
+  await prisma.userWarehouse.deleteMany();
+  await prisma.supplier.deleteMany();
+  await prisma.warehouse.deleteMany();
+  await prisma.project.deleteMany();
+  await prisma.user.deleteMany();
+
+  // 1. Usuarios
+  console.log('Sembrando usuarios...');
+  for (const user of data.users) {
+    const passwordHash = await bcrypt.hash(user.password, 10);
+    await prisma.user.create({
       data: {
-        name: 'Almacen Central Principal',
-        type: WarehouseType.CENTRAL,
-        isTemporary: false,
-        isActive: true,
+        id: user.id,
+        email: user.email,
+        passwordHash,
+        fullName: user.fullName,
+        role: user.role,
+        isActive: user.isActive,
       },
     });
-    console.log(`Almacen Central creado con id: ${centralWarehouse.id}`);
-  } else {
-    console.log(`Almacen Central existente con id: ${centralWarehouse.id}`);
   }
 
-  // 2. Crear o recuperar Proyecto Piloto
-  const pilotProjectId = 'c0000000-0000-4000-8000-000000000001';
-  let pilotProject = await prisma.project.findUnique({
-    where: { id: pilotProjectId },
-  });
-
-  if (!pilotProject) {
-    pilotProject = await prisma.project.create({
+  // 2. Proyectos
+  console.log('Sembrando proyectos...');
+  for (const project of data.projects) {
+    await prisma.project.create({
       data: {
-        id: pilotProjectId,
-        name: 'Proyecto Piloto Torre Central',
-        budgetCode: 'S10-PILOTO-2026',
-        status: ProjectStatus.ACTIVE,
+        id: project.id,
+        name: project.name,
+        budgetCode: project.budgetCode,
+        status: project.status,
       },
     });
-    console.log(`Proyecto Piloto creado con id: ${pilotProject.id}`);
-  } else {
-    console.log(`Proyecto Piloto existente con id: ${pilotProject.id}`);
   }
 
-  // 3. Crear o recuperar Almacen de Obra para Proyecto Piloto
-  let obraWarehouse = await prisma.warehouse.findFirst({
-    where: { projectId: pilotProject.id },
-  });
-
-  if (!obraWarehouse) {
-    obraWarehouse = await prisma.warehouse.create({
+  // 3. Almacenes
+  console.log('Sembrando almacenes...');
+  for (const warehouse of data.warehouses) {
+    await prisma.warehouse.create({
       data: {
-        name: 'Almacen Obra Piloto Torre Central',
-        type: WarehouseType.PROJECT_SITE,
-        isTemporary: true,
-        isActive: true,
-        projectId: pilotProject.id,
+        id: warehouse.id,
+        name: warehouse.name,
+        type: warehouse.type,
+        isTemporary: warehouse.isTemporary,
+        isActive: warehouse.isActive,
+        projectId: warehouse.projectId,
       },
     });
-    console.log(`Almacen de Obra Piloto creado con id: ${obraWarehouse.id}`);
-  } else {
-    console.log(`Almacen de Obra Piloto existente con id: ${obraWarehouse.id}`);
   }
 
-  // 4. Crear usuario Administrador inicial
-  const adminEmail = 'admin@almacen.com';
-  let adminUser = await prisma.user.findUnique({
-    where: { email: adminEmail },
-  });
-
-  if (!adminUser) {
-    const adminPasswordHash = await bcrypt.hash('Admin1234!', 10);
-    adminUser = await prisma.user.create({
+  // 4. Asignaciones Usuario-Almacen
+  console.log('Sembrando asignaciones de almacenes...');
+  for (const uw of data.userWarehouses) {
+    await prisma.userWarehouse.create({
       data: {
-        email: adminEmail,
-        passwordHash: adminPasswordHash,
-        fullName: 'Administrador General',
-        role: Role.ADMIN,
-        isActive: true,
+        id: uw.id,
+        userId: uw.userId,
+        warehouseId: uw.warehouseId,
+        isDefault: uw.isDefault,
       },
     });
-    console.log(`Usuario Administrador creado: ${adminEmail}`);
-  } else {
-    console.log(`Usuario Administrador existente: ${adminEmail}`);
   }
 
-  // 5. Asignar Almacenes al Administrador
-  await prisma.userWarehouse.upsert({
-    where: {
-      userId_warehouseId: {
-        userId: adminUser.id,
-        warehouseId: centralWarehouse.id,
-      },
-    },
-    create: {
-      userId: adminUser.id,
-      warehouseId: centralWarehouse.id,
-      isDefault: true,
-    },
-    update: {},
-  });
-
-  await prisma.userWarehouse.upsert({
-    where: {
-      userId_warehouseId: {
-        userId: adminUser.id,
-        warehouseId: obraWarehouse.id,
-      },
-    },
-    create: {
-      userId: adminUser.id,
-      warehouseId: obraWarehouse.id,
-      isDefault: false,
-    },
-    update: {},
-  });
-  console.log('Almacenes asignados al Administrador');
-
-  // 6. Crear usuario Almacenero de prueba
-  const keeperEmail = 'almacenero@obra.com';
-  let keeperUser = await prisma.user.findUnique({
-    where: { email: keeperEmail },
-  });
-
-  if (!keeperUser) {
-    const keeperPasswordHash = await bcrypt.hash('Almacen1234!', 10);
-    keeperUser = await prisma.user.create({
+  // 5. Proveedores
+  console.log('Sembrando proveedores...');
+  for (const supplier of data.suppliers) {
+    await prisma.supplier.create({
       data: {
-        email: keeperEmail,
-        passwordHash: keeperPasswordHash,
-        fullName: 'Juan Perez Almacenero',
-        role: Role.WAREHOUSE_KEEPER,
-        isActive: true,
+        id: supplier.id,
+        taxId: supplier.taxId,
+        businessName: supplier.businessName,
+        contactPhone: supplier.contactPhone,
+        contactEmail: supplier.contactEmail,
+        address: supplier.address,
       },
     });
-    console.log(`Usuario Almacenero creado: ${keeperEmail}`);
-  } else {
-    console.log(`Usuario Almacenero existente: ${keeperEmail}`);
   }
 
-  // 7. Asignar Almacenes al Almacenero
-  await prisma.userWarehouse.upsert({
-    where: {
-      userId_warehouseId: {
-        userId: keeperUser.id,
-        warehouseId: centralWarehouse.id,
-      },
-    },
-    create: {
-      userId: keeperUser.id,
-      warehouseId: centralWarehouse.id,
-      isDefault: false,
-    },
-    update: {},
-  });
-
-  await prisma.userWarehouse.upsert({
-    where: {
-      userId_warehouseId: {
-        userId: keeperUser.id,
-        warehouseId: obraWarehouse.id,
-      },
-    },
-    create: {
-      userId: keeperUser.id,
-      warehouseId: obraWarehouse.id,
-      isDefault: true,
-    },
-    update: {},
-  });
-  console.log('Almacenes asignados al Almacenero');
-
-  // 8. Crear Proveedor Base
-  const supplierTaxId = '20100138112';
-  let baseSupplier = await prisma.supplier.findUnique({
-    where: { taxId: supplierTaxId },
-  });
-
-  if (!baseSupplier) {
-    baseSupplier = await prisma.supplier.create({
+  // 6. Catalogo de Items
+  console.log('Sembrando catalogo de items...');
+  for (const item of data.items) {
+    await prisma.item.create({
       data: {
-        taxId: supplierTaxId,
-        businessName: 'CORPORACION ACEROS AREQUIPA S.A.',
-        contactPhone: '+51 1 5171800',
-        contactEmail: 'ventas@acerosarequipa.com',
-        address: 'Av. Enrique Meiggs 297, Callao',
+        id: item.id,
+        sku: item.sku,
+        name: item.name,
+        description: item.description,
+        baseUnit: item.baseUnit,
+        type: item.type,
+        minStockAlert: item.minStockAlert,
       },
-    });
-    console.log(`Proveedor base creado: ${baseSupplier.businessName}`);
-  } else {
-    console.log(`Proveedor base existente: ${baseSupplier.businessName}`);
-  }
-
-  // 9. Crear Catalogo Maestro de Items Iniciales
-  const seedItems = [
-    {
-      sku: 'MAT-CEM-001',
-      name: 'Cemento Portland Sol Tipo I 42.5kg',
-      description: 'Bolsa de cemento estandar para vaciado de columnas y losas',
-      baseUnit: 'BOLSA',
-      type: ItemType.CONSUMABLE,
-      minStockAlert: 50.0,
-    },
-    {
-      sku: 'MAT-ACE-001',
-      name: 'Fierro Corrugado 1/2 Grado 60',
-      description: 'Varilla de acero de 9 metros para armaduras estructurales',
-      baseUnit: 'VARILLA',
-      type: ItemType.CONSUMABLE,
-      minStockAlert: 100.0,
-    },
-    {
-      sku: 'EQU-ROT-001',
-      name: 'Rotomartillo Bosch GBH 2-28 D 850W',
-      description: 'Equipo electro-neumatico con encastre SDS Plus para perforacion',
-      baseUnit: 'UNIDAD',
-      type: ItemType.ASSET_TOOL,
-      minStockAlert: 2.0,
-    },
-    {
-      sku: 'EQU-AMO-001',
-      name: 'Amoladora Angular DeWalt 4 1/2 pulgada',
-      description: 'Herramienta rotativa de 900W para corte y desbaste metalico',
-      baseUnit: 'UNIDAD',
-      type: ItemType.ASSET_TOOL,
-      minStockAlert: 2.0,
-    },
-  ];
-
-  const createdItemsMap = new Map<string, string>();
-
-  for (const itemData of seedItems) {
-    let item = await prisma.item.findUnique({
-      where: { sku: itemData.sku },
-    });
-
-    if (!item) {
-      item = await prisma.item.create({ data: itemData });
-      console.log(`Item maestro creado: ${item.sku} (${item.name})`);
-    } else {
-      console.log(`Item maestro existente: ${item.sku}`);
-    }
-
-    createdItemsMap.set(item.sku, item.id);
-
-    // Inicializar stocks en ceros si no existen
-    await prisma.stock.upsert({
-      where: {
-        warehouseId_itemId: {
-          warehouseId: centralWarehouse.id,
-          itemId: item.id,
-        },
-      },
-      create: {
-        warehouseId: centralWarehouse.id,
-        itemId: item.id,
-        physicalQty: 0,
-        reservedQty: 0,
-        loanedQty: 0,
-        averageCost: 0,
-      },
-      update: {},
-    });
-
-    await prisma.stock.upsert({
-      where: {
-        warehouseId_itemId: {
-          warehouseId: obraWarehouse.id,
-          itemId: item.id,
-        },
-      },
-      create: {
-        warehouseId: obraWarehouse.id,
-        itemId: item.id,
-        physicalQty: 0,
-        reservedQty: 0,
-        loanedQty: 0,
-        averageCost: 0,
-      },
-      update: {},
     });
   }
 
-  // 10. Homologaciones de Alias S10
-  const cementItemId = createdItemsMap.get('MAT-CEM-001')!;
-  const steelItemId = createdItemsMap.get('MAT-ACE-001')!;
-
-  const seedAliases = [
-    {
-      itemId: cementItemId,
-      s10RawName: 'CEMENTO PORTLAND TIPO I (BOLSA 42.5KG)',
-      s10Code: '0201010001',
-      s10Unit: 'BOL',
-      conversionFactor: 1.0,
-    },
-    {
-      itemId: steelItemId,
-      s10RawName: 'ACERO CORRUGADO FY=4200 KG/CM2 GRADO 60',
-      s10Code: '0201020002',
-      s10Unit: 'VAR',
-      conversionFactor: 1.0,
-    },
-  ];
-
-  for (const aliasData of seedAliases) {
-    await prisma.itemAlias.upsert({
-      where: { s10RawName: aliasData.s10RawName },
-      create: aliasData,
-      update: {},
+  // 7. Alias S10
+  console.log('Sembrando alias de insumos S10...');
+  for (const alias of data.itemAliases) {
+    await prisma.itemAlias.create({
+      data: {
+        id: alias.id,
+        itemId: alias.itemId,
+        s10RawName: alias.s10RawName,
+        s10Code: alias.s10Code,
+        s10Unit: alias.s10Unit,
+        conversionFactor: alias.conversionFactor,
+      },
     });
   }
-  console.log('Alias S10 homologados');
 
-  // 11. Requerimientos Presupuestales S10 en Proyecto Piloto
-  await prisma.projectRequirement.upsert({
-    where: {
-      projectId_itemId: {
-        projectId: pilotProject.id,
-        itemId: cementItemId,
+  // 8. Requerimientos Presupuestales por Proyecto
+  console.log('Sembrando requerimientos presupuestales de proyectos...');
+  for (const req of data.projectRequirements) {
+    await prisma.projectRequirement.create({
+      data: {
+        id: req.id,
+        projectId: req.projectId,
+        itemId: req.itemId,
+        requiredQty: req.requiredQty,
+        allocatedQty: req.allocatedQty,
+        consumedQty: req.consumedQty,
       },
-    },
-    create: {
-      projectId: pilotProject.id,
-      itemId: cementItemId,
-      requiredQty: 500.0,
-      allocatedQty: 0.0,
-      consumedQty: 0.0,
-    },
-    update: {},
-  });
+    });
+  }
 
-  await prisma.projectRequirement.upsert({
-    where: {
-      projectId_itemId: {
-        projectId: pilotProject.id,
-        itemId: steelItemId,
+  // 9. Compras a Proveedores
+  console.log('Sembrando compras...');
+  for (const purchase of data.purchases) {
+    await prisma.purchase.create({
+      data: {
+        id: purchase.id,
+        supplierId: purchase.supplierId,
+        invoiceSeries: purchase.invoiceSeries,
+        currency: purchase.currency,
+        exchangeRate: purchase.exchangeRate,
+        issueDate: new Date(purchase.issueDate),
+        subtotalPEN: purchase.subtotalPEN,
+        igvAmountPEN: purchase.igvAmountPEN,
+        totalAmountPEN: purchase.totalAmountPEN,
       },
-    },
-    create: {
-      projectId: pilotProject.id,
-      itemId: steelItemId,
-      requiredQty: 250.0,
-      allocatedQty: 0.0,
-      consumedQty: 0.0,
-    },
-    update: {},
-  });
-  console.log('Requerimientos presupuestales S10 registrados en Proyecto Piloto');
+    });
+  }
 
-  console.log('Siembra de datos iniciales completada exitosamente');
+  // 10. Detalles de Compras
+  console.log('Sembrando detalles de compras...');
+  for (const detail of data.purchaseDetails) {
+    await prisma.purchaseDetail.create({
+      data: {
+        id: detail.id,
+        purchaseId: detail.purchaseId,
+        itemId: detail.itemId,
+        purchaseUnit: detail.purchaseUnit,
+        conversionFactor: detail.conversionFactor,
+        purchaseQty: detail.purchaseQty,
+        baseQty: detail.baseQty,
+        unitPriceOriginal: detail.unitPriceOriginal,
+        unitCostBasePEN: detail.unitCostBasePEN,
+        subtotalPEN: detail.subtotalPEN,
+      },
+    });
+  }
+
+  // 11. Stocks Fisicos y Valorizados por Almacen
+  console.log('Sembrando stocks de almacenes...');
+  for (const stock of data.stocks) {
+    await prisma.stock.create({
+      data: {
+        id: stock.id,
+        warehouseId: stock.warehouseId,
+        itemId: stock.itemId,
+        physicalQty: stock.physicalQty,
+        reservedQty: stock.reservedQty,
+        loanedQty: stock.loanedQty,
+        averageCost: stock.averageCost,
+      },
+    });
+  }
+
+  // 12. Transferencias entre Almacenes
+  console.log('Sembrando transferencias...');
+  for (const transfer of data.transfers) {
+    await prisma.transfer.create({
+      data: {
+        id: transfer.id,
+        transferNumber: transfer.transferNumber,
+        originWarehouseId: transfer.originWarehouseId,
+        destWarehouseId: transfer.destWarehouseId,
+        projectId: transfer.projectId,
+        status: transfer.status,
+        dispatchedById: transfer.dispatchedById,
+        receivedById: transfer.receivedById,
+        dispatchedAt: transfer.dispatchedAt ? new Date(transfer.dispatchedAt) : null,
+        receivedAt: transfer.receivedAt ? new Date(transfer.receivedAt) : null,
+        dispatchNotes: transfer.dispatchNotes,
+        receptionNotes: transfer.receptionNotes,
+      },
+    });
+  }
+
+  // 13. Items de Transferencias
+  console.log('Sembrando items de transferencias...');
+  for (const ti of data.transferItems) {
+    await prisma.transferItem.create({
+      data: {
+        id: ti.id,
+        transferId: ti.transferId,
+        itemId: ti.itemId,
+        dispatchedQty: ti.dispatchedQty,
+        receivedQty: ti.receivedQty,
+        discrepancyQty: ti.discrepancyQty,
+        unitCostSnapshot: ti.unitCostSnapshot,
+      },
+    });
+  }
+
+  // 14. Movimientos de Kardex Inmutable
+  console.log('Sembrando movimientos de kardex...');
+  for (const mov of data.movements) {
+    await prisma.movement.create({
+      data: {
+        id: mov.id,
+        movementNumber: mov.movementNumber,
+        type: mov.type,
+        originWarehouseId: mov.originWarehouseId,
+        destWarehouseId: mov.destWarehouseId,
+        projectId: mov.projectId,
+        userId: mov.userId,
+        transferId: mov.transferId,
+        recipientName: mov.recipientName,
+        recipientDni: mov.recipientDni,
+        shrinkageReason: mov.shrinkageReason,
+        observation: mov.observation,
+        createdAt: mov.createdAt ? new Date(mov.createdAt) : undefined,
+      },
+    });
+  }
+
+  // 15. Items de Movimientos de Kardex
+  console.log('Sembrando items de movimientos de kardex...');
+  for (const mi of data.movementItems) {
+    await prisma.movementItem.create({
+      data: {
+        id: mi.id,
+        movementId: mi.movementId,
+        itemId: mi.itemId,
+        quantity: mi.quantity,
+        unitCostSnapshot: mi.unitCostSnapshot,
+        totalCostSnapshot: mi.totalCostSnapshot,
+      },
+    });
+  }
+
+  // 16. Vales de Custodia de Herramientas
+  console.log('Sembrando vales de custodia...');
+  for (const tc of data.toolCustodies) {
+    await prisma.toolCustody.create({
+      data: {
+        id: tc.id,
+        custodyNumber: tc.custodyNumber,
+        itemId: tc.itemId,
+        warehouseId: tc.warehouseId,
+        quantity: tc.quantity,
+        serialOrCode: tc.serialOrCode,
+        assignedToName: tc.assignedToName,
+        assignedToDni: tc.assignedToDni,
+        dispatchedById: tc.dispatchedById,
+        receivedById: tc.receivedById,
+        dispatchDate: new Date(tc.dispatchDate),
+        expectedReturnDate: tc.expectedReturnDate ? new Date(tc.expectedReturnDate) : null,
+        returnDate: tc.returnDate ? new Date(tc.returnDate) : null,
+        conditionOnDispatch: tc.conditionOnDispatch,
+        conditionOnReturn: tc.conditionOnReturn,
+        notes: tc.notes,
+        returnNotes: tc.returnNotes,
+      },
+    });
+  }
+
+  // 17. Documentos Adjuntos
+  console.log('Sembrando documentos adjuntos...');
+  for (const doc of data.documentAttachments) {
+    await prisma.documentAttachment.create({
+      data: {
+        id: doc.id,
+        purchaseId: doc.purchaseId,
+        transferId: doc.transferId,
+        movementId: doc.movementId,
+        custodyId: doc.custodyId,
+        originalName: doc.originalName,
+        storedPath: doc.storedPath,
+        mimeType: doc.mimeType,
+        fileSizeBytes: doc.fileSizeBytes,
+        isConfidential: doc.isConfidential,
+      },
+    });
+  }
+
+  console.log('Siembra exhaustiva de datos completada exitosamente.');
 }
 
 main()
   .catch((e) => {
-    console.error('Error durante la siembra:', e);
+    console.error('Error durante la siembra de datos:', e);
     process.exit(1);
   })
   .finally(async () => {

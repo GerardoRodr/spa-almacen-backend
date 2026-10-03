@@ -1,0 +1,1299 @@
+{
+  "users": [
+    {
+      "id": "a0000000-0000-4000-8000-000000000001",
+      "email": "admin@almacen.com",
+      "password": "Admin1234!",
+      "fullName": "Carlos Mendoza - Administrador General",
+      "role": "ADMIN",
+      "isActive": true
+    },
+    {
+      "id": "a0000000-0000-4000-8000-000000000002",
+      "email": "almacen.central@constructora.com",
+      "password": "Almacen1234!",
+      "fullName": "Roberto Salas Valdivia",
+      "role": "WAREHOUSE_KEEPER",
+      "isActive": true
+    },
+    {
+      "id": "a0000000-0000-4000-8000-000000000003",
+      "email": "almacenero@obra.com",
+      "password": "Almacen1234!",
+      "fullName": "Juan Perez Almacenero",
+      "role": "WAREHOUSE_KEEPER",
+      "isActive": true
+    },
+    {
+      "id": "a0000000-0000-4000-8000-000000000004",
+      "email": "almacen.villas@constructora.com",
+      "password": "Almacen1234!",
+      "fullName": "Miguel Angel Torres",
+      "role": "WAREHOUSE_KEEPER",
+      "isActive": true
+    }
+  ],
+  "projects": [
+    {
+      "id": "c0000000-0000-4000-8000-000000000001",
+      "name": "Proyecto Torre Central San Isidro",
+      "budgetCode": "S10-TCS-2026",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000002",
+      "name": "Condominio Las Villas de Surco",
+      "budgetCode": "S10-CVS-2026",
+      "status": "ACTIVE"
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000003",
+      "name": "Habilitacion Urbana Los Alamos",
+      "budgetCode": "S10-HLA-2026",
+      "status": "PLANNING"
+    }
+  ],
+  "warehouses": [
+    {
+      "id": "b0000000-0000-4000-8000-000000000001",
+      "name": "Almacen Central Principal (Lurin)",
+      "type": "CENTRAL",
+      "isTemporary": false,
+      "isActive": true,
+      "projectId": null
+    },
+    {
+      "id": "b0000000-0000-4000-8000-000000000002",
+      "name": "Almacen Obra Torre Central",
+      "type": "PROJECT_SITE",
+      "isTemporary": true,
+      "isActive": true,
+      "projectId": "c0000000-0000-4000-8000-000000000001"
+    },
+    {
+      "id": "b0000000-0000-4000-8000-000000000003",
+      "name": "Almacen Obra Las Villas",
+      "type": "PROJECT_SITE",
+      "isTemporary": true,
+      "isActive": true,
+      "projectId": "c0000000-0000-4000-8000-000000000002"
+    },
+    {
+      "id": "b0000000-0000-4000-8000-000000000004",
+      "name": "Caseta Avanzada Los Alamos",
+      "type": "PROJECT_SITE",
+      "isTemporary": true,
+      "isActive": true,
+      "projectId": "c0000000-0000-4000-8000-000000000003"
+    }
+  ],
+  "userWarehouses": [
+    {
+      "id": "uw000000-0000-4000-8000-000000000001",
+      "userId": "a0000000-0000-4000-8000-000000000001",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "isDefault": true
+    },
+    {
+      "id": "uw000000-0000-4000-8000-000000000002",
+      "userId": "a0000000-0000-4000-8000-000000000001",
+      "warehouseId": "b0000000-0000-4000-8000-000000000002",
+      "isDefault": false
+    },
+    {
+      "id": "uw000000-0000-4000-8000-000000000003",
+      "userId": "a0000000-0000-4000-8000-000000000001",
+      "warehouseId": "b0000000-0000-4000-8000-000000000003",
+      "isDefault": false
+    },
+    {
+      "id": "uw000000-0000-4000-8000-000000000004",
+      "userId": "a0000000-0000-4000-8000-000000000002",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "isDefault": true
+    },
+    {
+      "id": "uw000000-0000-4000-8000-000000000005",
+      "userId": "a0000000-0000-4000-8000-000000000003",
+      "warehouseId": "b0000000-0000-4000-8000-000000000002",
+      "isDefault": true
+    },
+    {
+      "id": "uw000000-0000-4000-8000-000000000006",
+      "userId": "a0000000-0000-4000-8000-000000000003",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "isDefault": false
+    },
+    {
+      "id": "uw000000-0000-4000-8000-000000000007",
+      "userId": "a0000000-0000-4000-8000-000000000004",
+      "warehouseId": "b0000000-0000-4000-8000-000000000003",
+      "isDefault": true
+    },
+    {
+      "id": "uw000000-0000-4000-8000-000000000008",
+      "userId": "a0000000-0000-4000-8000-000000000004",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "isDefault": false
+    }
+  ],
+  "suppliers": [
+    {
+      "id": "d0000000-0000-4000-8000-000000000001",
+      "taxId": "20100138112",
+      "businessName": "CORPORACION ACEROS AREQUIPA S.A.",
+      "contactPhone": "+51 1 5171800",
+      "contactEmail": "ventas@acerosarequipa.com",
+      "address": "Av. Enrique Meiggs 297, Callao"
+    },
+    {
+      "id": "d0000000-0000-4000-8000-000000000002",
+      "taxId": "20100010744",
+      "businessName": "CEMENTOS PACASMAYO S.A.A.",
+      "contactPhone": "+51 1 3176000",
+      "contactEmail": "comercial@dino.com.pe",
+      "address": "Calle La Colonia 150, Santiago de Surco, Lima"
+    },
+    {
+      "id": "d0000000-0000-4000-8000-000000000003",
+      "taxId": "20258013233",
+      "businessName": "SODIMAC PERU S.A.",
+      "contactPhone": "+51 1 6156002",
+      "contactEmail": "empresas@sodimac.com.pe",
+      "address": "Av. Javier Prado Este 4010, Santiago de Surco, Lima"
+    },
+    {
+      "id": "d0000000-0000-4000-8000-000000000004",
+      "taxId": "20504018287",
+      "businessName": "ROBERT BOSCH S.A.C.",
+      "contactPhone": "+51 1 5288700",
+      "contactEmail": "postventa@bosch.com.pe",
+      "address": "Av. Primavera 781, San Borja, Lima"
+    },
+    {
+      "id": "d0000000-0000-4000-8000-000000000005",
+      "taxId": "20100152964",
+      "businessName": "UNION DE CONCRETERAS S.A. (UNICON)",
+      "contactPhone": "+51 1 2154600",
+      "contactEmail": "despachos@unicon.com.pe",
+      "address": "Panamericana Sur Km 11.4, San Juan de Miraflores, Lima"
+    },
+    {
+      "id": "d0000000-0000-4000-8000-000000000006",
+      "taxId": "20331898408",
+      "businessName": "MAESTRO PERU S.A.",
+      "contactPhone": "+51 1 6156003",
+      "contactEmail": "corporativo@maestro.com.pe",
+      "address": "Av. Angamos Este 1805, Surquillo, Lima"
+    }
+  ],
+  "items": [
+    {
+      "id": "e0000000-0000-4000-8000-000000000001",
+      "sku": "MAT-CEM-001",
+      "name": "Cemento Portland Sol Tipo I 42.5kg",
+      "description": "Bolsa de cemento estandar para vaciado de columnas, vigas y losas",
+      "baseUnit": "BOLSA",
+      "type": "CONSUMABLE",
+      "minStockAlert": 100.0
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000002",
+      "sku": "MAT-ACE-001",
+      "name": "Fierro Corrugado 1/2 Grado 60",
+      "description": "Varilla de acero de 9 metros para armaduras y estribos estructurales",
+      "baseUnit": "VARILLA",
+      "type": "CONSUMABLE",
+      "minStockAlert": 150.0
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000003",
+      "sku": "MAT-ACE-002",
+      "name": "Fierro Corrugado 3/8 Grado 60",
+      "description": "Varilla de acero corrugado de 9m para refuerzo de zapatas y vigas",
+      "baseUnit": "VARILLA",
+      "type": "CONSUMABLE",
+      "minStockAlert": 200.0
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000004",
+      "sku": "MAT-ARE-001",
+      "name": "Arena Gruesa Lavada de Rio",
+      "description": "Agregado fino para mezclas de concreto y asentado de ladrillos",
+      "baseUnit": "M3",
+      "type": "CONSUMABLE",
+      "minStockAlert": 30.0
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000005",
+      "sku": "MAT-PIE-001",
+      "name": "Piedra Chancada 1/2 pulgada",
+      "description": "Agregado grueso triturado para vaciado de concreto armado",
+      "baseUnit": "M3",
+      "type": "CONSUMABLE",
+      "minStockAlert": 25.0
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000006",
+      "sku": "MAT-LAD-001",
+      "name": "Ladrillo King Kong 18 Huecos 24x14x9",
+      "description": "Ladrillo mecanizado para muros portantes estructurales",
+      "baseUnit": "MILLAR",
+      "type": "CONSUMABLE",
+      "minStockAlert": 5.0
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000007",
+      "sku": "MAT-TUB-001",
+      "name": "Tuberia PVC SAP 2 pulgada x 3m",
+      "description": "Tubo de desague pesado para instalaciones sanitarias internas",
+      "baseUnit": "TUBO",
+      "type": "CONSUMABLE",
+      "minStockAlert": 40.0
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000008",
+      "sku": "MAT-ADI-001",
+      "name": "Aditivo Plastificante Acelerante SikaCem",
+      "description": "Aditivo liquido para acelerar fraguado de concreto estructural",
+      "baseUnit": "GLN",
+      "type": "CONSUMABLE",
+      "minStockAlert": 20.0
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000009",
+      "sku": "EQU-ROT-001",
+      "name": "Rotomartillo Bosch GBH 2-28 D 850W",
+      "description": "Equipo electro-neumatico con encastre SDS Plus para perforacion en concreto",
+      "baseUnit": "UNIDAD",
+      "type": "ASSET_TOOL",
+      "minStockAlert": 2.0
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000010",
+      "sku": "EQU-AMO-001",
+      "name": "Amoladora Angular DeWalt 4 1/2 pulgada 900W",
+      "description": "Herramienta rotativa de alto rendimiento para corte y desbaste metalico",
+      "baseUnit": "UNIDAD",
+      "type": "ASSET_TOOL",
+      "minStockAlert": 3.0
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000011",
+      "sku": "EQU-NIV-001",
+      "name": "Nivel Laser Autonivelante Bosch GLL 3-80",
+      "description": "Nivel de lineas 360 grados de precision milimetrica para topografia y acabados",
+      "baseUnit": "UNIDAD",
+      "type": "ASSET_TOOL",
+      "minStockAlert": 1.0
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000012",
+      "sku": "EQU-VIB-001",
+      "name": "Vibrador de Concreto Portatil Wacker 2.5HP",
+      "description": "Manguera vibradora a combustion para compactacion y eliminacion de cangrejeras",
+      "baseUnit": "UNIDAD",
+      "type": "ASSET_TOOL",
+      "minStockAlert": 2.0
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000013",
+      "sku": "EQU-TAL-001",
+      "name": "Taladro Percutor Makita 13mm 710W",
+      "description": "Taladro percutor reversible de velocidad variable para montajes de encofrado",
+      "baseUnit": "UNIDAD",
+      "type": "ASSET_TOOL",
+      "minStockAlert": 2.0
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000014",
+      "sku": "HER-PAL-001",
+      "name": "Pala Tramontina Tipo Cuchara Mango Madera",
+      "description": "Herramienta manual forjada para acarreo y bateo de mortero",
+      "baseUnit": "UNIDAD",
+      "type": "ASSET_TOOL",
+      "minStockAlert": 8.0
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000015",
+      "sku": "HER-CAR-001",
+      "name": "Carretilla Buggy Reforzada 3.5ft",
+      "description": "Buggy metalico de tolva reforzada con llanta neumatica para transporte de concreto",
+      "baseUnit": "UNIDAD",
+      "type": "ASSET_TOOL",
+      "minStockAlert": 5.0
+    }
+  ],
+  "itemAliases": [
+    {
+      "id": "ia000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000001",
+      "s10RawName": "CEMENTO PORTLAND TIPO I (BOLSA 42.5KG)",
+      "s10Code": "0201010001",
+      "s10Unit": "BOL",
+      "conversionFactor": 1.0
+    },
+    {
+      "id": "ia000000-0000-4000-8000-000000000002",
+      "itemId": "e0000000-0000-4000-8000-000000000002",
+      "s10RawName": "ACERO CORRUGADO FY=4200 KG/CM2 GRADO 60 1/2\"",
+      "s10Code": "0201020002",
+      "s10Unit": "VAR",
+      "conversionFactor": 1.0
+    },
+    {
+      "id": "ia000000-0000-4000-8000-000000000003",
+      "itemId": "e0000000-0000-4000-8000-000000000003",
+      "s10RawName": "ACERO CORRUGADO FY=4200 KG/CM2 GRADO 60 3/8\"",
+      "s10Code": "0201020003",
+      "s10Unit": "VAR",
+      "conversionFactor": 1.0
+    },
+    {
+      "id": "ia000000-0000-4000-8000-000000000004",
+      "itemId": "e0000000-0000-4000-8000-000000000004",
+      "s10RawName": "AGREGADO FINO ARENA GRUESA DE RIO",
+      "s10Code": "0202010005",
+      "s10Unit": "M3",
+      "conversionFactor": 1.0
+    },
+    {
+      "id": "ia000000-0000-4000-8000-000000000005",
+      "itemId": "e0000000-0000-4000-8000-000000000005",
+      "s10RawName": "AGREGADO GRUESO PIEDRA CHANCADA 1/2\"",
+      "s10Code": "0202020008",
+      "s10Unit": "M3",
+      "conversionFactor": 1.0
+    },
+    {
+      "id": "ia000000-0000-4000-8000-000000000006",
+      "itemId": "e0000000-0000-4000-8000-000000000006",
+      "s10RawName": "LADRILLO DE ARCILLA TIPO IV 18 HUECOS",
+      "s10Code": "0203010010",
+      "s10Unit": "MILL",
+      "conversionFactor": 1.0
+    },
+    {
+      "id": "ia000000-0000-4000-8000-000000000007",
+      "itemId": "e0000000-0000-4000-8000-000000000007",
+      "s10RawName": "TUBERIA PVC PESADO SAP P/DESAGUE 2\" X 3M",
+      "s10Code": "0204010012",
+      "s10Unit": "TUB",
+      "conversionFactor": 1.0
+    }
+  ],
+  "projectRequirements": [
+    {
+      "id": "pr000000-0000-4000-8000-000000000001",
+      "projectId": "c0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000001",
+      "requiredQty": 1500.0,
+      "allocatedQty": 300.0,
+      "consumedQty": 450.0
+    },
+    {
+      "id": "pr000000-0000-4000-8000-000000000002",
+      "projectId": "c0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000002",
+      "requiredQty": 800.0,
+      "allocatedQty": 200.0,
+      "consumedQty": 150.0
+    },
+    {
+      "id": "pr000000-0000-4000-8000-000000000003",
+      "projectId": "c0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000003",
+      "requiredQty": 600.0,
+      "allocatedQty": 150.0,
+      "consumedQty": 120.0
+    },
+    {
+      "id": "pr000000-0000-4000-8000-000000000004",
+      "projectId": "c0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000004",
+      "requiredQty": 120.0,
+      "allocatedQty": 30.0,
+      "consumedQty": 40.0
+    },
+    {
+      "id": "pr000000-0000-4000-8000-000000000005",
+      "projectId": "c0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000006",
+      "requiredQty": 25.0,
+      "allocatedQty": 5.0,
+      "consumedQty": 8.0
+    },
+    {
+      "id": "pr000000-0000-4000-8000-000000000006",
+      "projectId": "c0000000-0000-4000-8000-000000000002",
+      "itemId": "e0000000-0000-4000-8000-000000000001",
+      "requiredQty": 1000.0,
+      "allocatedQty": 150.0,
+      "consumedQty": 100.0
+    },
+    {
+      "id": "pr000000-0000-4000-8000-000000000007",
+      "projectId": "c0000000-0000-4000-8000-000000000002",
+      "itemId": "e0000000-0000-4000-8000-000000000003",
+      "requiredQty": 500.0,
+      "allocatedQty": 100.0,
+      "consumedQty": 80.0
+    },
+    {
+      "id": "pr000000-0000-4000-8000-000000000008",
+      "projectId": "c0000000-0000-4000-8000-000000000002",
+      "itemId": "e0000000-0000-4000-8000-000000000007",
+      "requiredQty": 200.0,
+      "allocatedQty": 40.0,
+      "consumedQty": 35.0
+    }
+  ],
+  "purchases": [
+    {
+      "id": "f0000000-0000-4000-8000-000000000001",
+      "supplierId": "d0000000-0000-4000-8000-000000000001",
+      "invoiceSeries": "F001-0012890",
+      "currency": "PEN",
+      "exchangeRate": 1.0,
+      "issueDate": "2026-09-01T08:30:00.000Z",
+      "subtotalPEN": 28450.0,
+      "igvAmountPEN": 5121.0,
+      "totalAmountPEN": 33571.0
+    },
+    {
+      "id": "f0000000-0000-4000-8000-000000000002",
+      "supplierId": "d0000000-0000-4000-8000-000000000002",
+      "invoiceSeries": "F010-0084321",
+      "currency": "PEN",
+      "exchangeRate": 1.0,
+      "issueDate": "2026-09-03T10:15:00.000Z",
+      "subtotalPEN": 31500.0,
+      "igvAmountPEN": 5670.0,
+      "totalAmountPEN": 37170.0
+    },
+    {
+      "id": "f0000000-0000-4000-8000-000000000003",
+      "supplierId": "d0000000-0000-4000-8000-000000000004",
+      "invoiceSeries": "F005-0004921",
+      "currency": "PEN",
+      "exchangeRate": 1.0,
+      "issueDate": "2026-09-05T14:00:00.000Z",
+      "subtotalPEN": 11800.0,
+      "igvAmountPEN": 2124.0,
+      "totalAmountPEN": 13924.0
+    },
+    {
+      "id": "f0000000-0000-4000-8000-000000000004",
+      "supplierId": "d0000000-0000-4000-8000-000000000003",
+      "invoiceSeries": "F102-0034110",
+      "currency": "PEN",
+      "exchangeRate": 1.0,
+      "issueDate": "2026-09-08T11:45:00.000Z",
+      "subtotalPEN": 9500.0,
+      "igvAmountPEN": 1710.0,
+      "totalAmountPEN": 11210.0
+    }
+  ],
+  "purchaseDetails": [
+    {
+      "id": "pd000000-0000-4000-8000-000000000001",
+      "purchaseId": "f0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000002",
+      "purchaseUnit": "VARILLA",
+      "conversionFactor": 1.0,
+      "purchaseQty": 500.0,
+      "baseQty": 500.0,
+      "unitPriceOriginal": 35.5,
+      "unitCostBasePEN": 35.5,
+      "subtotalPEN": 17750.0
+    },
+    {
+      "id": "pd000000-0000-4000-8000-000000000002",
+      "purchaseId": "f0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000003",
+      "purchaseUnit": "VARILLA",
+      "conversionFactor": 1.0,
+      "purchaseQty": 400.0,
+      "baseQty": 400.0,
+      "unitPriceOriginal": 26.75,
+      "unitCostBasePEN": 26.75,
+      "subtotalPEN": 10700.0
+    },
+    {
+      "id": "pd000000-0000-4000-8000-000000000003",
+      "purchaseId": "f0000000-0000-4000-8000-000000000002",
+      "itemId": "e0000000-0000-4000-8000-000000000001",
+      "purchaseUnit": "BOLSA",
+      "conversionFactor": 1.0,
+      "purchaseQty": 1200.0,
+      "baseQty": 1200.0,
+      "unitPriceOriginal": 26.25,
+      "unitCostBasePEN": 26.25,
+      "subtotalPEN": 31500.0
+    },
+    {
+      "id": "pd000000-0000-4000-8000-000000000004",
+      "purchaseId": "f0000000-0000-4000-8000-000000000003",
+      "itemId": "e0000000-0000-4000-8000-000000000009",
+      "purchaseUnit": "UNIDAD",
+      "conversionFactor": 1.0,
+      "purchaseQty": 6.0,
+      "baseQty": 6.0,
+      "unitPriceOriginal": 850.0,
+      "unitCostBasePEN": 850.0,
+      "subtotalPEN": 5100.0
+    },
+    {
+      "id": "pd000000-0000-4000-8000-000000000005",
+      "purchaseId": "f0000000-0000-4000-8000-000000000003",
+      "itemId": "e0000000-0000-4000-8000-000000000010",
+      "purchaseUnit": "UNIDAD",
+      "conversionFactor": 1.0,
+      "purchaseQty": 8.0,
+      "baseQty": 8.0,
+      "unitPriceOriginal": 380.0,
+      "unitCostBasePEN": 380.0,
+      "subtotalPEN": 3040.0
+    },
+    {
+      "id": "pd000000-0000-4000-8000-000000000006",
+      "purchaseId": "f0000000-0000-4000-8000-000000000003",
+      "itemId": "e0000000-0000-4000-8000-000000000011",
+      "purchaseUnit": "UNIDAD",
+      "conversionFactor": 1.0,
+      "purchaseQty": 3.0,
+      "baseQty": 3.0,
+      "unitPriceOriginal": 1220.0,
+      "unitCostBasePEN": 1220.0,
+      "subtotalPEN": 3660.0
+    },
+    {
+      "id": "pd000000-0000-4000-8000-000000000007",
+      "purchaseId": "f0000000-0000-4000-8000-000000000004",
+      "itemId": "e0000000-0000-4000-8000-000000000015",
+      "purchaseUnit": "UNIDAD",
+      "conversionFactor": 1.0,
+      "purchaseQty": 15.0,
+      "baseQty": 15.0,
+      "unitPriceOriginal": 220.0,
+      "unitCostBasePEN": 220.0,
+      "subtotalPEN": 3300.0
+    },
+    {
+      "id": "pd000000-0000-4000-8000-000000000008",
+      "purchaseId": "f0000000-0000-4000-8000-000000000004",
+      "itemId": "e0000000-0000-4000-8000-000000000014",
+      "purchaseUnit": "UNIDAD",
+      "conversionFactor": 1.0,
+      "purchaseQty": 30.0,
+      "baseQty": 30.0,
+      "unitPriceOriginal": 45.0,
+      "unitCostBasePEN": 45.0,
+      "subtotalPEN": 1350.0
+    },
+    {
+      "id": "pd000000-0000-4000-8000-000000000009",
+      "purchaseId": "f0000000-0000-4000-8000-000000000004",
+      "itemId": "e0000000-0000-4000-8000-000000000007",
+      "purchaseUnit": "TUBO",
+      "conversionFactor": 1.0,
+      "purchaseQty": 150.0,
+      "baseQty": 150.0,
+      "unitPriceOriginal": 32.3333,
+      "unitCostBasePEN": 32.3333,
+      "subtotalPEN": 4850.0
+    }
+  ],
+  "stocks": [
+    {
+      "id": "st000000-0000-4000-8000-000000000001",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000001",
+      "physicalQty": 650.0,
+      "reservedQty": 300.0,
+      "loanedQty": 0.0,
+      "averageCost": 26.25
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000002",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000002",
+      "physicalQty": 300.0,
+      "reservedQty": 200.0,
+      "loanedQty": 0.0,
+      "averageCost": 35.5
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000003",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000003",
+      "physicalQty": 250.0,
+      "reservedQty": 150.0,
+      "loanedQty": 0.0,
+      "averageCost": 26.75
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000004",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000004",
+      "physicalQty": 50.0,
+      "reservedQty": 30.0,
+      "loanedQty": 0.0,
+      "averageCost": 65.0
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000005",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000005",
+      "physicalQty": 40.0,
+      "reservedQty": 20.0,
+      "loanedQty": 0.0,
+      "averageCost": 72.0
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000006",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000006",
+      "physicalQty": 10.0,
+      "reservedQty": 5.0,
+      "loanedQty": 0.0,
+      "averageCost": 850.0
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000007",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000007",
+      "physicalQty": 85.0,
+      "reservedQty": 40.0,
+      "loanedQty": 0.0,
+      "averageCost": 32.3333
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000008",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000008",
+      "physicalQty": 35.0,
+      "reservedQty": 10.0,
+      "loanedQty": 0.0,
+      "averageCost": 115.0
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000009",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000009",
+      "physicalQty": 4.0,
+      "reservedQty": 0.0,
+      "loanedQty": 0.0,
+      "averageCost": 850.0
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000010",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000010",
+      "physicalQty": 5.0,
+      "reservedQty": 0.0,
+      "loanedQty": 0.0,
+      "averageCost": 380.0
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000011",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000011",
+      "physicalQty": 2.0,
+      "reservedQty": 0.0,
+      "loanedQty": 0.0,
+      "averageCost": 1220.0
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000012",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000014",
+      "physicalQty": 17.0,
+      "reservedQty": 0.0,
+      "loanedQty": 0.0,
+      "averageCost": 45.0
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000013",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000015",
+      "physicalQty": 9.0,
+      "reservedQty": 0.0,
+      "loanedQty": 0.0,
+      "averageCost": 220.0
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000014",
+      "warehouseId": "b0000000-0000-4000-8000-000000000002",
+      "itemId": "e0000000-0000-4000-8000-000000000001",
+      "physicalQty": 150.0,
+      "reservedQty": 0.0,
+      "loanedQty": 0.0,
+      "averageCost": 26.25
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000015",
+      "warehouseId": "b0000000-0000-4000-8000-000000000002",
+      "itemId": "e0000000-0000-4000-8000-000000000002",
+      "physicalQty": 70.0,
+      "reservedQty": 0.0,
+      "loanedQty": 0.0,
+      "averageCost": 35.5
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000016",
+      "warehouseId": "b0000000-0000-4000-8000-000000000002",
+      "itemId": "e0000000-0000-4000-8000-000000000009",
+      "physicalQty": 2.0,
+      "reservedQty": 0.0,
+      "loanedQty": 1.0,
+      "averageCost": 850.0
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000017",
+      "warehouseId": "b0000000-0000-4000-8000-000000000002",
+      "itemId": "e0000000-0000-4000-8000-000000000010",
+      "physicalQty": 2.0,
+      "reservedQty": 0.0,
+      "loanedQty": 1.0,
+      "averageCost": 380.0
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000018",
+      "warehouseId": "b0000000-0000-4000-8000-000000000002",
+      "itemId": "e0000000-0000-4000-8000-000000000014",
+      "physicalQty": 8.0,
+      "reservedQty": 0.0,
+      "loanedQty": 2.0,
+      "averageCost": 45.0
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000019",
+      "warehouseId": "b0000000-0000-4000-8000-000000000002",
+      "itemId": "e0000000-0000-4000-8000-000000000015",
+      "physicalQty": 4.0,
+      "reservedQty": 0.0,
+      "loanedQty": 1.0,
+      "averageCost": 220.0
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000020",
+      "warehouseId": "b0000000-0000-4000-8000-000000000003",
+      "itemId": "e0000000-0000-4000-8000-000000000001",
+      "physicalQty": 140.0,
+      "reservedQty": 0.0,
+      "loanedQty": 0.0,
+      "averageCost": 26.25
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000021",
+      "warehouseId": "b0000000-0000-4000-8000-000000000003",
+      "itemId": "e0000000-0000-4000-8000-000000000007",
+      "physicalQty": 35.0,
+      "reservedQty": 0.0,
+      "loanedQty": 0.0,
+      "averageCost": 32.3333
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000022",
+      "warehouseId": "b0000000-0000-4000-8000-000000000003",
+      "itemId": "e0000000-0000-4000-8000-000000000010",
+      "physicalQty": 1.0,
+      "reservedQty": 0.0,
+      "loanedQty": 0.0,
+      "averageCost": 380.0
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000023",
+      "warehouseId": "b0000000-0000-4000-8000-000000000003",
+      "itemId": "e0000000-0000-4000-8000-000000000011",
+      "physicalQty": 1.0,
+      "reservedQty": 0.0,
+      "loanedQty": 0.0,
+      "averageCost": 1220.0
+    }
+  ],
+  "transfers": [
+    {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "transferNumber": "TR-2026-00001",
+      "originWarehouseId": "b0000000-0000-4000-8000-000000000001",
+      "destWarehouseId": "b0000000-0000-4000-8000-000000000002",
+      "projectId": "c0000000-0000-4000-8000-000000000001",
+      "status": "COMPLETED",
+      "dispatchedById": "a0000000-0000-4000-8000-000000000002",
+      "receivedById": "a0000000-0000-4000-8000-000000000003",
+      "dispatchedAt": "2026-09-10T09:00:00.000Z",
+      "receivedAt": "2026-09-10T14:30:00.000Z",
+      "dispatchNotes": "Despacho con Guia de Remision remitente GR-001-0941. Chofer: Marco Silva.",
+      "receptionNotes": "Conforme en obra Torre Central sin observaciones ni roturas."
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000002",
+      "transferNumber": "TR-2026-00002",
+      "originWarehouseId": "b0000000-0000-4000-8000-000000000001",
+      "destWarehouseId": "b0000000-0000-4000-8000-000000000002",
+      "projectId": "c0000000-0000-4000-8000-000000000001",
+      "status": "IN_TRANSIT",
+      "dispatchedById": "a0000000-0000-4000-8000-000000000002",
+      "receivedById": null,
+      "dispatchedAt": "2026-09-14T10:00:00.000Z",
+      "receivedAt": null,
+      "dispatchNotes": "Flete en camion plataforma hacia San Isidro. Placa ABC-123.",
+      "receptionNotes": null
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000003",
+      "transferNumber": "TR-2026-00003",
+      "originWarehouseId": "b0000000-0000-4000-8000-000000000001",
+      "destWarehouseId": "b0000000-0000-4000-8000-000000000003",
+      "projectId": "c0000000-0000-4000-8000-000000000002",
+      "status": "DISCREPANCY",
+      "dispatchedById": "a0000000-0000-4000-8000-000000000002",
+      "receivedById": "a0000000-0000-4000-8000-000000000004",
+      "dispatchedAt": "2026-09-12T08:30:00.000Z",
+      "receivedAt": "2026-09-12T13:45:00.000Z",
+      "dispatchNotes": "Envio inicial de insumos y tuberia a Las Villas.",
+      "receptionNotes": "Se recibieron 140 bolsas de cemento de las 150 enviadas. 10 bolsas llegaron mojadas e inutilizables por filtracion en toldo de transporte."
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000004",
+      "transferNumber": "TR-2026-00004",
+      "originWarehouseId": "b0000000-0000-4000-8000-000000000001",
+      "destWarehouseId": "b0000000-0000-4000-8000-000000000003",
+      "projectId": "c0000000-0000-4000-8000-000000000002",
+      "status": "PENDING",
+      "dispatchedById": "a0000000-0000-4000-8000-000000000001",
+      "receivedById": null,
+      "dispatchedAt": null,
+      "receivedAt": null,
+      "dispatchNotes": "Transferencia programada pendiente de autorizacion de despacho de camion.",
+      "receptionNotes": null
+    }
+  ],
+  "transferItems": [
+    {
+      "id": "ti000000-0000-4000-8000-000000000001",
+      "transferId": "10000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000001",
+      "dispatchedQty": 200.0,
+      "receivedQty": 200.0,
+      "discrepancyQty": 0.0,
+      "unitCostSnapshot": 26.25
+    },
+    {
+      "id": "ti000000-0000-4000-8000-000000000002",
+      "transferId": "10000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000002",
+      "dispatchedQty": 100.0,
+      "receivedQty": 100.0,
+      "discrepancyQty": 0.0,
+      "unitCostSnapshot": 35.5
+    },
+    {
+      "id": "ti000000-0000-4000-8000-000000000003",
+      "transferId": "10000000-0000-4000-8000-000000000002",
+      "itemId": "e0000000-0000-4000-8000-000000000001",
+      "dispatchedQty": 100.0,
+      "receivedQty": null,
+      "discrepancyQty": null,
+      "unitCostSnapshot": 26.25
+    },
+    {
+      "id": "ti000000-0000-4000-8000-000000000004",
+      "transferId": "10000000-0000-4000-8000-000000000002",
+      "itemId": "e0000000-0000-4000-8000-000000000009",
+      "dispatchedQty": 1.0,
+      "receivedQty": null,
+      "discrepancyQty": null,
+      "unitCostSnapshot": 850.0
+    },
+    {
+      "id": "ti000000-0000-4000-8000-000000000005",
+      "transferId": "10000000-0000-4000-8000-000000000003",
+      "itemId": "e0000000-0000-4000-8000-000000000001",
+      "dispatchedQty": 150.0,
+      "receivedQty": 140.0,
+      "discrepancyQty": -10.0,
+      "unitCostSnapshot": 26.25
+    },
+    {
+      "id": "ti000000-0000-4000-8000-000000000006",
+      "transferId": "10000000-0000-4000-8000-000000000003",
+      "itemId": "e0000000-0000-4000-8000-000000000007",
+      "dispatchedQty": 35.0,
+      "receivedQty": 35.0,
+      "discrepancyQty": 0.0,
+      "unitCostSnapshot": 32.3333
+    },
+    {
+      "id": "ti000000-0000-4000-8000-000000000007",
+      "transferId": "10000000-0000-4000-8000-000000000004",
+      "itemId": "e0000000-0000-4000-8000-000000000003",
+      "dispatchedQty": 100.0,
+      "receivedQty": null,
+      "discrepancyQty": null,
+      "unitCostSnapshot": 26.75
+    }
+  ],
+  "movements": [
+    {
+      "id": "20000000-0000-4000-8000-000000000001",
+      "movementNumber": "MOV-2026-00001",
+      "type": "PURCHASE_ENTRY",
+      "originWarehouseId": null,
+      "destWarehouseId": "b0000000-0000-4000-8000-000000000001",
+      "projectId": null,
+      "userId": "a0000000-0000-4000-8000-000000000002",
+      "transferId": null,
+      "recipientName": null,
+      "recipientDni": null,
+      "shrinkageReason": null,
+      "observation": "Ingreso a Almacen Central segun factura F001-0012890 de Aceros Arequipa",
+      "createdAt": "2026-09-01T10:00:00.000Z"
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000002",
+      "movementNumber": "MOV-2026-00002",
+      "type": "PURCHASE_ENTRY",
+      "originWarehouseId": null,
+      "destWarehouseId": "b0000000-0000-4000-8000-000000000001",
+      "projectId": null,
+      "userId": "a0000000-0000-4000-8000-000000000002",
+      "transferId": null,
+      "recipientName": null,
+      "recipientDni": null,
+      "shrinkageReason": null,
+      "observation": "Ingreso a Almacen Central segun factura F010-0084321 de Pacasmayo",
+      "createdAt": "2026-09-03T11:30:00.000Z"
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000003",
+      "movementNumber": "MOV-2026-00003",
+      "type": "TRANSFER_DISPATCH",
+      "originWarehouseId": "b0000000-0000-4000-8000-000000000001",
+      "destWarehouseId": "b0000000-0000-4000-8000-000000000002",
+      "projectId": "c0000000-0000-4000-8000-000000000001",
+      "userId": "a0000000-0000-4000-8000-000000000002",
+      "transferId": "10000000-0000-4000-8000-000000000001",
+      "recipientName": "Marco Silva",
+      "recipientDni": "40291823",
+      "shrinkageReason": null,
+      "observation": "Salida por transferencia TR-2026-00001 con destino Torre Central",
+      "createdAt": "2026-09-10T09:05:00.000Z"
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000004",
+      "movementNumber": "MOV-2026-00004",
+      "type": "TRANSFER_RECEIPT",
+      "originWarehouseId": "b0000000-0000-4000-8000-000000000001",
+      "destWarehouseId": "b0000000-0000-4000-8000-000000000002",
+      "projectId": "c0000000-0000-4000-8000-000000000001",
+      "userId": "a0000000-0000-4000-8000-000000000003",
+      "transferId": "10000000-0000-4000-8000-000000000001",
+      "recipientName": "Juan Perez Almacenero",
+      "recipientDni": "41829304",
+      "shrinkageReason": null,
+      "observation": "Recepcion fisica y conformidad en Almacen Obra Torre Central",
+      "createdAt": "2026-09-10T14:35:00.000Z"
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000005",
+      "movementNumber": "MOV-2026-00005",
+      "type": "CONSUMPTION_EXIT",
+      "originWarehouseId": "b0000000-0000-4000-8000-000000000002",
+      "destWarehouseId": null,
+      "projectId": "c0000000-0000-4000-8000-000000000001",
+      "userId": "a0000000-0000-4000-8000-000000000003",
+      "transferId": null,
+      "recipientName": "Manuel Flores Huaman",
+      "recipientDni": "45892314",
+      "shrinkageReason": null,
+      "observation": "Vaciado de columnas sector B - Tercer piso Torre Central",
+      "createdAt": "2026-09-11T16:00:00.000Z"
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000006",
+      "movementNumber": "MOV-2026-00006",
+      "type": "LOAN_DISPATCH",
+      "originWarehouseId": "b0000000-0000-4000-8000-000000000002",
+      "destWarehouseId": null,
+      "projectId": "c0000000-0000-4000-8000-000000000001",
+      "userId": "a0000000-0000-4000-8000-000000000003",
+      "transferId": null,
+      "recipientName": "Pedro Quispe Ramirez",
+      "recipientDni": "70123456",
+      "shrinkageReason": null,
+      "observation": "Salida en custodia temporal segun vale VALE-2026-00001",
+      "createdAt": "2026-09-15T08:00:00.000Z"
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000007",
+      "movementNumber": "MOV-2026-00007",
+      "type": "SHRINKAGE_EXIT",
+      "originWarehouseId": "b0000000-0000-4000-8000-000000000003",
+      "destWarehouseId": null,
+      "projectId": "c0000000-0000-4000-8000-000000000002",
+      "userId": "a0000000-0000-4000-8000-000000000004",
+      "transferId": "10000000-0000-4000-8000-000000000003",
+      "recipientName": null,
+      "recipientDni": null,
+      "shrinkageReason": "10 bolsas de cemento danadas por humedad y lluvia durante flete",
+      "observation": "Baja de material por merma insalvable en traslado",
+      "createdAt": "2026-09-12T14:00:00.000Z"
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000008",
+      "movementNumber": "MOV-2026-00008",
+      "type": "INVENTORY_ADJUSTMENT",
+      "originWarehouseId": null,
+      "destWarehouseId": "b0000000-0000-4000-8000-000000000001",
+      "projectId": null,
+      "userId": "a0000000-0000-4000-8000-000000000001",
+      "transferId": null,
+      "recipientName": "Carlos Mendoza",
+      "recipientDni": "10293847",
+      "shrinkageReason": null,
+      "observation": "Ajuste positivo por toma formal de inventario fisico en Almacen Central",
+      "createdAt": "2026-09-20T17:00:00.000Z"
+    }
+  ],
+  "movementItems": [
+    {
+      "id": "mi000000-0000-4000-8000-000000000001",
+      "movementId": "20000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000002",
+      "quantity": 500.0,
+      "unitCostSnapshot": 35.5,
+      "totalCostSnapshot": 17750.0
+    },
+    {
+      "id": "mi000000-0000-4000-8000-000000000002",
+      "movementId": "20000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000003",
+      "quantity": 400.0,
+      "unitCostSnapshot": 26.75,
+      "totalCostSnapshot": 10700.0
+    },
+    {
+      "id": "mi000000-0000-4000-8000-000000000003",
+      "movementId": "20000000-0000-4000-8000-000000000002",
+      "itemId": "e0000000-0000-4000-8000-000000000001",
+      "quantity": 1200.0,
+      "unitCostSnapshot": 26.25,
+      "totalCostSnapshot": 31500.0
+    },
+    {
+      "id": "mi000000-0000-4000-8000-000000000004",
+      "movementId": "20000000-0000-4000-8000-000000000003",
+      "itemId": "e0000000-0000-4000-8000-000000000001",
+      "quantity": 200.0,
+      "unitCostSnapshot": 26.25,
+      "totalCostSnapshot": 5250.0
+    },
+    {
+      "id": "mi000000-0000-4000-8000-000000000005",
+      "movementId": "20000000-0000-4000-8000-000000000003",
+      "itemId": "e0000000-0000-4000-8000-000000000002",
+      "quantity": 100.0,
+      "unitCostSnapshot": 35.5,
+      "totalCostSnapshot": 3550.0
+    },
+    {
+      "id": "mi000000-0000-4000-8000-000000000006",
+      "movementId": "20000000-0000-4000-8000-000000000004",
+      "itemId": "e0000000-0000-4000-8000-000000000001",
+      "quantity": 200.0,
+      "unitCostSnapshot": 26.25,
+      "totalCostSnapshot": 5250.0
+    },
+    {
+      "id": "mi000000-0000-4000-8000-000000000007",
+      "movementId": "20000000-0000-4000-8000-000000000004",
+      "itemId": "e0000000-0000-4000-8000-000000000002",
+      "quantity": 100.0,
+      "unitCostSnapshot": 35.5,
+      "totalCostSnapshot": 3550.0
+    },
+    {
+      "id": "mi000000-0000-4000-8000-000000000008",
+      "movementId": "20000000-0000-4000-8000-000000000005",
+      "itemId": "e0000000-0000-4000-8000-000000000001",
+      "quantity": 50.0,
+      "unitCostSnapshot": 26.25,
+      "totalCostSnapshot": 1312.5
+    },
+    {
+      "id": "mi000000-0000-4000-8000-000000000009",
+      "movementId": "20000000-0000-4000-8000-000000000005",
+      "itemId": "e0000000-0000-4000-8000-000000000002",
+      "quantity": 30.0,
+      "unitCostSnapshot": 35.5,
+      "totalCostSnapshot": 1065.0
+    },
+    {
+      "id": "mi000000-0000-4000-8000-000000000010",
+      "movementId": "20000000-0000-4000-8000-000000000006",
+      "itemId": "e0000000-0000-4000-8000-000000000009",
+      "quantity": 1.0,
+      "unitCostSnapshot": 850.0,
+      "totalCostSnapshot": 850.0
+    },
+    {
+      "id": "mi000000-0000-4000-8000-000000000011",
+      "movementId": "20000000-0000-4000-8000-000000000007",
+      "itemId": "e0000000-0000-4000-8000-000000000001",
+      "quantity": 10.0,
+      "unitCostSnapshot": 26.25,
+      "totalCostSnapshot": 262.5
+    },
+    {
+      "id": "mi000000-0000-4000-8000-000000000012",
+      "movementId": "20000000-0000-4000-8000-000000000008",
+      "itemId": "e0000000-0000-4000-8000-000000000007",
+      "quantity": 5.0,
+      "unitCostSnapshot": 32.3333,
+      "totalCostSnapshot": 161.67
+    }
+  ],
+  "toolCustodies": [
+    {
+      "id": "30000000-0000-4000-8000-000000000001",
+      "custodyNumber": "VALE-2026-00001",
+      "itemId": "e0000000-0000-4000-8000-000000000009",
+      "warehouseId": "b0000000-0000-4000-8000-000000000002",
+      "quantity": 1.0,
+      "serialOrCode": "ROTO-BOSCH-004",
+      "assignedToName": "Pedro Quispe Ramirez",
+      "assignedToDni": "70123456",
+      "dispatchedById": "a0000000-0000-4000-8000-000000000003",
+      "receivedById": null,
+      "dispatchDate": "2026-09-23T08:00:00.000Z",
+      "expectedReturnDate": "2026-09-23T17:00:00.000Z",
+      "returnDate": null,
+      "conditionOnDispatch": "OPERATIVE",
+      "conditionOnReturn": null,
+      "notes": "Prestamo para perforacion de pases sanitarios en piso 4",
+      "returnNotes": null
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000002",
+      "custodyNumber": "VALE-2026-00002",
+      "itemId": "e0000000-0000-4000-8000-000000000010",
+      "warehouseId": "b0000000-0000-4000-8000-000000000002",
+      "quantity": 1.0,
+      "serialOrCode": "AMOL-DEW-012",
+      "assignedToName": "Carlos Sanchez Ortiz",
+      "assignedToDni": "42189032",
+      "dispatchedById": "a0000000-0000-4000-8000-000000000003",
+      "receivedById": null,
+      "dispatchDate": "2026-09-24T08:15:00.000Z",
+      "expectedReturnDate": "2026-09-24T17:30:00.000Z",
+      "returnDate": null,
+      "conditionOnDispatch": "OPERATIVE",
+      "conditionOnReturn": null,
+      "notes": "Habilitacion de estribos y corte de fierro en banco",
+      "returnNotes": null
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000003",
+      "custodyNumber": "VALE-2026-00003",
+      "itemId": "e0000000-0000-4000-8000-000000000011",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "quantity": 1.0,
+      "serialOrCode": "NIV-BOSCH-001",
+      "assignedToName": "Julio Cesar Vilchez",
+      "assignedToDni": "10984532",
+      "dispatchedById": "a0000000-0000-4000-8000-000000000002",
+      "receivedById": "a0000000-0000-4000-8000-000000000002",
+      "dispatchDate": "2026-09-18T07:30:00.000Z",
+      "expectedReturnDate": "2026-09-18T16:00:00.000Z",
+      "returnDate": "2026-09-18T15:45:00.000Z",
+      "conditionOnDispatch": "OPERATIVE",
+      "conditionOnReturn": "OPERATIVE",
+      "notes": "Trazo y replanteo de niveles de cimentacion",
+      "returnNotes": "Devuelto limpio en estuche rigido completo con tripode"
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000004",
+      "custodyNumber": "VALE-2026-00004",
+      "itemId": "e0000000-0000-4000-8000-000000000015",
+      "warehouseId": "b0000000-0000-4000-8000-000000000002",
+      "quantity": 1.0,
+      "serialOrCode": "BUGGY-TC-003",
+      "assignedToName": "Jorge Luis Vargas",
+      "assignedToDni": "08761234",
+      "dispatchedById": "a0000000-0000-4000-8000-000000000003",
+      "receivedById": "a0000000-0000-4000-8000-000000000003",
+      "dispatchDate": "2026-09-19T08:00:00.000Z",
+      "expectedReturnDate": "2026-09-19T17:00:00.000Z",
+      "returnDate": "2026-09-19T16:50:00.000Z",
+      "conditionOnDispatch": "OPERATIVE",
+      "conditionOnReturn": "MAINTENANCE_REQUIRED",
+      "notes": "Acarreo de desmonte y mezcla",
+      "returnNotes": "Camara de llanta desinflada con clavo. Se deriva a mantenimiento de caseta."
+    }
+  ],
+  "documentAttachments": [
+    {
+      "id": "40000000-0000-4000-8000-000000000001",
+      "purchaseId": "f0000000-0000-4000-8000-000000000001",
+      "transferId": null,
+      "movementId": null,
+      "custodyId": null,
+      "originalName": "Factura_Aceros_Arequipa_F001-0012890.pdf",
+      "storedPath": "/uploads/purchases/2026-09/F001-0012890.pdf",
+      "mimeType": "application/pdf",
+      "fileSizeBytes": 245100,
+      "isConfidential": true
+    },
+    {
+      "id": "40000000-0000-4000-8000-000000000002",
+      "purchaseId": null,
+      "transferId": "10000000-0000-4000-8000-000000000001",
+      "movementId": null,
+      "custodyId": null,
+      "originalName": "Guia_Remision_TR-2026-00001.pdf",
+      "storedPath": "/uploads/transfers/2026-09/GR-TR-2026-00001.pdf",
+      "mimeType": "application/pdf",
+      "fileSizeBytes": 182300,
+      "isConfidential": false
+    },
+    {
+      "id": "40000000-0000-4000-8000-000000000003",
+      "purchaseId": null,
+      "transferId": "10000000-0000-4000-8000-000000000003",
+      "movementId": null,
+      "custodyId": null,
+      "originalName": "Acta_Discrepancia_Cargas_Humedas_TR-00003.pdf",
+      "storedPath": "/uploads/transfers/2026-09/ACTA-DISC-00003.pdf",
+      "mimeType": "application/pdf",
+      "fileSizeBytes": 312400,
+      "isConfidential": false
+    },
+    {
+      "id": "40000000-0000-4000-8000-000000000004",
+      "purchaseId": null,
+      "transferId": null,
+      "movementId": "20000000-0000-4000-8000-000000000005",
+      "custodyId": null,
+      "originalName": "Vale_Entrega_Consumo_MOV-00005.pdf",
+      "storedPath": "/uploads/movements/2026-09/VALE-CONS-00005.pdf",
+      "mimeType": "application/pdf",
+      "fileSizeBytes": 154200,
+      "isConfidential": false
+    },
+    {
+      "id": "40000000-0000-4000-8000-000000000005",
+      "purchaseId": null,
+      "transferId": null,
+      "movementId": null,
+      "custodyId": "30000000-0000-4000-8000-000000000001",
+      "originalName": "Foto_Entrega_Rotomartillo_VALE-00001.jpg",
+      "storedPath": "/uploads/custody/2026-09/FOTO-VALE-00001.jpg",
+      "mimeType": "image/jpeg",
+      "fileSizeBytes": 948200,
+      "isConfidential": false
+    }
+  ]
+}
