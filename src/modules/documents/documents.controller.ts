@@ -9,6 +9,7 @@ import {
   UseGuards,
   UseInterceptors,
   UploadedFile,
+  UploadedFiles,
   Res,
   Headers,
 } from '@nestjs/common';
@@ -21,7 +22,7 @@ import {
   ApiConsumes,
   ApiBody,
 } from '@nestjs/swagger';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { Role } from '@prisma/client';
 import { DocumentsService } from './documents.service.js';
 import { UploadDocumentDto } from './dto/upload-document.dto.js';
@@ -72,6 +73,11 @@ export class DocumentsController {
           format: 'uuid',
           description: 'Identificador del vale de custodia vinculado',
         },
+        proofType: {
+          type: 'string',
+          enum: ['DISPATCH', 'RETURN'],
+          description: 'Tipo de evidencia de custodia (DISPATCH o RETURN)',
+        },
         isConfidential: {
           type: 'boolean',
           description:
@@ -103,6 +109,81 @@ export class DocumentsController {
     @Body() dto: UploadDocumentDto,
   ) {
     return this.documentsService.upload(file, dto);
+  }
+
+  @Post('upload-multiple')
+  @UseInterceptors(FilesInterceptor('files', 10))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['files'],
+      properties: {
+        files: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+          description:
+            'Hasta 10 archivos binarios PDF (hasta 15MB) o fotografias JPEG, PNG, WebP (hasta 10MB)',
+        },
+        purchaseId: {
+          type: 'string',
+          format: 'uuid',
+          description: 'Identificador de la factura de compra vinculada',
+        },
+        transferId: {
+          type: 'string',
+          format: 'uuid',
+          description: 'Identificador de la guia de transferencia vinculada',
+        },
+        movementId: {
+          type: 'string',
+          format: 'uuid',
+          description: 'Identificador de la salida de consumo o merma vinculada',
+        },
+        custodyId: {
+          type: 'string',
+          format: 'uuid',
+          description: 'Identificador del vale de custodia vinculado',
+        },
+        proofType: {
+          type: 'string',
+          enum: ['DISPATCH', 'RETURN'],
+          description: 'Tipo de evidencia de custodia (DISPATCH o RETURN)',
+        },
+        isConfidential: {
+          type: 'boolean',
+          description:
+            'Marca de confidencialidad para restringir a ADMIN (true por defecto en compras)',
+        },
+      },
+    },
+  })
+  @ApiOperation({
+    summary:
+      'Cargar multiples archivos o evidencias simultaneas (hasta 10) con optimizacion Sharp a WebP',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Archivos procesados, almacenados y registrados exitosamente',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Archivos invalidos, tipo no permitido o limite de lote excedido',
+  })
+  uploadMultiple(
+    @UploadedFiles()
+    files: Array<{
+      buffer?: Buffer;
+      originalname?: string;
+      mimetype?: string;
+      size?: number;
+    }>,
+    @Body() dto: UploadDocumentDto,
+  ) {
+    return this.documentsService.uploadMultiple(files, dto);
   }
 
   @Get()

@@ -191,6 +191,128 @@ describe('DocumentsService', () => {
       });
       expect(result.id).toBe('doc-2');
     });
+
+    it('debe persistir proofType cuando se sube evidencia de custodia', async () => {
+      prisma.toolCustody.findUnique.mockResolvedValue({ id: 'cust-1' });
+      storageService.processAndSaveImage.mockResolvedValue({
+        storedPath: 'custody/2026/10/entrega.webp',
+        mimeType: 'image/webp',
+        fileSizeBytes: 85000,
+      });
+      prisma.documentAttachment.create.mockResolvedValue({
+        id: 'doc-3',
+        custodyId: 'cust-1',
+        proofType: 'DISPATCH',
+      });
+
+      const file = {
+        buffer: Buffer.from('simulated-bytes'),
+        originalname: 'entrega.png',
+        mimetype: 'image/png',
+      };
+
+      const result = await service.upload(file, {
+        custodyId: 'cust-1',
+        proofType: 'DISPATCH',
+      });
+
+      expect(prisma.documentAttachment.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          custodyId: 'cust-1',
+          proofType: 'DISPATCH',
+        }),
+      });
+      expect(result.id).toBe('doc-3');
+    });
+  });
+
+  describe('uploadMultiple', () => {
+    it('debe fallar si no se proporciona ningun archivo o el arreglo esta vacio', async () => {
+      await expect(service.uploadMultiple([], {})).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(
+        service.uploadMultiple(undefined as unknown as [], {}),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('debe fallar si se envian mas de 10 archivos', async () => {
+      const files = Array.from({ length: 11 }, (_, i) => ({
+        buffer: Buffer.from(`dummy-${i}`),
+        originalname: `file-${i}.jpg`,
+        mimetype: 'image/jpeg',
+      }));
+
+      await expect(service.uploadMultiple(files, {})).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('debe fallar si la entidad vinculada no existe', async () => {
+      prisma.toolCustody.findUnique.mockResolvedValue(null);
+      const files = [
+        {
+          buffer: Buffer.from('dummy'),
+          originalname: 'foto1.jpg',
+          mimetype: 'image/jpeg',
+        },
+      ];
+
+      await expect(
+        service.uploadMultiple(files, { custodyId: 'cust-inexistente' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('debe procesar multiples archivos en paralelo y persistir cada adjunto', async () => {
+      prisma.toolCustody.findUnique.mockResolvedValue({ id: 'cust-1' });
+      storageService.processAndSaveImage.mockResolvedValue({
+        storedPath: 'custody/2026/10/img.webp',
+        mimeType: 'image/webp',
+        fileSizeBytes: 95000,
+      });
+      storageService.savePdf.mockResolvedValue({
+        storedPath: 'custody/2026/10/doc.pdf',
+        mimeType: 'application/pdf',
+        fileSizeBytes: 200000,
+      });
+
+      prisma.documentAttachment.create
+        .mockResolvedValueOnce({
+          id: 'doc-m1',
+          custodyId: 'cust-1',
+          proofType: 'RETURN',
+        })
+        .mockResolvedValueOnce({
+          id: 'doc-m2',
+          custodyId: 'cust-1',
+          proofType: 'RETURN',
+        });
+
+      const files = [
+        {
+          buffer: Buffer.from('img-bytes'),
+          originalname: 'danio.jpg',
+          mimetype: 'image/jpeg',
+        },
+        {
+          buffer: Buffer.from('%PDF-acta'),
+          originalname: 'acta.pdf',
+          mimetype: 'application/pdf',
+        },
+      ];
+
+      const results = await service.uploadMultiple(files, {
+        custodyId: 'cust-1',
+        proofType: 'RETURN',
+      });
+
+      expect(storageService.processAndSaveImage).toHaveBeenCalledTimes(1);
+      expect(storageService.savePdf).toHaveBeenCalledTimes(1);
+      expect(prisma.documentAttachment.create).toHaveBeenCalledTimes(2);
+      expect(results).toHaveLength(2);
+      expect(results[0].id).toBe('doc-m1');
+      expect(results[1].id).toBe('doc-m2');
+    });
   });
 
   describe('findAll', () => {
@@ -202,6 +324,23 @@ describe('DocumentsService', () => {
 
       expect(prisma.documentAttachment.findMany).toHaveBeenCalledWith({
         where: { isConfidential: false },
+        skip: 0,
+        take: 20,
+        orderBy: { createdAt: 'desc' },
+      });
+    });
+
+    it('debe filtrar por proofType si se incluye en el DTO', async () => {
+      prisma.documentAttachment.count.mockResolvedValue(1);
+      prisma.documentAttachment.findMany.mockResolvedValue([]);
+
+      await service.findAll(
+        { custodyId: 'cust-1', proofType: 'DISPATCH' },
+        { id: 'admin1', role: Role.ADMIN },
+      );
+
+      expect(prisma.documentAttachment.findMany).toHaveBeenCalledWith({
+        where: { custodyId: 'cust-1', proofType: 'DISPATCH' },
         skip: 0,
         take: 20,
         orderBy: { createdAt: 'desc' },

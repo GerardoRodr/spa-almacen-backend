@@ -130,17 +130,27 @@ describe('ToolCustodyService', () => {
   });
 
   describe('findOne', () => {
-    it('debe retornar el detalle de un vale si existe', async () => {
+    it('debe retornar el detalle de un vale y clasificar evidencias por proofType', async () => {
+      const mockDocuments = [
+        { id: 'doc-1', originalName: 'entrega.webp', proofType: 'DISPATCH' },
+        { id: 'doc-2', originalName: 'devolucion.webp', proofType: 'RETURN' },
+      ];
       const mockCustody = {
         id: 'vale-1',
         custodyNumber: 'VALE-2026-00001',
         item: { sku: 'HERR-ROTO-01' },
+        documents: mockDocuments,
       };
 
       prisma.toolCustody.findUnique.mockResolvedValue(mockCustody);
 
       const result = await service.findOne('vale-1');
-      expect(result).toEqual(mockCustody);
+      expect(result.id).toBe('vale-1');
+      expect(result.documents).toHaveLength(2);
+      expect(result.dispatchDocuments).toHaveLength(1);
+      expect(result.dispatchDocuments[0].id).toBe('doc-1');
+      expect(result.returnDocuments).toHaveLength(1);
+      expect(result.returnDocuments[0].id).toBe('doc-2');
     });
 
     it('debe lanzar NotFoundException si el vale no existe', async () => {

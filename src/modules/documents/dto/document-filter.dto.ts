@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -58,4 +58,15 @@ export class DocumentFilterDto {
   @IsOptional()
   @IsUUID('4', { message: 'custodyId debe ser un UUID valido' })
   custodyId?: string;
+
+  @ApiPropertyOptional({
+    example: 'DISPATCH',
+    enum: ['DISPATCH', 'RETURN'],
+    description: 'Filtrar documentos por tipo de evidencia (DISPATCH o RETURN)',
+  })
+  @IsOptional()
+  @IsIn(['DISPATCH', 'RETURN'], {
+    message: 'proofType debe ser DISPATCH o RETURN',
+  })
+  proofType?: string;
 }

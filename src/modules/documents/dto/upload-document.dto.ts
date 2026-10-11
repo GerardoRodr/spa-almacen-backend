@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsUUID } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsUUID } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -34,6 +34,18 @@ export class UploadDocumentDto {
   @IsOptional()
   @IsUUID('4', { message: 'custodyId debe ser un UUID valido' })
   custodyId?: string;
+
+  @ApiPropertyOptional({
+    example: 'DISPATCH',
+    enum: ['DISPATCH', 'RETURN'],
+    description:
+      'Tipo de evidencia asociada al ciclo de custodia de herramientas (DISPATCH o RETURN)',
+  })
+  @IsOptional()
+  @IsIn(['DISPATCH', 'RETURN'], {
+    message: 'proofType debe ser DISPATCH o RETURN',
+  })
+  proofType?: string;
 
   @ApiPropertyOptional({
     example: false,

@@ -22,15 +22,67 @@ export class DocumentsService {
     private readonly storageService: StorageService,
   ) {}
 
-  // Subir, optimizar con Sharp y persistir metadatos del documento
-  async upload(
+  // Resolver y validar la categoria y existencia de la entidad foranea vinculada
+  private async resolveCategoryAndValidate(dto: UploadDocumentDto): Promise<string> {
+    if (dto.purchaseId) {
+      const purchase = await this.prisma.purchase.findUnique({
+        where: { id: dto.purchaseId },
+      });
+      if (!purchase) {
+        throw new NotFoundException('La compra vinculada no existe');
+      }
+      return 'purchases';
+    }
+    if (dto.transferId) {
+      const transfer = await this.prisma.transfer.findUnique({
+        where: { id: dto.transferId },
+      });
+      if (!transfer) {
+        throw new NotFoundException('La transferencia vinculada no existe');
+      }
+      return 'transfers';
+    }
+    if (dto.movementId) {
+      const movement = await this.prisma.movement.findUnique({
+        where: { id: dto.movementId },
+      });
+      if (!movement) {
+        throw new NotFoundException('El movimiento vinculado no existe');
+      }
+      return 'movements';
+    }
+    if (dto.custodyId) {
+      const custody = await this.prisma.toolCustody.findUnique({
+        where: { id: dto.custodyId },
+      });
+      if (!custody) {
+        throw new NotFoundException('El vale de custodia vinculado no existe');
+      }
+      return 'custody';
+    }
+    return 'general';
+  }
+
+  // Determinar marca de confidencialidad
+  private resolveConfidentiality(dto: UploadDocumentDto): boolean {
+    if (dto.isConfidential !== undefined) {
+      return dto.isConfidential;
+    }
+    if (dto.purchaseId) {
+      return true;
+    }
+    return false;
+  }
+
+  // Validar formato y procesar archivo con Sharp o guardar PDF
+  private async processFile(
     file: {
       buffer?: Buffer;
       originalname?: string;
       mimetype?: string;
       size?: number;
     },
-    dto: UploadDocumentDto,
+    category: string,
   ) {
     if (!file || !file.buffer || file.buffer.length === 0) {
       throw new BadRequestException('Archivo no proporcionado o vacio');
@@ -58,54 +110,24 @@ export class DocumentsService {
       );
     }
 
-    // Determinar categoria segun la entidad foranea asociada
-    let category = 'general';
-    if (dto.purchaseId) {
-      const purchase = await this.prisma.purchase.findUnique({
-        where: { id: dto.purchaseId },
-      });
-      if (!purchase) {
-        throw new NotFoundException('La compra vinculada no existe');
-      }
-      category = 'purchases';
-    } else if (dto.transferId) {
-      const transfer = await this.prisma.transfer.findUnique({
-        where: { id: dto.transferId },
-      });
-      if (!transfer) {
-        throw new NotFoundException('La transferencia vinculada no existe');
-      }
-      category = 'transfers';
-    } else if (dto.movementId) {
-      const movement = await this.prisma.movement.findUnique({
-        where: { id: dto.movementId },
-      });
-      if (!movement) {
-        throw new NotFoundException('El movimiento vinculado no existe');
-      }
-      category = 'movements';
-    } else if (dto.custodyId) {
-      const custody = await this.prisma.toolCustody.findUnique({
-        where: { id: dto.custodyId },
-      });
-      if (!custody) {
-        throw new NotFoundException('El vale de custodia vinculado no existe');
-      }
-      category = 'custody';
-    }
-
-    // Determinar marca de confidencialidad (compras son confidenciales por defecto)
-    let isConfidential = false;
-    if (dto.isConfidential !== undefined) {
-      isConfidential = dto.isConfidential;
-    } else if (dto.purchaseId) {
-      isConfidential = true;
-    }
-
-    // Procesar archivo segun corresponda (Sharp para imagenes o guardado para PDF)
-    const saved = isImage
+    return isImage
       ? await this.storageService.processAndSaveImage(file.buffer, category)
       : await this.storageService.savePdf(file.buffer, category);
+  }
+
+  // Subir, optimizar con Sharp y persistir metadatos del documento individual
+  async upload(
+    file: {
+      buffer?: Buffer;
+      originalname?: string;
+      mimetype?: string;
+      size?: number;
+    },
+    dto: UploadDocumentDto,
+  ) {
+    const category = await this.resolveCategoryAndValidate(dto);
+    const isConfidential = this.resolveConfidentiality(dto);
+    const saved = await this.processFile(file, category);
 
     return this.prisma.documentAttachment.create({
       data: {
@@ -113,6 +135,7 @@ export class DocumentsService {
         transferId: dto.transferId ?? null,
         movementId: dto.movementId ?? null,
         custodyId: dto.custodyId ?? null,
+        proofType: dto.proofType ?? null,
         originalName: file.originalname?.trim() || 'documento',
         storedPath: saved.storedPath,
         mimeType: saved.mimeType,
@@ -120,6 +143,63 @@ export class DocumentsService {
         isConfidential,
       },
     });
+  }
+
+  // Subir multiples documentos en paralelo optimizando con Sharp
+  async uploadMultiple(
+    files: Array<{
+      buffer?: Buffer;
+      originalname?: string;
+      mimetype?: string;
+      size?: number;
+    }>,
+    dto: UploadDocumentDto,
+  ) {
+    if (!files || files.length === 0) {
+      throw new BadRequestException(
+        'No se han proporcionado archivos para la carga multiple',
+      );
+    }
+
+    if (files.length > 10) {
+      throw new BadRequestException(
+        'Se permite un maximo de 10 archivos por carga',
+      );
+    }
+
+    const category = await this.resolveCategoryAndValidate(dto);
+    const isConfidential = this.resolveConfidentiality(dto);
+
+    // Procesar todos los archivos en paralelo
+    const processedFiles = await Promise.all(
+      files.map(async (file) => {
+        const saved = await this.processFile(file, category);
+        return {
+          originalName: file.originalname?.trim() || 'documento',
+          saved,
+        };
+      }),
+    );
+
+    // Persistir todos los adjuntos creados
+    return Promise.all(
+      processedFiles.map(({ originalName, saved }) =>
+        this.prisma.documentAttachment.create({
+          data: {
+            purchaseId: dto.purchaseId ?? null,
+            transferId: dto.transferId ?? null,
+            movementId: dto.movementId ?? null,
+            custodyId: dto.custodyId ?? null,
+            proofType: dto.proofType ?? null,
+            originalName,
+            storedPath: saved.storedPath,
+            mimeType: saved.mimeType,
+            fileSizeBytes: saved.fileSizeBytes,
+            isConfidential,
+          },
+        }),
+      ),
+    );
   }
 
   // Listar documentos con filtros y proteccion de confidencialidad
@@ -134,6 +214,7 @@ export class DocumentsService {
     if (filter.transferId) where.transferId = filter.transferId;
     if (filter.movementId) where.movementId = filter.movementId;
     if (filter.custodyId) where.custodyId = filter.custodyId;
+    if (filter.proofType) where.proofType = filter.proofType;
 
     // Almaceneros nunca ven documentos confidenciales en los listados
     if (user.role === Role.WAREHOUSE_KEEPER) {

@@ -116,7 +116,7 @@ export class ToolCustodyService {
     };
   }
 
-  // Obtener detalle completo de un vale de custodia
+  // Obtener detalle completo de un vale de custodia con evidencias clasificadas
   async findOne(id: string) {
     const custody = await this.prisma.toolCustody.findUnique({
       where: { id },
@@ -129,7 +129,9 @@ export class ToolCustodyService {
         receivedBy: {
           select: { id: true, fullName: true, email: true },
         },
-        documents: true,
+        documents: {
+          orderBy: { createdAt: 'asc' },
+        },
       },
     });
 
@@ -137,7 +139,20 @@ export class ToolCustodyService {
       throw new NotFoundException('Vale de custodia no encontrado');
     }
 
-    return custody;
+    const documents = custody.documents || [];
+    const dispatchDocuments = documents.filter(
+      (doc) => doc.proofType === 'DISPATCH',
+    );
+    const returnDocuments = documents.filter(
+      (doc) => doc.proofType === 'RETURN',
+    );
+
+    return {
+      ...custody,
+      documents,
+      dispatchDocuments,
+      returnDocuments,
+    };
   }
 
   // Despachar herramienta en prestamo (LOAN_DISPATCH)

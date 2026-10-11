@@ -101,35 +101,35 @@ Para garantizar que ningun agente quede bloqueado por falta de endpoints o model
 
 ### Fase 2: Catalogos, Proveedores y Compras con/sin IGV
 
-- [ ] **Clasificacion de Insumos: Maquinarias, Equipos y Herramientas**:
-  - [ ] En `src/app/core/models/item.models.ts`:
+- [x] **Clasificacion de Insumos: Maquinarias, Equipos y Herramientas**:
+  - [x] En `src/app/core/models/item.models.ts`:
     - Actualizar `ItemType` a `'CONSUMABLE' | 'TOOL' | 'EQUIPMENT' | 'MACHINERY'` (o segun contrato acordado con backend).
-  - [ ] En modal de nuevo insumo (`src/app/features/catalogo/components/item-form-modal/`):
+  - [x] En modal de nuevo insumo (`src/app/features/catalogo/components/item-form-modal/`):
     - Selector con las 4 categorias bien diferenciadas.
-  - [ ] En tabla de catalogo (`catalogo.component.html`):
+  - [x] En tabla de catalogo (`catalogo.component.html`):
     - Filtro por tipo de item ampliado.
     - Chips/badges semanticos con colores especificos (naranja para maquinaria, azul para equipos, cian para herramientas, verde para consumibles).
 
-- [ ] **Insumos Perecibles en Catalogo**:
-  - [ ] En `src/app/core/models/item.models.ts`:
+- [x] **Insumos Perecibles en Catalogo**:
+  - [x] En `src/app/core/models/item.models.ts`:
     - Agregar campo `isPerishable?: boolean` a la interfaz `Item` y `CreateItemDto`.
-  - [ ] En modal de item:
+  - [x] En modal de item:
     - Checkbox o toggle `Material Perecible (Sujeto a caducidad)`.
-  - [ ] En tabla de catalogo:
+  - [x] En tabla de catalogo:
     - Columna indicativa o badge `Perecible` / `No Perecible`.
 
-- [ ] **Observaciones en Registro de Proveedores**:
-  - [ ] En `src/app/core/models/supplier.models.ts`:
+- [x] **Observaciones en Registro de Proveedores**:
+  - [x] En `src/app/core/models/supplier.models.ts`:
     - Anadir `notes?: string | null` en `Supplier`, `CreateSupplierDto` y `UpdateSupplierDto`.
-  - [ ] En modal de nuevo proveedor (`supplier-modal.component.ts`):
+  - [x] En modal de nuevo proveedor (`supplier-modal.component.ts`):
     - Agregar campo `textarea` de observaciones ("Nivel de cumplimiento, puntualidad o incidentes").
-  - [ ] En modal de seleccion y detalle (`supplier-list-modal.component.ts`):
+  - [x] En modal de seleccion y detalle (`supplier-list-modal.component.ts`):
     - Mostrar las observaciones registradas del proveedor.
 
-- [ ] **Compras con Opcion Sin IGV (Exoneradas / Comprobantes Simples)**:
-  - [ ] En `src/app/core/models/purchase.models.ts`:
+- [x] **Compras con Opcion Sin IGV (Exoneradas / Comprobantes Simples)**:
+  - [x] En `src/app/core/models/purchase.models.ts`:
     - Agregar `hasIgv?: boolean` a `CreatePurchaseDto` y `Purchase`.
-  - [ ] En formulario de compras (`purchase-form.component.ts`):
+  - [x] En formulario de compras (`purchase-form.component.ts`):
     - Switch o selector: `Comprobante con IGV (18%)` vs `Compra sin IGV / Exonerada (0%)`.
     - Logica reactiva: si `hasIgv === false`, fijar `igvAmountPEN = 0` y `totalAmountPEN = subtotalPEN`.
     - Si `hasIgv === true`, calcular `igvAmountPEN = Math.round(subtotalPEN * 0.18 * 100) / 100`.
@@ -231,17 +231,17 @@ Para garantizar que ningun agente quede bloqueado por falta de endpoints o model
 
 ### Fase 3: Infraestructura de Almacenamiento y Carga Multiple
 
-- [ ] **Endpoint de Carga Multiple de Archivos (`/api/v1/documents/upload-multiple`)**:
-  - [ ] En `DocumentsController`:
+- [x] **Endpoint de Carga Multiple de Archivos (`/api/v1/documents/upload-multiple`)**:
+  - [x] En `DocumentsController`:
     - Crear endpoint `POST /api/v1/documents/upload-multiple`.
     - Usar `@UseInterceptors(FilesInterceptor('files', 10, multerOptions))`.
-  - [ ] En `DocumentsService`:
+  - [x] En `DocumentsService`:
     - Procesar cada archivo en paralelo mediante Sharp (conversion a WebP al 80%, redimension a max 1920px).
     - Persistir registros en `DocumentAttachment` vinculados a `purchaseId`, `transferId`, `movementId` o `custodyId`.
     - Retornar arreglo de `DocumentAttachment[]`.
 
-- [ ] **Filtro de Evidencias en Custodia de Herramientas**:
-  - [ ] En `GET /api/v1/tools/custody/:id`:
+- [x] **Filtro de Evidencias en Custodia de Herramientas**:
+  - [x] En `GET /api/v1/tools/custody/:id`:
     - Incluir relacion con `documents` clasificados por `proofType` (`DISPATCH` vs `RETURN`).
 
 ### Fase 4: Modulo de Maquinaria y Horometros (`/api/v1/machinery`)
@@ -273,17 +273,22 @@ Para garantizar que ningun agente quede bloqueado por falta de endpoints o model
 Utiliza este espacio para registrar decisiones de diseno, hashes de commits relevantes o aclaraciones tecnicas surgidas durante el desarrollo en cada entorno:
 
 * **Frontend**:
-  * *Fecha:* 
-  * *Modulo intervenido:*
+  * *Fecha:* 2026-10-11
+  * *Modulo intervenido:* ItemModels, UiBadge, CatalogoComponent, SupplierModal, SupplierListModal, PurchaseForm, ComprasComponent, PurchaseDetailModal, CustodyDispatchModal, MovilHerramientas
   * *Decisiones tomadas:*
+    - Se amplio ItemType a CONSUMABLE, TOOL, EQUIPMENT, MACHINERY en item.models y modelos dependientes, ajustando los selectores de custodia y movil para admitir todo activo no consumible (type !== 'CONSUMABLE').
+    - Se incorporo soporte nativo en UiBadgeComponent para las 4 clasificaciones con sus colores corporativos (naranja maquinaria, azul equipos, cian herramientas y verde consumibles).
+    - Se integro campo isPerishable en Catalogo (modal, filtros, tabla con badge de advertencia y exportacion Excel).
+    - Se anadio campo notes en registro y directorios de proveedores (modal y listado responsivo).
+    - Se implemento selector reactivo Con/Sin IGV en compras con recalculo dinamico e indicadores en tablas, tarjetas y liquidacion tributaria.
+    - Se subsano la inyeccion de enrutador en pruebas de movil-operaciones, logrando 100% de tests aprobados (170 pruebas unitarias) y compilacion limpia.
 
 * **Backend**:
   * *Fecha:* 2026-10-11
-  * *Modulo intervenido:* Prisma Schema, Migraciones, Suppliers, Items, Purchases, ToolCustody, Movements
+  * *Modulo intervenido:* DocumentsController, DocumentsService, UploadDocumentDto, DocumentFilterDto, ToolCustodyService
   * *Decisiones tomadas:*
-    - Se amplio ItemType a CONSUMABLE, TOOL, EQUIPMENT, MACHINERY, migrando de forma segura registros existentes con ASSET_TOOL hacia EQUIPMENT y TOOL.
-    - Se incorporaron campos notes en Supplier, isPerishable en Item, hasIgv y voucherType en Purchase, y proofType en DocumentAttachment.
-    - Se creo el nuevo modelo MachineryShiftLog con indices en itemId y warehouseId.
-    - Se aplico migracion de base de datos add_corrections_fields y se resincronizo seed-data.json y prisma/seed.ts.
-    - Se implemento validacion contable para compras sin IGV (igvAmountPEN === 0 y totalAmountPEN === subtotalPEN), imputando integro el costo neto directo computable al CPP.
-    - Se ajustaron validaciones en custodia de herramientas y salidas por consumo en movimientos. Se superaron 169 pruebas unitarias y compilacion limpia.
+    - Se creo endpoint POST /api/v1/documents/upload-multiple utilizando FilesInterceptor('files', 10) para recepcion de hasta 10 adjuntos en un unico payload multipart.
+    - Se implemento procesamiento paralelo de archivos con Sharp hacia WebP (80% calidad, max 1920x1080) y validacion segura de cabeceras para PDF (%PDF-).
+    - Se anadio soporte y validacion para proofType (DISPATCH y RETURN) en UploadDocumentDto y DocumentFilterDto, persistiendo la clasificacion en DocumentAttachment.
+    - Se enriquecio la consulta GET /api/v1/tools/custody/:id segregando dispatchDocuments y returnDocuments ademas del listado completo ordenado cronologicamente.
+    - Se alcanzaron 175 pruebas unitarias exitosas (18 suites) y compilacion limpia con nest build.
