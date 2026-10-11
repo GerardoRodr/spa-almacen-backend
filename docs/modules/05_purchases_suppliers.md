@@ -44,6 +44,7 @@ Retorna la relacion de proveedores comerciales registrados con conteo de factura
       "contactPhone": "+51 1 5171800",
       "contactEmail": "ventas@acerosarequipa.com",
       "address": "Av. Enrique Meiggs 297, Callao",
+      "notes": "Proveedor homologado para suministros de acero estructural",
       "createdAt": "2026-09-20T22:55:00.000Z",
       "_count": {
         "purchases": 8
@@ -79,6 +80,7 @@ Registra una persona juridica o natural proveedora validando unicidad de RUC (11
 | `contactPhone` | string | No | Telefono de contacto. |
 | `contactEmail` | string (email) | No | Correo electronico. |
 | `address` | string | No | Direccion fiscal. |
+| `notes` | string (max 1000) | No | Observaciones sobre cumplimiento, puntualidad o acuerdos. |
 
 **Ejemplo de Peticion:**
 ```json
@@ -87,7 +89,8 @@ Registra una persona juridica o natural proveedora validando unicidad de RUC (11
   "businessName": "CORPORACION ACEROS AREQUIPA S.A.",
   "contactPhone": "+51 1 5171800",
   "contactEmail": "ventas@acerosarequipa.com",
-  "address": "Av. Enrique Meiggs 297, Callao"
+  "address": "Av. Enrique Meiggs 297, Callao",
+  "notes": "Proveedor homologado para suministros de acero estructural"
 }
 ```
 
@@ -101,6 +104,7 @@ Registra una persona juridica o natural proveedora validando unicidad de RUC (11
   "contactPhone": "+51 1 5171800",
   "contactEmail": "ventas@acerosarequipa.com",
   "address": "Av. Enrique Meiggs 297, Callao",
+  "notes": "Proveedor homologado para suministros de acero estructural",
   "createdAt": "2026-09-23T12:20:00.000Z",
   "updatedAt": "2026-09-23T12:20:00.000Z"
 }
@@ -139,6 +143,7 @@ Consulta la ficha del proveedor junto con sus ultimas 10 compras registradas y e
   "contactPhone": "+51 1 5171800",
   "contactEmail": "ventas@acerosarequipa.com",
   "address": "Av. Enrique Meiggs 297, Callao",
+  "notes": "Proveedor homologado para suministros de acero estructural",
   "createdAt": "2026-09-20T22:55:00.000Z",
   "updatedAt": "2026-09-20T22:55:00.000Z",
   "purchases": [
@@ -180,6 +185,7 @@ Modifica los datos generales de un proveedor comercial.
 | `contactPhone` | string | No | Telefono de contacto. |
 | `contactEmail` | string (email) | No | Correo electronico. |
 | `address` | string | No | Direccion fiscal. |
+| `notes` | string (max 1000) | No | Observaciones actualizadas del proveedor. |
 
 #### Respuestas
 **200 OK - Actualizado correctamente:**
@@ -191,6 +197,7 @@ Modifica los datos generales de un proveedor comercial.
   "contactPhone": "+51 1 5171800",
   "contactEmail": "ventas@acerosarequipa.com",
   "address": "Av. Enrique Meiggs 297, Callao",
+  "notes": "Proveedor homologado para suministros de acero estructural",
   "updatedAt": "2026-09-23T12:22:00.000Z"
 }
 ```
@@ -225,6 +232,8 @@ Consulta el historial de comprobantes de compra con filtros por rango de fecha, 
       "id": "purch-uuid-1",
       "supplierId": "sup-uuid-aceros-arequipa",
       "invoiceSeries": "F001-0004523",
+      "voucherType": "FACTURA",
+      "hasIgv": true,
       "currency": "PEN",
       "exchangeRate": "1.0000",
       "issueDate": "2026-09-22T00:00:00.000Z",
@@ -252,7 +261,7 @@ Consulta el historial de comprobantes de compra con filtros por rango de fecha, 
 ---
 
 ### 3.2 Registrar Compra e Ingreso de Stock con Recalculo de CPP
-Registra la factura de compra, ingresa la mercaderia al Almacen Central, recalcula el Costo Promedio Ponderado (`averageCost`) y crea la entrada de Kardex `PURCHASE_ENTRY` de forma transaccional atomica.
+Registra la factura o comprobante de compra, ingresa la mercaderia al Almacen Central, recalcula el Costo Promedio Ponderado (`averageCost`) y crea la entrada de Kardex `PURCHASE_ENTRY` de forma transaccional atomica.
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/purchases`
@@ -267,12 +276,14 @@ Registra la factura de compra, ingresa la mercaderia al Almacen Central, recalcu
 | `supplierId` | string (UUID) | Si | Identificador del proveedor. |
 | `centralWarehouseId` | string (UUID) | Si | Identificador del Almacen Central que recibe. |
 | `invoiceSeries` | string | Si | Serie y numero de comprobante SUNAT (ej. `F001-0004523`). |
+| `voucherType` | string | No | Tipo de comprobante (default: `FACTURA`, ej. `BOLETA`, `GUIA`, `NOTA_VENTA`). |
+| `hasIgv` | boolean | No | Indica si el comprobante tiene IGV desglosado (default: `true`). |
 | `currency` | `PEN` \| `USD` | Si | Moneda del comprobante. |
 | `exchangeRate` | number | Si | Tipo de cambio a Soles (1.0 para PEN). |
 | `issueDate` | ISO 8601 string | Si | Fecha de emision de la factura. |
 | `subtotalPEN` | number | Si | Monto total sin IGV expresado en Soles. |
-| `igvAmountPEN` | number | Si | Monto del IGV 18% en Soles. |
-| `totalAmountPEN` | number | Si | Monto total con IGV en Soles. |
+| `igvAmountPEN` | number | No | Monto del IGV en Soles (obligatorio 0 si `hasIgv` es false; auto deducido si se omite con IGV). |
+| `totalAmountPEN` | number | Si | Monto total del comprobante en Soles. |
 | `items` | array | Si | Detalle de renglones comprados. |
 
 **Detalle de cada elemento en `items`:**
@@ -282,12 +293,18 @@ Registra la factura de compra, ingresa la mercaderia al Almacen Central, recalcu
 - `purchaseQty` (number): Cantidad comprada en la unidad de compra.
 - `unitPriceOriginal` (number): Precio unitario neto sin IGV en la moneda original de compra.
 
+**Reglas de validacion para comprobantes gravados vs sin IGV:**
+- Si `hasIgv === true`: si no se envia `igvAmountPEN` pero `totalAmountPEN > subtotalPEN`, el sistema calcula automaticamente `igvAmountPEN = totalAmountPEN - subtotalPEN`.
+- Si `hasIgv === false` (operacion exonerada o no gravada): se valida estrictamente que `igvAmountPEN === 0` y que `totalAmountPEN === subtotalPEN`. El costo de compra entra integro al calculo del CPP.
+
 **Ejemplo de Peticion:**
 ```json
 {
   "supplierId": "sup-uuid-aceros-arequipa",
   "centralWarehouseId": "22222222-2222-2222-2222-222222222222",
   "invoiceSeries": "F001-0004523",
+  "voucherType": "FACTURA",
+  "hasIgv": true,
   "currency": "PEN",
   "exchangeRate": 1.0,
   "issueDate": "2026-09-22T10:00:00.000Z",
@@ -321,6 +338,8 @@ Registra la factura de compra, ingresa la mercaderia al Almacen Central, recalcu
 {
   "id": "purch-uuid-1",
   "invoiceSeries": "F001-0004523",
+  "voucherType": "FACTURA",
+  "hasIgv": true,
   "currency": "PEN",
   "exchangeRate": "1.0000",
   "issueDate": "2026-09-22T10:00:00.000Z",
@@ -365,6 +384,8 @@ Obtiene la informacion completa de la factura, proveedor emisor, renglones compr
   "supplierId": "sup-uuid-aceros-arequipa",
   "centralWarehouseId": "22222222-2222-2222-2222-222222222222",
   "invoiceSeries": "F001-0004523",
+  "voucherType": "FACTURA",
+  "hasIgv": true,
   "currency": "PEN",
   "exchangeRate": "1.0000",
   "issueDate": "2026-09-22T10:00:00.000Z",

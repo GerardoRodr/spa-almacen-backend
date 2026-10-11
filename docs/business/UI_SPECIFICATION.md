@@ -104,7 +104,7 @@ El sistema **SPA-ALMACEN-ERP** atiende dos realidades operativas radicalmente op
   - *Resumen de Reservas Logicas (Opcion A):* Stock comprometido para proyectos que aun no ha salido de Central.
 
 #### Vista E2: Catalogo Maestro de Insumos (`/catalogo`)
-- **Barra de Acciones:** Buscador en tiempo real (SKU, nombre, alias), filtro por tipo (`CONSUMABLE` vs `ASSET_TOOL`) y boton `[ + Nuevo Insumo ]`.
+- **Barra de Acciones:** Buscador en tiempo real (SKU, nombre, alias), filtro por tipo (`CONSUMABLE`, `TOOL`, `EQUIPMENT`, `MACHINERY`) y boton `[ + Nuevo Insumo ]`.
 - **Tabla de Insumos:**
   - Columnas: SKU, Descripcion Oficial, Unidad Base (`baseUnit`), Tipo, Stock Central, Stock en Obras, Costo Promedio (CPP - protegido por `*appHasRole="'ADMIN'"`), Acciones.
   - Acciones por fila: `[ Editar ]`, `[ Historial Kardex ]`, `[ Gestionar Alias S10 ]`.

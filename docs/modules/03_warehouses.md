@@ -216,7 +216,7 @@ Aplica `CostMaskingInterceptor` para proteger costos financieros ante usuarios d
 #### Parametros
 - `id` (URL Path): UUID del almacen.
 - `search` (Query Param, opcional): Termino de texto para filtrar por SKU o nombre de item.
-- `type` (Query Param, opcional): `CONSUMABLE` o `ASSET_TOOL`.
+- `type` (Query Param, opcional): `CONSUMABLE`, `TOOL`, `EQUIPMENT` o `MACHINERY`.
 
 **Ejemplo de URL con filtros:**
 ```http
@@ -307,7 +307,7 @@ Determina y lista de manera reactiva todos los insumos cuyo stock fisico (`physi
     "sku": "HERR-DISC-07",
     "name": "Disco de Corte Diamantado 7 pulg",
     "baseUnit": "UND",
-    "type": "ASSET_TOOL",
+    "type": "TOOL",
     "physicalQty": 2,
     "minStockAlert": 10,
     "deficitQty": 8

@@ -131,7 +131,14 @@ enum Role {
 
 enum ItemType {
   CONSUMABLE
-  ASSET_TOOL
+  TOOL
+  EQUIPMENT
+  MACHINERY
+}
+
+enum ProofType {
+  DISPATCH
+  RETURN
 }
 
 enum WarehouseType {
@@ -233,6 +240,7 @@ model Warehouse {
   movementsOrigin Movement[]      @relation("MovementOriginWarehouse")
   movementsDest   Movement[]      @relation("MovementDestWarehouse")
   toolCustodies   ToolCustody[]
+  machineryLogs   MachineryShiftLog[]
   
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
@@ -264,6 +272,7 @@ model Item {
   description     String?
   baseUnit        String               // UND, KG, M3, BOLSA, GLN, VARILLA
   type            ItemType
+  isPerishable    Boolean              @default(false)
   minStockAlert   Decimal              @default(0) @db.Decimal(12, 4)
   
   stocks          Stock[]
@@ -273,6 +282,7 @@ model Item {
   movementItems   MovementItem[]
   projectDemands  ProjectRequirement[]
   toolCustodies   ToolCustody[]
+  machineryLogs   MachineryShiftLog[]
   
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
@@ -303,6 +313,7 @@ model Project {
   requirements ProjectRequirement[]
   transfers    Transfer[]
   movements    Movement[]
+  machineryLogs MachineryShiftLog[]
   
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
@@ -333,6 +344,7 @@ model Supplier {
   contactPhone String?
   contactEmail String?
   address      String?
+  notes        String?
   
   purchases    Purchase[]
   createdAt    DateTime   @default(now())
@@ -342,11 +354,13 @@ model Purchase {
   id             String               @id @default(uuid())
   supplierId     String
   invoiceSeries  String               // Factura o comprobante (ej. F001-0004523)
+  voucherType    String               @default("FACTURA")
+  hasIgv         Boolean              @default(true)
   currency       Currency             @default(PEN)
   exchangeRate   Decimal              @default(1.0000) @db.Decimal(8, 4)
   issueDate      DateTime
   subtotalPEN    Decimal              @db.Decimal(14, 2) // Base imponible neta computable a stock
-  igvAmountPEN   Decimal              @default(0) @db.Decimal(14, 2) // IGV 18% para cotejo contable
+  igvAmountPEN   Decimal              @default(0) @db.Decimal(14, 2) // IGV 18% para cotejo contable (0 si hasIgv = false)
   totalAmountPEN Decimal              @db.Decimal(14, 2)
   
   supplier       Supplier             @relation(fields: [supplierId], references: [id])
@@ -512,6 +526,7 @@ model DocumentAttachment {
   mimeType      String
   fileSizeBytes Int
   isConfidential Boolean     @default(false) // True si contiene precios (ej. facturas)
+  proofType     ProofType?   // DISPATCH o RETURN para evidencias de custodia
   
   purchase      Purchase?    @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   transfer      Transfer?    @relation(fields: [transferId], references: [id], onDelete: Cascade)
@@ -519,6 +534,37 @@ model DocumentAttachment {
   custody       ToolCustody? @relation(fields: [custodyId], references: [id], onDelete: Cascade)
   
   createdAt     DateTime     @default(now())
+}
+
+// --------------------------------------------------------
+// PARTES DIARIOS Y CONTROL DE MAQUINARIA PESADA
+// --------------------------------------------------------
+
+model MachineryShiftLog {
+  id              String    @id @default(uuid())
+  machineryId     String
+  warehouseId     String?
+  projectId       String?
+  shiftDate       DateTime
+  operatorName    String
+  operatorDni     String?
+  startHourMeter  Decimal?  @db.Decimal(10, 2)
+  endHourMeter    Decimal?  @db.Decimal(10, 2)
+  startKilometers Decimal?  @db.Decimal(10, 2)
+  endKilometers   Decimal?  @db.Decimal(10, 2)
+  fuelGallons     Decimal?  @db.Decimal(8, 2)
+  workDescription String?
+  notes           String?
+
+  machinery       Item       @relation(fields: [machineryId], references: [id])
+  warehouse       Warehouse? @relation(fields: [warehouseId], references: [id])
+  project         Project?   @relation(fields: [projectId], references: [id])
+
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([machineryId, shiftDate])
+  @@index([projectId, shiftDate])
 }
 ```
 
@@ -569,10 +615,11 @@ Todos los endpoints estan protegidos por defecto con `JwtAuthGuard` y aplican va
 - `POST   /movements/adjustment`                -> Solicitud de ajuste de inventario o merma interna (requiere aprobacion `ADMIN`).
 
 ### 5.7. Custodia de Herramientas y Equipos
-- `POST   /custody/loans`                       -> Emision de vale de prestamo de herramienta a operario con DNI.
-- `PUT    /custody/loans/:id/return`            -> Registro de retorno de herramienta con calificacion fisica (`OPERATIVE`, `DAMAGED`, `LOST`).
-- `GET    /custody/loans/active`                -> Listado de herramientas prestadas en campo pendientes de devolucion en el almacen activo.
-- `GET    /custody/loans/history-by-dni/:dni`   -> Historial de prestamos y conducta de devolucion de un trabajador.
+- `GET    /tools/custody`                       -> Listado paginado de vales de custodia y prestamo con filtros.
+- `POST   /tools/custody/dispatch`              -> Emision de vale de prestamo de herramienta o equipo a operario con DNI.
+- `POST   /tools/custody/:id/return`            -> Registro de retorno con calificacion fisica (`OPERATIVE`, `DAMAGED_USABLE`, `DAMAGED_UNUSABLE`, `LOST`).
+- `GET    /tools/custody/worker/:dni`           -> Consulta de herramientas pendientes de devolucion en poder de un trabajador.
+- `GET    /tools/custody/:id`                   -> Detalle completo del vale de custodia y evidencias adjuntas con `proofType`.
 
 ### 5.8. Proyectos y Motor S10
 - `GET    /projects`                            -> [ADMIN] Listado de obras con estado (`PLANNING`, `ACTIVE`, `LIQUIDATED`).

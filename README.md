@@ -14,18 +14,20 @@ Desarrollado con **NestJS 12+** en arquitectura modular con soporte nativo de **
 - **Proteccion Financiera y Data Masking:**
   - Enmascaramiento automatico de precios de compra, costos promedios y valorizaciones hacia usuarios de obra mediante `CostMaskingInterceptor`.
 - **Catalogo Maestro e Integracion con S10:**
-  - Clasificacion entre materiales consumibles (`CONSUMABLE`) y herramientas o equipos patrimoniales (`ASSET_TOOL`).
+  - Clasificacion cuatripartita de inventario: consumibles (`CONSUMABLE`), herramientas de mano (`TOOL`), equipos de obra (`EQUIPMENT`) y maquinaria pesada (`MACHINERY`), con soporte de perecibilidad (`isPerishable`).
   - Capa de homologacion de nombres crudos provenientes del software de presupuestos S10 (`ItemAlias`) con factores de conversion a unidades base.
 - **Logistica de Abastecimiento en Tres Etapas:**
   1. Reserva logica en Almacen Central sobre la demanda del presupuesto de obra.
   2. Transferencia fisica en dos fases: despacho en origen (`IN_TRANSIT`) e inspeccion en caseta con registro de discrepancias y mermas.
-  3. Salida por consumo definitivo entregada a capataces y cuadrillas en el frente de obra.
+  3. Salida por consumo definitivo entregada a capataces y cuadrillas en el frente de obra (restringida a items `CONSUMABLE`).
 - **Kardex Inmutable (Append-Only):**
   - Registro de hechos fisicos consumados sin operaciones de actualizacion o borrado, conservando instantaneas congeladas de costo (`unitCostSnapshot`).
 - **Motor Financiero de Costo Promedio Ponderado (CPP / WAC):**
-  - Valorizacion en Soles (PEN) computable sobre la base imponible neta sin IGV (18%), conforme a la normativa tributaria y contable (NIC 2 / SUNAT).
-- **Control de Custodia de Herramientas:**
-  - Prestamos temporales vinculados al DNI y nombre del operario con evaluacion fisica de salida y retorno (`OPERATIVE`, `DAMAGED_USABLE`, `DAMAGED_UNUSABLE`, `LOST`).
+  - Valorizacion en Soles (PEN) computable sobre la base imponible neta sin IGV (18%) para operaciones gravadas (`hasIgv = true`) y sobre el costo total integro en operaciones sin IGV (`hasIgv = false`), conforme a normativa contable (NIC 2 / SUNAT).
+- **Control de Custodia de Herramientas y Equipos:**
+  - Prestamos temporales para `TOOL` y `EQUIPMENT` vinculados al DNI y nombre del operario con evaluacion fisica de salida y retorno (`OPERATIVE`, `DAMAGED_USABLE`, `DAMAGED_UNUSABLE`, `LOST`) y evidencias adjuntas clasificadas por `proofType`.
+- **Control de Maquinaria Pesada:**
+  - Bitacora y partes diarios de maquina (`MachineryShiftLog`) con horometros, kilometraje y consumo de combustible.
 
 ---
 

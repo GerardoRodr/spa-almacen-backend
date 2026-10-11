@@ -72,8 +72,8 @@ Gestion de almacenes fisicos (Central vs Obra), catalogo maestro de items (Consu
   - [x] Endpoints: `GET /warehouses`, `POST /warehouses`, `GET /warehouses/:id/stock`, `GET /warehouses/:id/alerts`.
 - [x] **Modulo de Catalogo de Items (`src/modules/items`):**
   - [x] DTOs: `CreateItemDto`, `UpdateItemDto`, `CreateItemAliasDto`.
-  - [x] Servicio de items: alta de SKU maestro, clasificacion (`CONSUMABLE` vs `ASSET_TOOL`), unidad base (`baseUnit`), definicion de stock minimo.
-  - [x] Listado paginado con filtros por SKU, nombre y tipo.
+  - [x] Servicio de items: alta de SKU maestro, clasificacion (`CONSUMABLE`, `TOOL`, `EQUIPMENT`, `MACHINERY`, `isPerishable`), unidad base (`baseUnit`), definicion de stock minimo.
+  - [x] Listado paginado con filtros por SKU, nombre, tipo y perecibilidad.
   - [x] Detalle de item con consolidado de stock existente en todos los almacenes de la empresa.
   - [x] Gestion de alias S10 (`ItemAlias`): asociacion de texto crudo del S10 con un SKU maestro y factor de conversion hacia `baseUnit`.
   - [x] Endpoints: `GET /items`, `POST /items`, `GET /items/:id`, `PUT /items/:id`, `POST /items/aliases`, `DELETE /items/aliases/:id`.
@@ -153,7 +153,7 @@ Entrega de materiales consumibles a cuadrillas de construccion en caseta de obra
 
 ## Paso 6: Custodia, Prestamo y Devolucion de Herramientas (Completado)
 
-Administracion del ciclo de vida de herramientas y equipos (`ASSET_TOOL`), control de caseta vs campo y retorno con calificacion fisica.
+Administracion del ciclo de vida de herramientas y equipos (`TOOL` y `EQUIPMENT`), control de caseta vs campo y retorno con calificacion fisica y evidencias.
 
 ### Tareas:
 - [x] **Modulo de Custodia de Herramientas (`src/modules/tool-custody`):**

@@ -8,20 +8,28 @@ Este documento constituye la **Fuente Unica de Verdad (Single Source of Truth - 
 
 ### 1.1. `CONSUMABLE` (Materiales Consumibles)
 - Materiales de gasto definitivo en obra (cemento, arena, acero corrugado, aditivos, tuberias, cables).
+- **Atributo de Perecibilidad (`isPerishable`):**
+  - Si es `true`: materiales con vida util limitada o propensos a caducidad (quimicos, aditivos, resinas epoxicas, bolsas de cemento).
+  - Si es `false`: materiales sin fecha de vencimiento corto (acero corrugado, agregados gruesos, ladrillos, tuberias PVC).
 - Se procesan bajo el ciclo de abastecimiento de obra:
   1. Ingreso a Almacen Central por compra a proveedor (`PURCHASE_ENTRY`).
   2. Reserva logica para el proyecto receptor (`allocatedQty`).
-  3. Transferencia física hacia el Almacen de Obra temporal (`TRANSFER_DISPATCH` / `TRANSFER_RECEIPT`).
+  3. Transferencia fisica hacia el Almacen de Obra temporal (`TRANSFER_DISPATCH` / `TRANSFER_RECEIPT`).
   4. Salida por consumo definitivo entregada a capataces en obra (`CONSUMPTION_EXIT`).
 - Admite unidades fraccionarias (`DECIMAL(12, 4)`) en su unidad base (`baseUnit`).
 
-### 1.2. `ASSET_TOOL` (Equipos y Herramientas)
-- Bienes no fungibles y retornables requeridos para la ejecucion de trabajos.
-- **No se despachan como consumo definitivo.** Permanecen en el activo de la empresa.
-- **Subtipos operativos:**
-  - **Herramientas Mayores / Equipos:** Bienes de alto valor (rotomartillos, teodolitos, mezcladoras, vibradores de concreto). Registran obligatoriamente codigo patrimonial o numero de serie (`serialOrCode`).
-  - **Herramientas Menores:** Bienes de bajo valor o fungibles en cuadrilla (palas, carretillas, picos, cinceles). Se controlan por cantidad (`quantity`).
-- Requieren flujo de **Prestamo, Custodia y Devolucion** (`ToolCustody`) vinculado al DNI y nombre del trabajador receptor, registrando la condicion fisica al despacho y al retorno (`OPERATIVE`, `DAMAGED_USABLE`, `DAMAGED_UNUSABLE`, `MAINTENANCE_REQUIRED`, `LOST`).
+### 1.2. `TOOL` (Herramientas Menores y de Mano)
+- Bienes manuales requeridos para ejecucion de cuadrillas (palas, picos, carretillas, combas, llanas, serruchos, cinceles).
+- No son consumibles; permanecen en el activo patrimonial de la empresa.
+- Se gestionan en piso mediante vales de prestamo y custodia en caseta (`ToolCustody`), controlados por cantidad (`quantity`).
+
+### 1.3. `EQUIPMENT` (Equipos Menores y Portatiles)
+- Bienes electromecanicos o electronicos portatiles de obra (rotomartillos, vibradoras de concreto, teodolitos, compactadoras livianas, bombas sumergibles).
+- No son consumibles. Requieren registro de serie o codigo patrimonial (`serialOrCode`) y vales de custodia (`ToolCustody`) vinculados a un responsable individual con DNI.
+
+### 1.4. `MACHINERY` (Maquinaria Pesada y Flota)
+- Equipos pesados o autopropulsados (retroexcavadoras, cargadores frontales, camiones volquete, torres grua, grupos electrogenos de alta potencia).
+- No se prestan como herramientas menores en caseta de obra. Su control operativo se gestiona mediante partes diarios (`MachineryShiftLog`), registrando horometro inicial/final, kilometraje, operador y galones de combustible consumidos.
 
 ---
 
@@ -37,7 +45,7 @@ Este documento constituye la **Fuente Unica de Verdad (Single Source of Truth - 
 - Exige obligatoriamente motivo justificado, evidencia fotografica adjunta y aprobacion exclusiva del rol `ADMIN`.
 
 ### 2.3. Transacciones Atomicas
-- Toda operacion que modifique simultaneamente stocks (`physicalQty`, `reservedQty`, `loanedQty`), recalcule costos promedio o liquide transferencias debe ejecutarse dentro de un bloque transaccional atómico (`prisma.$transaction`).
+- Toda operacion que modifique simultaneamente stocks (`physicalQty`, `reservedQty`, `loanedQty`), recalcule costos promedio o liquide transferencias debe ejecutarse dentro de un bloque transaccional atomico (`prisma.$transaction`).
 
 ---
 
@@ -45,8 +53,10 @@ Este documento constituye la **Fuente Unica de Verdad (Single Source of Truth - 
 
 ### 3.1. Moneda Base (PEN) y Base Imponible
 - La valorizacion del inventario y el calculo de `Stock.averageCost` se realizan en Soles (PEN).
-- **Criterio Tributario y Contable (NIC 2 / SUNAT):** El costo unitario computable a inventario es el **costo neto sin IGV (18%)**, dado que el IGV constituye credito fiscal para la constructora y no forma parte del costo del material.
-- En compras en moneda extranjera (USD), se aplica el tipo de cambio oficial de compra (`exchangeRate`) registrado en el encabezado del comprobante.
+- **Tratamiento Tributario (Comprobantes Gravados vs Sin IGV):**
+  - **Operaciones Gravadas (`hasIgv = true`):** El costo unitario computable al inventario es el **costo neto sin IGV**, pues el IGV es credito fiscal para la empresa y no forma parte del costo de adquisicion (NIC 2 / SUNAT).
+  - **Operaciones Exoneradas o No Gravadas (`hasIgv = false`):** En adquisiciones sin IGV desglosado (boletas, recibos o proveedores exonerados), el costo total pagado entra integro a la base imponible y computa directamente en el nuevo CPP, validando que `igvAmountPEN === 0` y `totalAmountPEN === subtotalPEN`.
+- En compras en moneda extranjera (USD), se aplica el tipo de cambio de compra (`exchangeRate`) registrado en el comprobante.
 
 ### 3.2. Formula de Recalculo Atomico
 Por cada ingreso por compra recibido en el Almacen Central:
@@ -112,31 +122,33 @@ El material se envia fisicamente a la caseta de obra:
 
 ---
 
-## 5. Protocolo de Prestamo y Custodia de Herramientas (`ToolCustody`)
+## 5. Protocolo de Prestamo y Custodia de Herramientas y Equipos (`ToolCustody`)
 
-Las herramientas no son consumibles y requieren control de custodia por operario:
+Las herramientas menores (`TOOL`) y equipos portatiles (`EQUIPMENT`) no son consumibles y requieren control de custodia por operario:
 
-### 5.1. Triada de Stock para Herramientas
-En la tabla `Stock` para items de tipo `ASSET_TOOL`:
-- `physicalQty`: Cantidad total de herramientas bajo propiedad y custodia de ese almacen (en caseta o prestadas en obra).
-- `loanedQty`: Cantidad de herramientas actualmente en poder de operarios en campo.
+### 5.1. Triada de Stock para Herramientas y Equipos
+En la tabla `Stock` para items de tipo `TOOL` y `EQUIPMENT`:
+- `physicalQty`: Cantidad total de bienes bajo propiedad y custodia de ese almacen (en caseta o prestados en obra).
+- `loanedQty`: Cantidad de bienes actualmente en poder de operarios en campo.
 - **Disponibilidad para prestamo en caseta:**
   $$\text{Disponibles para prestar} = \text{Stock.physicalQty} - \text{Stock.loanedQty}$$
 
 ### 5.2. Flujo de Despacho en Prestamo (`LOAN_DISPATCH`)
 - Se valida que `physicalQty - loanedQty >= Q_{\text{prestamo}}`.
+- Se valida que el item sea de tipo `TOOL` o `EQUIPMENT` (rechazando `CONSUMABLE` y `MACHINERY`).
 - Se crea el vale en `ToolCustody` con estado de entrega `conditionOnDispatch` (por defecto `OPERATIVE`), fecha, DNI y nombre del operario.
 - Se incrementa `Stock.loanedQty += Q_{\text{prestamo}}`.
 - Se genera un `Movement` de tipo `LOAN_DISPATCH` (sin impacto en `physicalQty`).
+- Si se adjuntan actas o evidencias de entrega, se registran en `DocumentAttachment` con `proofType = DISPATCH`.
 
 ### 5.3. Flujo de Retorno y Calificacion Fisica (`LOAN_RETURN`)
-Al devolver la herramienta a la caseta, el almacenero evalua su condicion:
+Al devolver la herramienta o equipo a la caseta, el almacenero evalua su condicion:
 - **`OPERATIVE` o `DAMAGED_USABLE` (Operativo o Desgaste Normal):**
   - Se sella `returnDate = now()`.
   - Se decrementa `Stock.loanedQty -= Q_{\text{devuelta}}`.
   - Se genera `Movement` de tipo `LOAN_RETURN`.
 - **`DAMAGED_UNUSABLE` o `LOST` (Inutilizable o Extraviado):**
-  - Se exige adjuntar fotografia de evidencia o acta de perdida firmada.
+  - Se exige adjuntar fotografia de evidencia o acta de perdida firmada (`DocumentAttachment` con `proofType = RETURN`).
   - Se sella `returnDate = now()` y `conditionOnReturn = DAMAGED_UNUSABLE | LOST`.
   - Se decrementa `Stock.loanedQty -= Q`.
   - Se decrementa `Stock.physicalQty -= Q` (baja patrimonial).
@@ -148,13 +160,13 @@ Al devolver la herramienta a la caseta, el almacenero evalua su condicion:
 
 ### 6.1. Ingesta y Decodificacion
 - Soporta delimitadores por coma (`,`) y punto y coma (`;`).
-- Soporta codificacion `Windows-1252` (estandar de exportacion de S10 en Peru) y `UTF-8` para evitar corrupcion de tildes o caracteres tecnicos.
+- Soporta codificacion `Windows-1252` (estandar de exportacion de S10 en Peru) y `UTF-8` para evitar corrupcion de caracteres tecnicos.
 
 ### 6.2. Filtrado Estricto de Recursos
 - El parser clasifica y descarta automaticamente las partidas agrupadas bajo:
   - `01 MANO DE OBRA`
   - `04 SUBCONTRATOS`
-- Procesa unicamente insumos de tipo `02 MATERIALES` (`CONSUMABLE`) y `03 EQUIPOS` (`ASSET_TOOL`).
+- Procesa unicamente insumos de tipo `02 MATERIALES` (`CONSUMABLE`) y `03 EQUIPOS` (`TOOL`, `EQUIPMENT`, `MACHINERY`).
 
 ### 6.3. Resolucion de Alias y Factores de Conversion (`ItemAlias`)
 - Si la descripcion cruda del S10 (`s10RawName`) coincide con un registro en `ItemAlias`, se vincula directamente al SKU maestro.

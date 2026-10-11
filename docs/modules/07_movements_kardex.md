@@ -44,8 +44,11 @@ El almacenero de caseta entrega material a una cuadrilla o capataz. Decrementa e
 | `items` | array | Si | Lista de insumos entregados. |
 
 **Estructura de cada elemento en `items`:**
-- `itemId` (UUID): Identificador del item (debe ser `CONSUMABLE`).
+- `itemId` (UUID): Identificador del item (debe ser obligatoriamente de tipo `CONSUMABLE`).
 - `quantity` (number): Cantidad entregada en unidad base.
+
+**Restriccion de Tipo de Item:**
+Solo se admiten salidas de consumo para items clasificados como `CONSUMABLE`. Si se intenta despachar un bien de tipo `TOOL`, `EQUIPMENT` o `MACHINERY`, el sistema rechaza la transaccion inmediatamente con `BadRequestException`.
 
 **Ejemplo de Peticion:**
 ```json
@@ -91,6 +94,15 @@ El almacenero de caseta entrega material a una cuadrilla o capataz. Decrementa e
 {
   "statusCode": 400,
   "message": "Stock insuficiente en el almacen para el item CEM-PORT-T1. Disponible: 25.0000",
+  "error": "Bad Request"
+}
+```
+
+**400 Bad Request - Item no consumible:**
+```json
+{
+  "statusCode": 400,
+  "message": "Solo se pueden registrar salidas de consumo para items de tipo CONSUMABLE. El item HERR-TALADRO-ROTO es de tipo EQUIPMENT",
   "error": "Bad Request"
 }
 ```

@@ -1,18 +1,22 @@
 # Modulo 08 - Custodia y Prestamo de Herramientas (Tool Custody)
 
 ## 1. Descripcion General
-Este modulo controla el ciclo de vida y prestamo temporal de bienes clasificados como `ASSET_TOOL` (herramientas menores como palas o carretillas, y equipos mayores como rotomartillos o teodolitos) asignados a operarios y cuadrillas en frentes de obra.
+Este modulo controla el ciclo de vida y prestamo temporal de bienes clasificados como `TOOL` (herramientas manuales como palas, combas o carretillas) y `EQUIPMENT` (equipos portatiles de obra como rotomartillos, vibradoras o teodolitos) asignados a operarios y cuadrillas en frentes de obra.
 
 ### Reglas Clave:
 - **Triada de Control de Stock:**
   - `physicalQty`: Cantidad total de herramientas bajo inventario del almacen.
   - `loanedQty`: Cantidad de herramientas actualmente en campo en poder de trabajadores.
   - `Disponibles en caseta = physicalQty - loanedQty`.
+- **Items Admitidos:** Unicamente items con `ItemType` igual a `TOOL` o `EQUIPMENT`. Si se intenta prestar un bien `CONSUMABLE` o `MACHINERY`, el sistema rechaza la operacion con `BadRequestException`.
 - **Identificacion del Trabajador:** Todo prestamo exige obligatoriamente DNI (8 digitos) y nombre completo del operario receptor.
 - **Calificacion Fisica al Despacho y al Retorno:**
   - Valores posibles del enum `ToolCondition`: `OPERATIVE`, `DAMAGED_USABLE`, `DAMAGED_UNUSABLE`, `MAINTENANCE_REQUIRED`, `LOST`.
   - Si el retorno es `OPERATIVE` o `DAMAGED_USABLE`: se decrementa `loanedQty` y se genera `LOAN_RETURN`.
   - Si el retorno es `DAMAGED_UNUSABLE` o `LOST`: se da de baja patrimonial decrementando tanto `loanedQty` como `physicalQty`, y emitiendo un `SHRINKAGE_EXIT`.
+- **Evidencias Adjuntas y Tipos de Prueba:** Los documentos adjuntos asociados a un vale de custodia clasifican su proposito mediante `proofType`:
+  - `DISPATCH`: Actas de entrega, firmas o fotografias del estado inicial al salir de caseta.
+  - `RETURN`: Fotografias de recepcion, actas de conformidad o reportes de daño al retornar.
 
 - **Ruta Base:** `/api/v1/tools/custody`
 - **Entidades Vinculadas:** `ToolCustody`, `Item`, `Warehouse`, `User`, `Stock`, `Movement`, `DocumentAttachment`
@@ -58,7 +62,8 @@ Consulta las ordenes de prestamo con filtro por almacen, estado activo (no devue
       "conditionOnReturn": null,
       "item": {
         "sku": "HERR-TALADRO-ROTO",
-        "name": "Rotomartillo SDS-Plus 800W"
+        "name": "Rotomartillo SDS-Plus 800W",
+        "type": "EQUIPMENT"
       },
       "warehouse": {
         "name": "Almacen Obra San Isidro"
@@ -90,9 +95,9 @@ Registra la entrega fisica de una o varias herramientas a un trabajador en obra,
 | Campo | Tipo | Obligatorio | Descripcion |
 |---|---|---|---|
 | `warehouseId` | string (UUID) | Si | Almacen o caseta que presta el bien. |
-| `itemId` | string (UUID) | Si | Identificador del item tipo `ASSET_TOOL`. |
+| `itemId` | string (UUID) | Si | Identificador del item tipo `TOOL` o `EQUIPMENT`. |
 | `quantity` | number | No | Cantidad de unidades a prestar (por defecto: `1`). |
-| `serialOrCode` | string | No | Serie o codigo patrimonial para herramientas mayores. |
+| `serialOrCode` | string | No | Serie o codigo patrimonial para herramientas o equipos. |
 | `assignedToName` | string | Si | Nombre completo del operario. |
 | `assignedToDni` | string | Si | Documento Nacional de Identidad (8 digitos). |
 | `expectedReturnDate` | ISO Date | No | Fecha/hora estimada de devolucion a caseta. |
@@ -205,7 +210,8 @@ Permite consultar todas las herramientas que actualmente tiene en su poder un op
         "id": "item-uuid-rotomartillo",
         "sku": "HERR-TALADRO-ROTO",
         "name": "Rotomartillo SDS-Plus 800W",
-        "baseUnit": "UND"
+        "baseUnit": "UND",
+        "type": "EQUIPMENT"
       },
       "warehouse": {
         "id": "44444444-4444-4444-4444-444444444444",
@@ -254,7 +260,7 @@ Consulta la ficha completa de un vale de prestamo por su identificador.
     "sku": "HERR-TALADRO-ROTO",
     "name": "Rotomartillo SDS-Plus 800W",
     "baseUnit": "UND",
-    "type": "ASSET_TOOL"
+    "type": "EQUIPMENT"
   },
   "warehouse": {
     "id": "44444444-4444-4444-4444-444444444444",
@@ -267,6 +273,13 @@ Consulta la ficha completa de un vale de prestamo por su identificador.
     "email": "juan.perez@spa.com"
   },
   "receivedBy": null,
-  "documents": []
+  "documents": [
+    {
+      "id": "doc-uuid-1",
+      "fileName": "acta_entrega.pdf",
+      "fileUrl": "/uploads/documents/acta_entrega.pdf",
+      "proofType": "DISPATCH"
+    }
+  ]
 }
 ```

@@ -1,11 +1,13 @@
 # Modulo 04 - Catalogo de Items y Alias S10 (Items)
 
 ## 1. Descripcion General
-El modulo de catalogo maestro centraliza el inventario corporativo de insumos y equipos divididos en:
-- **Consumibles (`CONSUMABLE`):** Materiales directos que se consumen y extinguen fisicamente en la ejecucion de las partidas de obra (cemento, acero corrugado, arena, tuberias).
-- **Herramientas y Equipos (`ASSET_TOOL`):** Bienes patrimoniales no consumibles sujetos a custodia, prestamo a operarios y control de retorno a caseta (rotomartillos, teodolitos, amoladoras, escaleras).
+El modulo de catalogo maestro centraliza el inventario corporativo de insumos y equipos divididos en cuatro categorias:
+- **Consumibles (`CONSUMABLE`):** Materiales directos que se consumen y extinguen fisicamente en la ejecucion de las partidas de obra (cemento, acero corrugado, arena, tuberias, aditivos).
+- **Herramientas Menores (`TOOL`):** Herramientas manuales no consumibles sujetas a custodia y prestamo diario a operarios (palas, carretillas buggies, picos, combos).
+- **Equipos y Herramientas de Poder (`EQUIPMENT`):** Bienes patrimoniales sujetos a custodia, serial y retorno calificado a caseta (rotomartillos, teodolitos, amoladoras, niveles laser).
+- **Maquinaria Pesada (`MACHINERY`):** Equipos mayores autopropulsados o de linea amarilla/blanca controlados mediante turnos de operacion y horometros (retroexcavadoras, cargadores frontales, rodillos).
 
-Adicionalmente, este modulo implementa la capa de homologacion de nombres crudos provenientes del software de presupuestos S10 (`ItemAlias`), permitiendo mapear denominaciones no estandarizadas hacia el SKU unico con su respectivo factor de conversion de unidades.
+Adicionalmente, este modulo implementa la capa de homologacion de nombres crudos provenientes del software de presupuestos S10 (`ItemAlias`), permitiendo mapear denominaciones no estandarizadas hacia el SKU unico con su respectivo factor de conversion de unidades, y la clasificacion de materiales perecibles (`isPerishable`).
 
 - **Ruta Base:** `/api/v1/items`
 - **Entidades Vinculadas:** `Item`, `ItemAlias`, `Stock`, `Warehouse`
@@ -15,7 +17,7 @@ Adicionalmente, este modulo implementa la capa de homologacion de nombres crudos
 ## 2. Endpoints
 
 ### 2.1 Listar Catalogo Paginado
-Obtiene el listado de insumos y herramientas con paginacion, busqueda por texto en SKU o nombre, y filtro por tipo de recurso.
+Obtiene el listado de insumos y herramientas con paginacion, busqueda por texto en SKU o nombre, filtro por tipo de recurso y filtro por caducidad (perecibles).
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/items`
@@ -29,11 +31,12 @@ Obtiene el listado de insumos y herramientas con paginacion, busqueda por texto 
 | `page` | integer | `1` | Numero de pagina actual. |
 | `limit` | integer | `20` | Cantidad de registros por pagina. |
 | `search` | string | opcional | Cadena de busqueda por SKU o nombre. |
-| `type` | `CONSUMABLE` \| `ASSET_TOOL` | opcional | Filtro por clasificacion del item. |
+| `type` | `CONSUMABLE` \| `TOOL` \| `EQUIPMENT` \| `MACHINERY` | opcional | Filtro por clasificacion del item. |
+| `isPerishable` | boolean (`true` \| `false`) | opcional | Filtrar insumos perecibles o no perecibles. |
 
 **Ejemplo de Peticion:**
 ```http
-GET /api/v1/items?page=1&limit=10&search=fierro&type=CONSUMABLE
+GET /api/v1/items?page=1&limit=10&search=fierro&type=CONSUMABLE&isPerishable=false
 ```
 
 #### Respuestas
@@ -49,6 +52,7 @@ GET /api/v1/items?page=1&limit=10&search=fierro&type=CONSUMABLE
       "baseUnit": "VARILLA",
       "type": "CONSUMABLE",
       "minStockAlert": "100.0000",
+      "isPerishable": false,
       "createdAt": "2026-09-20T22:55:00.000Z",
       "_count": {
         "stocks": 3,
@@ -80,22 +84,24 @@ Crea un nuevo SKU corporativo oficial. Restringido exclusivamente al administrad
 #### Request Body (`CreateItemDto`)
 | Campo | Tipo | Obligatorio | Descripcion |
 |---|---|---|---|
-| `sku` | string | Si | Codigo unico de inventario (ej. `CEM-PORT-T1`). |
+| `sku` | string | Si | Codigo unico de inventario (ej. `CEM-PORT-T1` o `EQU-ROT-001`). |
 | `name` | string | Si | Nombre formal del producto o herramienta. |
 | `description` | string | No | Ficha o especificacion tecnica resumida. |
 | `baseUnit` | string | Si | Unidad de medida base de control (ej. `UND`, `KG`, `M3`, `BOLSA`, `VARILLA`). |
-| `type` | `CONSUMABLE` \| `ASSET_TOOL` | Si | Clasificacion contable y operativa. |
+| `type` | `CONSUMABLE` \| `TOOL` \| `EQUIPMENT` \| `MACHINERY` | Si | Clasificacion contable y operativa. |
+| `isPerishable` | boolean | No | Indica si el insumo es perecible y sujeto a caducidad (por defecto: `false`). |
 | `minStockAlert` | number | No | Cantidad minima para alerta de reposicion (por defecto: `0`). |
 
 **Ejemplo de Peticion:**
 ```json
 {
-  "sku": "HERR-TALADRO-ROTO",
-  "name": "Rotomartillo SDS-Plus 800W",
-  "description": "Equipo para perforacion en concreto con maletin y accesorios",
-  "baseUnit": "UND",
-  "type": "ASSET_TOOL",
-  "minStockAlert": 3
+  "sku": "EQU-ROT-001",
+  "name": "Rotomartillo Bosch GBH 2-28 D 850W",
+  "description": "Equipo electro-neumatico con encastre SDS Plus para perforacion en concreto",
+  "baseUnit": "UNIDAD",
+  "type": "EQUIPMENT",
+  "isPerishable": false,
+  "minStockAlert": 2
 }
 ```
 
@@ -104,12 +110,13 @@ Crea un nuevo SKU corporativo oficial. Restringido exclusivamente al administrad
 ```json
 {
   "id": "item-uuid-rotomartillo",
-  "sku": "HERR-TALADRO-ROTO",
-  "name": "Rotomartillo SDS-Plus 800W",
-  "description": "Equipo para perforacion en concreto con maletin y accesorios",
-  "baseUnit": "UND",
-  "type": "ASSET_TOOL",
-  "minStockAlert": "3.0000",
+  "sku": "EQU-ROT-001",
+  "name": "Rotomartillo Bosch GBH 2-28 D 850W",
+  "description": "Equipo electro-neumatico con encastre SDS Plus para perforacion en concreto",
+  "baseUnit": "UNIDAD",
+  "type": "EQUIPMENT",
+  "minStockAlert": "2.0000",
+  "isPerishable": false,
   "createdAt": "2026-09-23T12:15:00.000Z",
   "updatedAt": "2026-09-23T12:15:00.000Z"
 }
@@ -119,7 +126,7 @@ Crea un nuevo SKU corporativo oficial. Restringido exclusivamente al administrad
 ```json
 {
   "statusCode": 409,
-  "message": "Ya existe un item registrado con el SKU HERR-TALADRO-ROTO",
+  "message": "Ya existe un item registrado con el SKU EQU-ROT-001",
   "error": "Conflict"
 }
 ```
@@ -144,12 +151,13 @@ Obtiene la ficha del item junto con el desglose de existencias por almacen, calc
 ```json
 {
   "id": "item-uuid-rotomartillo",
-  "sku": "HERR-TALADRO-ROTO",
-  "name": "Rotomartillo SDS-Plus 800W",
-  "description": "Equipo para perforacion en concreto con maletin y accesorios",
-  "baseUnit": "UND",
-  "type": "ASSET_TOOL",
-  "minStockAlert": "3.0000",
+  "sku": "EQU-ROT-001",
+  "name": "Rotomartillo Bosch GBH 2-28 D 850W",
+  "description": "Equipo electro-neumatico con encastre SDS Plus para perforacion en concreto",
+  "baseUnit": "UNIDAD",
+  "type": "EQUIPMENT",
+  "minStockAlert": "2.0000",
+  "isPerishable": false,
   "createdAt": "2026-09-23T12:15:00.000Z",
   "updatedAt": "2026-09-23T12:15:00.000Z",
   "totals": {
@@ -200,7 +208,8 @@ Obtiene la ficha del item junto con el desglose de existencias por almacen, calc
   "name": "Rotomartillo SDS-Plus 800W",
   "description": "Equipo para perforacion en concreto con maletin y accesorios",
   "baseUnit": "UND",
-  "type": "ASSET_TOOL",
+  "type": "EQUIPMENT",
+  "isPerishable": false,
   "minStockAlert": "3.0000",
   "createdAt": "2026-09-23T12:15:00.000Z",
   "updatedAt": "2026-09-23T12:15:00.000Z",
@@ -263,13 +272,15 @@ Modifica datos descriptivos, unidad base o limite de alerta de un SKU maestro.
 | `name` | string | No | Nombre del item. |
 | `description` | string | No | Descripcion tecnica. |
 | `baseUnit` | string | No | Unidad base. |
-| `type` | `CONSUMABLE` \| `ASSET_TOOL` | No | Clasificacion del item. |
+| `type` | `CONSUMABLE` \| `TOOL` \| `EQUIPMENT` \| `MACHINERY` | No | Clasificacion del item. |
+| `isPerishable` | boolean | No | Indicador de material perecible. |
 | `minStockAlert` | number | No | Cantidad minima para alerta de reposicion. |
 
 **Ejemplo de Peticion:**
 ```json
 {
-  "minStockAlert": 5
+  "minStockAlert": 5,
+  "isPerishable": false
 }
 ```
 
@@ -278,12 +289,13 @@ Modifica datos descriptivos, unidad base o limite de alerta de un SKU maestro.
 ```json
 {
   "id": "item-uuid-rotomartillo",
-  "sku": "HERR-TALADRO-ROTO",
-  "name": "Rotomartillo SDS-Plus 800W",
-  "description": "Equipo para perforacion en concreto con maletin y accesorios",
-  "baseUnit": "UND",
-  "type": "ASSET_TOOL",
+  "sku": "EQU-ROT-001",
+  "name": "Rotomartillo Bosch GBH 2-28 D 850W",
+  "description": "Equipo electro-neumatico con encastre SDS Plus para perforacion en concreto",
+  "baseUnit": "UNIDAD",
+  "type": "EQUIPMENT",
   "minStockAlert": "5.0000",
+  "isPerishable": false,
   "createdAt": "2026-09-23T12:15:00.000Z",
   "updatedAt": "2026-09-23T12:18:00.000Z"
 }
