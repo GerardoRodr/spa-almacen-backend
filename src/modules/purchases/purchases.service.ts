@@ -152,7 +152,36 @@ export class PurchasesService {
       );
     }
 
-    // 4. Ejecutar transaccion atomica
+    // 4. Validar coherencia contable segun tipo de compra (con o sin IGV)
+    const hasIgv = dto.hasIgv !== false;
+    let igvAmount = Number(dto.igvAmountPEN ?? 0);
+    const subtotal = Number(dto.subtotalPEN);
+    const total = Number(dto.totalAmountPEN);
+
+    if (!hasIgv) {
+      if (igvAmount > 0) {
+        throw new BadRequestException(
+          'En compras exoneradas o sin IGV, el monto de IGV debe ser 0',
+        );
+      }
+      if (Math.abs(total - subtotal) > 0.05) {
+        throw new BadRequestException(
+          'En compras exoneradas o sin IGV, el monto total debe ser igual al subtotal',
+        );
+      }
+      igvAmount = 0;
+    } else {
+      if (igvAmount === 0 && total > subtotal) {
+        igvAmount = Number((total - subtotal).toFixed(2));
+      }
+      if (Math.abs(total - (subtotal + igvAmount)) > 0.05) {
+        throw new BadRequestException(
+          'El monto total debe ser igual a la suma del subtotal y el IGV',
+        );
+      }
+    }
+
+    // 5. Ejecutar transaccion atomica
     return this.prisma.$transaction(async (tx) => {
       // Generar correlativo inmutable para el movimiento de inventario MOV-YYYY-NNNNN
       const currentYear = new Date().getFullYear();
@@ -179,11 +208,13 @@ export class PurchasesService {
         data: {
           supplierId: dto.supplierId,
           invoiceSeries: dto.invoiceSeries.trim(),
+          voucherType: dto.voucherType?.trim() || 'FACTURA',
+          hasIgv,
           currency: dto.currency ?? Currency.PEN,
           exchangeRate: dto.exchangeRate ?? 1.0,
           issueDate: new Date(dto.issueDate),
           subtotalPEN: dto.subtotalPEN,
-          igvAmountPEN: dto.igvAmountPEN ?? 0,
+          igvAmountPEN: hasIgv ? igvAmount : 0,
           totalAmountPEN: dto.totalAmountPEN,
         },
       });
@@ -304,6 +335,8 @@ export class PurchasesService {
       return {
         id: purchase.id,
         invoiceSeries: purchase.invoiceSeries,
+        voucherType: purchase.voucherType,
+        hasIgv: purchase.hasIgv,
         currency: purchase.currency,
         exchangeRate: purchase.exchangeRate,
         issueDate: purchase.issueDate,

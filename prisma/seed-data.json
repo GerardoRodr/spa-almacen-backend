@@ -266,7 +266,7 @@
       "name": "Rotomartillo Bosch GBH 2-28 D 850W",
       "description": "Equipo electro-neumatico con encastre SDS Plus para perforacion en concreto",
       "baseUnit": "UNIDAD",
-      "type": "ASSET_TOOL",
+      "type": "EQUIPMENT",
       "minStockAlert": 2.0
     },
     {
@@ -275,7 +275,7 @@
       "name": "Amoladora Angular DeWalt 4 1/2 pulgada 900W",
       "description": "Herramienta rotativa de alto rendimiento para corte y desbaste metalico",
       "baseUnit": "UNIDAD",
-      "type": "ASSET_TOOL",
+      "type": "EQUIPMENT",
       "minStockAlert": 3.0
     },
     {
@@ -284,7 +284,7 @@
       "name": "Nivel Laser Autonivelante Bosch GLL 3-80",
       "description": "Nivel de lineas 360 grados de precision milimetrica para topografia y acabados",
       "baseUnit": "UNIDAD",
-      "type": "ASSET_TOOL",
+      "type": "EQUIPMENT",
       "minStockAlert": 1.0
     },
     {
@@ -293,7 +293,7 @@
       "name": "Vibrador de Concreto Portatil Wacker 2.5HP",
       "description": "Manguera vibradora a combustion para compactacion y eliminacion de cangrejeras",
       "baseUnit": "UNIDAD",
-      "type": "ASSET_TOOL",
+      "type": "EQUIPMENT",
       "minStockAlert": 2.0
     },
     {
@@ -302,7 +302,7 @@
       "name": "Taladro Percutor Makita 13mm 710W",
       "description": "Taladro percutor reversible de velocidad variable para montajes de encofrado",
       "baseUnit": "UNIDAD",
-      "type": "ASSET_TOOL",
+      "type": "EQUIPMENT",
       "minStockAlert": 2.0
     },
     {
@@ -311,7 +311,7 @@
       "name": "Pala Tramontina Tipo Cuchara Mango Madera",
       "description": "Herramienta manual forjada para acarreo y bateo de mortero",
       "baseUnit": "UNIDAD",
-      "type": "ASSET_TOOL",
+      "type": "TOOL",
       "minStockAlert": 8.0
     },
     {
@@ -320,7 +320,7 @@
       "name": "Carretilla Buggy Reforzada 3.5ft",
       "description": "Buggy metalico de tolva reforzada con llanta neumatica para transporte de concreto",
       "baseUnit": "UNIDAD",
-      "type": "ASSET_TOOL",
+      "type": "TOOL",
       "minStockAlert": 5.0
     }
   ],

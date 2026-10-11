@@ -18,6 +18,7 @@ async function main() {
   // Limpieza previa en orden inverso de dependencias para garantizar idempotencia
   console.log('Limpiando datos existentes...');
   await prisma.documentAttachment.deleteMany();
+  await prisma.machineryShiftLog.deleteMany();
   await prisma.movementItem.deleteMany();
   await prisma.movement.deleteMany();
   await prisma.transferItem.deleteMany();
@@ -103,6 +104,7 @@ async function main() {
         contactPhone: supplier.contactPhone,
         contactEmail: supplier.contactEmail,
         address: supplier.address,
+        notes: supplier.notes ?? null,
       },
     });
   }
@@ -119,6 +121,7 @@ async function main() {
         baseUnit: item.baseUnit,
         type: item.type,
         minStockAlert: item.minStockAlert,
+        isPerishable: item.isPerishable ?? false,
       },
     });
   }
@@ -161,6 +164,8 @@ async function main() {
         id: purchase.id,
         supplierId: purchase.supplierId,
         invoiceSeries: purchase.invoiceSeries,
+        voucherType: purchase.voucherType ?? 'FACTURA',
+        hasIgv: purchase.hasIgv ?? true,
         currency: purchase.currency,
         exchangeRate: purchase.exchangeRate,
         issueDate: new Date(purchase.issueDate),

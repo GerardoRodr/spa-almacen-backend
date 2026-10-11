@@ -235,7 +235,7 @@ describe('MovementsService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('debe lanzar BadRequestException si se intenta consumir un item clasificado como ASSET_TOOL', async () => {
+    it('debe lanzar BadRequestException si se intenta consumir un item clasificado como TOOL o no consumible', async () => {
       prisma.warehouse.findUnique.mockResolvedValue({
         id: 'wh-obra',
         isActive: true,
@@ -247,7 +247,7 @@ describe('MovementsService', () => {
           sku: 'TAL-01',
           name: 'Taladro Percutor',
           baseUnit: 'UND',
-          type: ItemType.ASSET_TOOL,
+          type: ItemType.TOOL,
         },
       ]);
 

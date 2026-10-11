@@ -3,6 +3,7 @@ import {
   IsOptional,
   IsString,
   Matches,
+  MaxLength,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -49,4 +50,13 @@ export class UpdateSupplierDto {
   @IsOptional()
   @IsString({ message: 'La direccion debe ser una cadena de texto' })
   address?: string;
+
+  @ApiPropertyOptional({
+    example: 'Proveedor homologado para suministros de cemento y fierro',
+    description: 'Observaciones de cumplimiento, puntualidad o notas operativas',
+  })
+  @IsOptional()
+  @IsString({ message: 'Las observaciones deben ser una cadena de texto' })
+  @MaxLength(1000, { message: 'Las observaciones no pueden exceder 1000 caracteres' })
+  notes?: string;
 }

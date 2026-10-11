@@ -173,6 +173,78 @@ describe('PurchasesService', () => {
         BadRequestException,
       );
     });
+
+    it('debe lanzar BadRequestException si hasIgv es false pero igvAmountPEN es mayor a cero', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'sup-1' });
+      prisma.warehouse.findUnique.mockResolvedValue({
+        id: 'wh-central',
+        type: WarehouseType.CENTRAL,
+        isActive: true,
+      });
+      prisma.item.findMany.mockResolvedValue([
+        { id: 'item-cemento', sku: 'CEM-01', name: 'Cemento', baseUnit: 'BOLSA' },
+      ]);
+
+      const invalidDto = {
+        ...baseDto,
+        hasIgv: false,
+        igvAmountPEN: 100,
+        subtotalPEN: 1000,
+        totalAmountPEN: 1000,
+      };
+
+      await expect(service.create(invalidDto, 'user-admin')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('debe lanzar BadRequestException si hasIgv es false pero totalAmountPEN difiere de subtotalPEN', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'sup-1' });
+      prisma.warehouse.findUnique.mockResolvedValue({
+        id: 'wh-central',
+        type: WarehouseType.CENTRAL,
+        isActive: true,
+      });
+      prisma.item.findMany.mockResolvedValue([
+        { id: 'item-cemento', sku: 'CEM-01', name: 'Cemento', baseUnit: 'BOLSA' },
+      ]);
+
+      const invalidDto = {
+        ...baseDto,
+        hasIgv: false,
+        igvAmountPEN: 0,
+        subtotalPEN: 1000,
+        totalAmountPEN: 1180,
+      };
+
+      await expect(service.create(invalidDto, 'user-admin')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('debe lanzar BadRequestException si hasIgv es true pero totalAmountPEN no coincide con subtotal + igv', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'sup-1' });
+      prisma.warehouse.findUnique.mockResolvedValue({
+        id: 'wh-central',
+        type: WarehouseType.CENTRAL,
+        isActive: true,
+      });
+      prisma.item.findMany.mockResolvedValue([
+        { id: 'item-cemento', sku: 'CEM-01', name: 'Cemento', baseUnit: 'BOLSA' },
+      ]);
+
+      const invalidDto = {
+        ...baseDto,
+        hasIgv: true,
+        subtotalPEN: 1000,
+        igvAmountPEN: 180,
+        totalAmountPEN: 1500, // Inconsistente
+      };
+
+      await expect(service.create(invalidDto, 'user-admin')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
   });
 
   describe('create - Calculo de CPP y Transaccion Atomica', () => {
@@ -452,6 +524,72 @@ describe('PurchasesService', () => {
       expect(result.details[0].baseQty).toBe(400); // 10 * 40
       expect(result.details[0].unitCostBasePEN).toBe(25.0); // 1000 / 40
       expect(result.details[0].newWarehouseAverageCost).toBe(25.0);
+    });
+
+    it('debe registrar exitosamente una compra sin IGV con voucherType y computar costo directo integro al CPP', async () => {
+      const dto = {
+        supplierId: 'sup-1',
+        centralWarehouseId: 'wh-central',
+        invoiceSeries: 'RH01-00012',
+        voucherType: 'RECIBO',
+        hasIgv: false,
+        currency: Currency.PEN,
+        exchangeRate: 1.0,
+        issueDate: '2026-09-22T10:00:00.000Z',
+        subtotalPEN: 1500.0,
+        igvAmountPEN: 0,
+        totalAmountPEN: 1500.0,
+        items: [
+          {
+            itemId: 'item-arena',
+            purchaseUnit: 'M3',
+            conversionFactor: 1.0,
+            purchaseQty: 30,
+            unitPriceOriginal: 50.0,
+          },
+        ],
+      };
+
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'sup-1' });
+      prisma.warehouse.findUnique.mockResolvedValue({
+        id: 'wh-central',
+        type: WarehouseType.CENTRAL,
+        isActive: true,
+      });
+      prisma.item.findMany.mockResolvedValue([
+        { id: 'item-arena', sku: 'MAT-ARE-001', name: 'Arena Gruesa' },
+      ]);
+
+      const mockTx = {
+        movement: {
+          findFirst: vi.fn().mockResolvedValue(null),
+          create: vi.fn().mockImplementation((args) => ({ id: 'mov-5', ...args.data })),
+        },
+        purchase: {
+          create: vi.fn().mockImplementation((args) => ({ id: 'purch-5', ...args.data })),
+        },
+        purchaseDetail: {
+          create: vi.fn().mockImplementation((args) => ({ id: 'detail-5', ...args.data })),
+        },
+        stock: {
+          findUnique: vi.fn().mockResolvedValue(null),
+          upsert: vi.fn().mockResolvedValue({}),
+        },
+      };
+
+      prisma.$transaction.mockImplementation(async (callback) => {
+        return callback(mockTx);
+      });
+
+      const result = await service.create(dto, 'user-admin');
+
+      expect(result.id).toBe('purch-5');
+      expect(result.hasIgv).toBe(false);
+      expect(result.voucherType).toBe('RECIBO');
+      expect(result.igvAmountPEN).toBe(0);
+      expect(result.totalAmountPEN).toBe(1500.0);
+      expect(result.details[0].unitCostBasePEN).toBe(50.0);
+      expect(result.details[0].newWarehouseAverageCost).toBe(50.0);
     });
   });
 });

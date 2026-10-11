@@ -1,5 +1,6 @@
 import {
   IsArray,
+  IsBoolean,
   IsEnum,
   IsNotEmpty,
   IsNumber,
@@ -38,6 +39,24 @@ export class CreatePurchaseDto {
   @IsString({ message: 'La serie de factura debe ser una cadena de texto' })
   @IsNotEmpty({ message: 'La serie de factura no puede estar vacia' })
   invoiceSeries: string;
+
+  @ApiPropertyOptional({
+    example: 'FACTURA',
+    default: 'FACTURA',
+    description: 'Tipo de comprobante de pago emitido (ej. FACTURA, BOLETA, GUIA, RECIBO)',
+  })
+  @IsOptional()
+  @IsString({ message: 'El tipo de comprobante debe ser una cadena de texto' })
+  voucherType?: string = 'FACTURA';
+
+  @ApiPropertyOptional({
+    example: true,
+    default: true,
+    description: 'Indica si la compra incluye IGV (18%) o si es exonerada/sin IGV (0%)',
+  })
+  @IsOptional()
+  @IsBoolean({ message: 'hasIgv debe ser un valor booleano' })
+  hasIgv?: boolean = true;
 
   @ApiPropertyOptional({
     enum: Currency,

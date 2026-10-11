@@ -153,16 +153,17 @@ export class ToolCustodyService {
       throw new BadRequestException('El almacen no se encuentra activo');
     }
 
-    // 2. Validar que el item exista y sea ASSET_TOOL
+    // 2. Validar que el item exista y sea TOOL o EQUIPMENT
     const item = await this.prisma.item.findUnique({
       where: { id: dto.itemId },
     });
     if (!item) {
       throw new NotFoundException('Item no encontrado');
     }
-    if (item.type !== ItemType.ASSET_TOOL) {
+    const allowedCustodyTypes: ItemType[] = [ItemType.TOOL, ItemType.EQUIPMENT];
+    if (!allowedCustodyTypes.includes(item.type)) {
       throw new BadRequestException(
-        'Solo los items clasificados como ASSET_TOOL pueden ser despachados en prestamo y custodia',
+        'Solo los items clasificados como TOOL o EQUIPMENT pueden ser despachados en prestamo y custodia',
       );
     }
 

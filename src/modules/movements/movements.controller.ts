@@ -88,7 +88,7 @@ export class MovementsController {
   @ApiResponse({
     status: 400,
     description:
-      'Stock fisico insuficiente en caseta o intento de consumo sobre un item ASSET_TOOL',
+      'Stock fisico insuficiente en caseta o intento de consumo sobre un item no consumible (TOOL/EQUIPMENT/MACHINERY)',
   })
   @ApiResponse({
     status: 403,

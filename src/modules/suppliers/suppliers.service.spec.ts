@@ -109,6 +109,28 @@ describe('SuppliersService', () => {
       expect(prisma.supplier.create).toHaveBeenCalled();
     });
 
+    it('debe registrar un nuevo proveedor exitosamente con observaciones', async () => {
+      const dto = {
+        taxId: '20100138112',
+        businessName: 'ACEROS AREQUIPA',
+        contactPhone: '+51 1 5171800',
+        contactEmail: 'ventas@aceros.com',
+        address: 'Av. Meiggs 297',
+        notes: 'Proveedor con entregas en 24h',
+      };
+
+      prisma.supplier.findUnique.mockResolvedValue(null);
+      prisma.supplier.create.mockResolvedValue({ id: 'sup-1', ...dto });
+
+      const result = await service.create(dto);
+      expect(result.id).toBe('sup-1');
+      expect(prisma.supplier.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          notes: 'Proveedor con entregas en 24h',
+        }),
+      });
+    });
+
     it('debe lanzar ConflictException si el RUC ya esta registrado', async () => {
       const dto = {
         taxId: '20100138112',
@@ -122,24 +144,33 @@ describe('SuppliersService', () => {
   });
 
   describe('update', () => {
-    it('debe actualizar el proveedor correctamente', async () => {
+    it('debe actualizar el proveedor y sus observaciones correctamente', async () => {
       const existing = {
         id: 'sup-1',
         taxId: '20100138112',
         businessName: 'ACEROS AREQUIPA',
+        notes: null,
       };
 
       prisma.supplier.findUnique.mockResolvedValue(existing);
       prisma.supplier.update.mockResolvedValue({
         ...existing,
         businessName: 'ACEROS AREQUIPA S.A.',
+        notes: 'Calificacion A+',
       });
 
       const result = await service.update('sup-1', {
         businessName: 'ACEROS AREQUIPA S.A.',
+        notes: 'Calificacion A+',
       });
 
       expect(result.businessName).toBe('ACEROS AREQUIPA S.A.');
+      expect(prisma.supplier.update).toHaveBeenCalledWith({
+        where: { id: 'sup-1' },
+        data: expect.objectContaining({
+          notes: 'Calificacion A+',
+        }),
+      });
     });
 
     it('debe lanzar NotFoundException si el proveedor a actualizar no existe', async () => {

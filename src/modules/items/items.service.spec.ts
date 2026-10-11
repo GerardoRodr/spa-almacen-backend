@@ -85,6 +85,52 @@ describe('ItemsService', () => {
     expect(result.totals.netAvailableCentralQty).toBe(70);
   });
 
+  it('debe registrar un nuevo item exitosamente con isPerishable y tipo TOOL', async () => {
+    vi.spyOn(prisma.item, 'findUnique').mockResolvedValue(null);
+    vi.spyOn(prisma.item, 'create').mockResolvedValue({
+      id: 'tool-1',
+      sku: 'HER-PAL-01',
+      name: 'Pala Tramontina',
+      baseUnit: 'UNIDAD',
+      type: ItemType.TOOL,
+      minStockAlert: 5,
+      isPerishable: false,
+    } as any);
+
+    const result = await service.create({
+      sku: 'her-pal-01',
+      name: 'Pala Tramontina',
+      baseUnit: 'UNIDAD',
+      type: ItemType.TOOL,
+      minStockAlert: 5,
+      isPerishable: false,
+    });
+
+    expect(result.id).toBe('tool-1');
+    expect(prisma.item.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        sku: 'HER-PAL-01',
+        type: ItemType.TOOL,
+        isPerishable: false,
+      }),
+    });
+  });
+
+  it('debe aplicar filtro por isPerishable en findAll', async () => {
+    vi.spyOn(prisma.item, 'count').mockResolvedValue(3);
+    vi.spyOn(prisma.item, 'findMany').mockResolvedValue([] as any);
+
+    await service.findAll({ isPerishable: true });
+
+    expect(prisma.item.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          isPerishable: true,
+        }),
+      }),
+    );
+  });
+
   it('debe lanzar ConflictException si el alias S10 ya existe al registrar', async () => {
     vi.spyOn(prisma.item, 'findUnique').mockResolvedValue({ id: 'item-1', stocks: [] } as any);
     vi.spyOn(prisma.itemAlias, 'findUnique').mockResolvedValue({ id: 'alias-1' } as any);

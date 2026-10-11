@@ -214,7 +214,7 @@ describe('ToolCustodyService', () => {
       });
       prisma.item.findUnique.mockResolvedValue({
         id: 'item-roto-1',
-        type: ItemType.ASSET_TOOL,
+        type: ItemType.EQUIPMENT,
       });
       // physicalQty: 5, loanedQty: 5 -> disponibles: 0
       prisma.stock.findUnique.mockResolvedValue({
@@ -247,7 +247,7 @@ describe('ToolCustodyService', () => {
       });
       prisma.item.findUnique.mockResolvedValue({
         id: 'item-roto-1',
-        type: ItemType.ASSET_TOOL,
+        type: ItemType.EQUIPMENT,
       });
       // physicalQty: 5, loanedQty: 1 -> disponibles: 4 >= 2
       prisma.stock.findUnique.mockResolvedValue({

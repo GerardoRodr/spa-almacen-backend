@@ -14,7 +14,7 @@ export class WarehouseStockFilterDto {
   @ApiPropertyOptional({
     enum: ItemType,
     example: ItemType.CONSUMABLE,
-    description: 'Filtro por tipo de item: CONSUMABLE o ASSET_TOOL',
+    description: 'Filtro por tipo de item: CONSUMABLE, TOOL, EQUIPMENT o MACHINERY',
   })
   @IsOptional()
   @IsEnum(ItemType, { message: 'El tipo de item no es valido' })

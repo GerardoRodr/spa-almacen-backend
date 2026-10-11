@@ -232,7 +232,7 @@ export class MovementsService {
       const itemInfo = itemMap.get(itemDto.itemId)!;
       if (itemInfo.type !== ItemType.CONSUMABLE) {
         throw new BadRequestException(
-          `El item ${itemInfo.sku} (${itemInfo.name}) es de tipo ASSET_TOOL. Solo los insumos de tipo CONSUMABLE pueden registrarse en salidas por consumo definitivo. Las herramientas deben gestionarse mediante custodia.`,
+          `El item ${itemInfo.sku} (${itemInfo.name}) es de tipo ${itemInfo.type}. Solo los insumos de tipo CONSUMABLE pueden registrarse en salidas por consumo definitivo. Las herramientas y equipos deben gestionarse mediante custodia.`,
         );
       }
     }

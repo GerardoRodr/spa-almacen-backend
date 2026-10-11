@@ -103,6 +103,7 @@ export class SuppliersService {
         contactPhone: dto.contactPhone?.trim(),
         contactEmail: dto.contactEmail?.trim(),
         address: dto.address?.trim(),
+        notes: dto.notes ? dto.notes.trim() : null,
       },
     });
   }
@@ -141,6 +142,9 @@ export class SuppliersService {
         }),
         ...(dto.address !== undefined && {
           address: dto.address ? dto.address.trim() : null,
+        }),
+        ...(dto.notes !== undefined && {
+          notes: dto.notes ? dto.notes.trim() : null,
         }),
       },
     });

@@ -22,7 +22,7 @@ export class DispatchToolCustodyDto {
 
   @ApiProperty({
     example: 'item-uuid-rotomartillo',
-    description: 'Identificador UUID de la herramienta o equipo (tipo ASSET_TOOL)',
+    description: 'Identificador UUID de la herramienta o equipo (tipo TOOL o EQUIPMENT)',
   })
   @IsUUID('4', { message: 'El itemId debe ser un UUID valido' })
   itemId: string;

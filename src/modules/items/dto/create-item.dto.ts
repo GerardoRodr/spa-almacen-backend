@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsEnum,
   IsNotEmpty,
   IsNumber,
@@ -45,10 +46,20 @@ export class CreateItemDto {
   @ApiProperty({
     enum: ItemType,
     example: ItemType.CONSUMABLE,
-    description: 'Clasificacion: CONSUMABLE (gasto en obra) o ASSET_TOOL (equipo/herramienta)',
+    description:
+      'Clasificacion: CONSUMABLE (consumo en obra), TOOL (herramienta menor), EQUIPMENT (equipo), MACHINERY (maquinaria)',
   })
   @IsEnum(ItemType, { message: 'El tipo de item no es valido' })
   type: ItemType;
+
+  @ApiPropertyOptional({
+    example: false,
+    default: false,
+    description: 'Indica si el insumo es perecible y esta sujeto a caducidad',
+  })
+  @IsOptional()
+  @IsBoolean({ message: 'isPerishable debe ser un valor booleano' })
+  isPerishable?: boolean = false;
 
   @ApiPropertyOptional({
     example: 50,

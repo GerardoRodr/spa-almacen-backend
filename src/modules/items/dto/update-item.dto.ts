@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsEnum,
   IsNumber,
   IsOptional,
@@ -39,6 +40,14 @@ export class UpdateItemDto {
   @IsOptional()
   @IsEnum(ItemType, { message: 'El tipo de item no es valido' })
   type?: ItemType;
+
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Indica si el insumo es perecible y esta sujeto a caducidad',
+  })
+  @IsOptional()
+  @IsBoolean({ message: 'isPerishable debe ser un valor booleano' })
+  isPerishable?: boolean;
 
   @ApiPropertyOptional({
     example: 60,

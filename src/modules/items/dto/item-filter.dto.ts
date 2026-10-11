@@ -1,5 +1,5 @@
-import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { ItemType } from '@prisma/client';
 
@@ -40,4 +40,17 @@ export class ItemFilterDto {
   @IsOptional()
   @IsEnum(ItemType, { message: 'El tipo de item no es valido' })
   type?: ItemType;
+
+  @ApiPropertyOptional({
+    example: true,
+    description: 'Filtrar por insumos perecibles (true) o no perecibles (false)',
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true || value === 1 || value === '1') return true;
+    if (value === 'false' || value === false || value === 0 || value === '0') return false;
+    return undefined;
+  })
+  @IsBoolean({ message: 'isPerishable debe ser un valor booleano' })
+  isPerishable?: boolean;
 }

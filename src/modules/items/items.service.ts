@@ -32,6 +32,10 @@ export class ItemsService {
       where.type = filter.type;
     }
 
+    if (filter.isPerishable !== undefined) {
+      where.isPerishable = filter.isPerishable;
+    }
+
     const [total, data] = await Promise.all([
       this.prisma.item.count({ where }),
       this.prisma.item.findMany({
@@ -80,6 +84,7 @@ export class ItemsService {
         baseUnit: dto.baseUnit.trim().toUpperCase(),
         type: dto.type,
         minStockAlert: dto.minStockAlert ?? 0,
+        isPerishable: dto.isPerishable ?? false,
       },
     });
   }
@@ -153,6 +158,7 @@ export class ItemsService {
         baseUnit: dto.baseUnit ? dto.baseUnit.trim().toUpperCase() : undefined,
         type: dto.type,
         minStockAlert: dto.minStockAlert,
+        isPerishable: dto.isPerishable,
       },
     });
   }

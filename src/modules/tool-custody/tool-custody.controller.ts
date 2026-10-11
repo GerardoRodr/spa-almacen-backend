@@ -56,7 +56,7 @@ export class ToolCustodyController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Item no es de tipo ASSET_TOOL o stock insuficiente en caseta',
+    description: 'Item no es de tipo TOOL/EQUIPMENT o stock insuficiente en caseta',
   })
   @ApiResponse({
     status: 403,
