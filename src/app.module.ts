@@ -14,6 +14,7 @@ import { TransfersModule } from './modules/transfers/transfers.module.js';
 import { MovementsModule } from './modules/movements/movements.module.js';
 import { ProjectsModule } from './modules/projects/projects.module.js';
 import { DocumentsModule } from './modules/documents/documents.module.js';
+import { MachineryModule } from './modules/machinery/machinery.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { AdminModule } from './modules/admin/admin.module.js';
 import { AppController } from './app.controller.js';
@@ -54,6 +55,8 @@ import { AppService } from './app.service.js';
     ProjectsModule,
     // Modulo de gestion de archivos seguros y evidencias Sharp
     DocumentsModule,
+    // Modulo de maquinaria pesada, jornadas y control de horometros
+    MachineryModule,
     // Modulo de diagnostico y salud del sistema
     HealthModule,
     // Modulo de administracion, backups y mantenimiento

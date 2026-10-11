@@ -16,6 +16,7 @@ Este documento representa la hoja de ruta integral y el estado de avance para el
 - [x] **Paso 7: Proyectos, Ingesta S10, Matriz de Brechas y Liquidacion de Obra**
 - [x] **Paso 8: Gestion de Archivos Seguros y Pipeline de Optimizacion Sharp**
 - [x] **Paso 9: Mantenimiento, Backups Diarios y Hardening Final**
+- [x] **Paso 10: Maquinaria Pesada y Control de Horometros**
 
 ---
 
@@ -245,4 +246,31 @@ Respaldo automatico de la base de datos PostgreSQL, verificacion de salud del si
 - [x] **Suite de Pruebas Automatizadas y Hardening:**
   - [x] Pruebas unitarias completas: 18 suites de prueba con 162 pruebas unitarias pasando al 100%.
   - [x] Pruebas E2E de flujos criticos de negocio (`test/critical-flows.e2e-spec.ts` y `test/app.e2e-spec.ts` con 16 pruebas E2E pasando).
+
+---
+
+## Paso 10: Maquinaria Pesada y Control de Horometros (Completado)
+
+Control operativo de equipos pesados, apertura y cierre de turnos diarios, registro obligatorio de fotografias y calculo automatico de horas de trabajo.
+
+### Tareas:
+- [x] **Modulo de Maquinaria (`src/modules/machinery`):**
+  - [x] DTOs de inicio de turno (`StartMachineryShiftDto`), cierre (`EndMachineryShiftDto`) y filtrado (`MachineryShiftFilterDto`).
+  - [x] Servicio `MachineryService`:
+    - Validacion de clasificacion `ItemType.MACHINERY`.
+    - Restriccion de apertura si la maquina ya cuenta con un turno activo.
+    - Validacion de consistencia entre el horometro inicial y el ultimo horometro cerrado.
+    - Cierre de jornada con calculo inmutable `totalHours = endHourMeter - startHourMeter`.
+    - Enriquecimiento de fotografias adjuntas (`startPhoto`, `endPhoto`, `fuelPhoto`) desde `DocumentAttachment`.
+  - [x] Controlador `MachineryController`:
+    - Endpoint `POST /api/v1/machinery/shift/start` protegido con `WarehouseAccessGuard`.
+    - Endpoint `POST /api/v1/machinery/shift/:id/end`.
+    - Endpoint `GET /api/v1/machinery/shifts` con filtros por estado, fecha, operador y almacen.
+    - Endpoint `GET /api/v1/machinery/shifts/:id`.
+    - Endpoint `GET /api/v1/machinery/item/:itemId/status` para verificacion del estado de la maquina en caseta movil.
+  - [x] Pruebas unitarias completas en `machinery.service.spec.ts` (22 pruebas).
+- [x] **Documentacion OpenAPI Swagger y Manuales:**
+  - [x] Decoradores OpenAPI en controlador y DTOs para `/api/docs`.
+  - [x] Creacion del manual tecnico `docs/modules/12_machinery.md`.
+
 

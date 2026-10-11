@@ -322,6 +322,24 @@
       "baseUnit": "UNIDAD",
       "type": "TOOL",
       "minStockAlert": 5.0
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000016",
+      "sku": "MAQ-RET-001",
+      "name": "Retroexcavadora sobre Orugas CAT 420F2",
+      "description": "Maquinaria pesada para excavacion profunda, zanjas y movimiento de tierras",
+      "baseUnit": "UNIDAD",
+      "type": "MACHINERY",
+      "minStockAlert": 1.0
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000017",
+      "sku": "MAQ-ROD-001",
+      "name": "Rodillo Compactador Vibratorio Bomag BW 211",
+      "description": "Compactador monocilindrico autopropulsado para sub-bases y terraplenes",
+      "baseUnit": "UNIDAD",
+      "type": "MACHINERY",
+      "minStockAlert": 1.0
     }
   ],
   "itemAliases": [
@@ -811,6 +829,24 @@
       "reservedQty": 0.0,
       "loanedQty": 0.0,
       "averageCost": 1220.0
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000024",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000016",
+      "physicalQty": 1.0,
+      "reservedQty": 0.0,
+      "loanedQty": 0.0,
+      "averageCost": 285000.0
+    },
+    {
+      "id": "st000000-0000-4000-8000-000000000025",
+      "warehouseId": "b0000000-0000-4000-8000-000000000002",
+      "itemId": "e0000000-0000-4000-8000-000000000017",
+      "physicalQty": 1.0,
+      "reservedQty": 0.0,
+      "loanedQty": 0.0,
+      "averageCost": 195000.0
     }
   ],
   "transfers": [

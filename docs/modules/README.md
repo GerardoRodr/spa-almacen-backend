@@ -107,4 +107,6 @@ Codigos HTTP comunes:
 9. [09 - Proyectos y Presupuestos S10](09_projects_s10.md): Carga de archivos S10 por streams, presupuesto de obra, reserva en Central, matriz de brechas y liquidacion de obra.
 10. [10 - Documentos y Evidencias](10_documents.md): Subida y visualizacion segura de facturas, guias y remisiones con optimizacion Sharp a WebP.
 11. [11 - Administracion y Mantenimiento](11_admin_maintenance.md): Copias de seguridad de PostgreSQL, metricas de salud, purga programada y hardening E2E.
+12. [12 - Maquinaria y Horometros](12_machinery.md): Control de jornadas de maquinaria pesada, validacion de horometros inicial y final, fotos obligatorias y calculo de horas de trabajo.
+
 

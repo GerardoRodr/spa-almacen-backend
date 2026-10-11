@@ -137,16 +137,16 @@ Para garantizar que ningun agente quede bloqueado por falta de endpoints o model
 
 ### Fase 3: Componente de Carga Multiple de Archivos
 
-- [ ] **Evolucion de `UiDropzoneComponent` a Carga Multiple**:
-  - [ ] En `src/app/shared/components/ui-dropzone/ui-dropzone.component.ts`:
+- [x] **Evolucion de `UiDropzoneComponent` a Carga Multiple**:
+  - [x] En `src/app/shared/components/ui-dropzone/ui-dropzone.component.ts`:
     - Agregar input `multiple = input<boolean>(false)`.
     - Modelo reactivo `files = model<File[]>([])`.
     - Soporte para `<input type="file" multiple>` y captura secuencial con camara.
     - Cuadricula/carrusel de miniaturas para previsualizar los archivos seleccionados.
     - Boton individual para eliminar archivos de la lista antes de guardar.
-  - [ ] Actualizar `PurchaseFormComponent`:
+  - [x] Actualizar `PurchaseFormComponent`:
     - Permitir adjuntar varios comprobantes (Factura PDF + Guia de Remision JPG + Voucher de Pago).
-  - [ ] Actualizar modal de devolucion de herramientas y salidas por merma para admitir multiples fotos de evidencia.
+  - [x] Actualizar modal de devolucion de herramientas y salidas por merma para admitir multiples fotos de evidencia.
 
 ### Fase 4: Custodia de Herramientas y Modulo de Maquinaria
 
@@ -246,12 +246,12 @@ Para garantizar que ningun agente quede bloqueado por falta de endpoints o model
 
 ### Fase 4: Modulo de Maquinaria y Horometros (`/api/v1/machinery`)
 
-- [ ] **Controlador y Servicio de Maquinaria**:
-  - [ ] Endpoint `POST /api/v1/machinery/shift/start`:
+- [x] **Controlador y Servicio de Maquinaria**:
+  - [x] Endpoint `POST /api/v1/machinery/shift/start`:
     - Registra apertura de jornada, operador, fecha/hora del servidor, horometro inicial y foto obligatoria.
-  - [ ] Endpoint `POST /api/v1/machinery/shift/:id/end`:
+  - [x] Endpoint `POST /api/v1/machinery/shift/:id/end`:
     - Registra cierre de jornada, horometro final (debe ser mayor o igual al inicial), foto de cierre y calculo automatico de horas de trabajo.
-  - [ ] Endpoint `GET /api/v1/machinery/shifts`:
+  - [x] Endpoint `GET /api/v1/machinery/shifts`:
     - Historial de turnos con filtros por maquinaria, fecha y almacen.
 
 ### Fase 5: Agregaciones Analiticas para el Dashboard (`/api/v1/dashboard`)
@@ -285,10 +285,10 @@ Utiliza este espacio para registrar decisiones de diseno, hashes de commits rele
 
 * **Backend**:
   * *Fecha:* 2026-10-11
-  * *Modulo intervenido:* DocumentsController, DocumentsService, UploadDocumentDto, DocumentFilterDto, ToolCustodyService
+  * *Modulo intervenido:* MachineryModule, MachineryController, MachineryService, StartMachineryShiftDto, EndMachineryShiftDto, MachineryShiftFilterDto
   * *Decisiones tomadas:*
-    - Se creo endpoint POST /api/v1/documents/upload-multiple utilizando FilesInterceptor('files', 10) para recepcion de hasta 10 adjuntos en un unico payload multipart.
-    - Se implemento procesamiento paralelo de archivos con Sharp hacia WebP (80% calidad, max 1920x1080) y validacion segura de cabeceras para PDF (%PDF-).
-    - Se anadio soporte y validacion para proofType (DISPATCH y RETURN) en UploadDocumentDto y DocumentFilterDto, persistiendo la clasificacion en DocumentAttachment.
-    - Se enriquecio la consulta GET /api/v1/tools/custody/:id segregando dispatchDocuments y returnDocuments ademas del listado completo ordenado cronologicamente.
-    - Se alcanzaron 175 pruebas unitarias exitosas (18 suites) y compilacion limpia con nest build.
+    - Se creo el modulo integral de maquinaria en /api/v1/machinery con soporte de apertura de jornada (POST shift/start) validando foto obligatoria, unicidad de turno abierto y consistencia de horometro inicial contra el ultimo cierre.
+    - Se implemento el cierre de jornada (POST shift/:id/end) con calculo automatico de totalHours, validacion endHourMeter >= startHourMeter, foto final obligatoria y foto opcional de combustible.
+    - Se anadieron endpoints de consulta GET shifts (con filtros por operador, fecha y estado abierto/cerrado), GET shifts/:id y GET item/:itemId/status para deteccion rapida del estado operativo de cada equipo en la app movil.
+    - Se agregaron items de maquinaria de prueba en seed-data.json (Retroexcavadora y Rodillo) y se documento el Modulo 12 en docs/modules/12_machinery.md.
+    - Se crearon 22 pruebas unitarias en machinery.service.spec.ts, alcanzando 197 pruebas unitarias exitosas (19 suites), compilacion ESM limpia y cero errores de linter.
