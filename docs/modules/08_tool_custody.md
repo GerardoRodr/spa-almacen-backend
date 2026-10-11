@@ -276,9 +276,39 @@ Consulta la ficha completa de un vale de prestamo por su identificador.
   "documents": [
     {
       "id": "doc-uuid-1",
-      "fileName": "acta_entrega.pdf",
-      "fileUrl": "/uploads/documents/acta_entrega.pdf",
+      "originalName": "foto_estado_inicial.webp",
+      "storedPath": "custody/2026/10/foto_inicial.webp",
+      "mimeType": "image/webp",
+      "fileSizeBytes": 85400,
       "proofType": "DISPATCH"
+    },
+    {
+      "id": "doc-uuid-2",
+      "originalName": "foto_devolucion_dano.webp",
+      "storedPath": "custody/2026/10/foto_retorno.webp",
+      "mimeType": "image/webp",
+      "fileSizeBytes": 91200,
+      "proofType": "RETURN"
+    }
+  ],
+  "dispatchDocuments": [
+    {
+      "id": "doc-uuid-1",
+      "originalName": "foto_estado_inicial.webp",
+      "storedPath": "custody/2026/10/foto_inicial.webp",
+      "mimeType": "image/webp",
+      "fileSizeBytes": 85400,
+      "proofType": "DISPATCH"
+    }
+  ],
+  "returnDocuments": [
+    {
+      "id": "doc-uuid-2",
+      "originalName": "foto_devolucion_dano.webp",
+      "storedPath": "custody/2026/10/foto_retorno.webp",
+      "mimeType": "image/webp",
+      "fileSizeBytes": 91200,
+      "proofType": "RETURN"
     }
   ]
 }

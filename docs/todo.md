@@ -216,12 +216,13 @@ Subida y almacenamiento de comprobantes, compresion automatica de fotos tomadas 
     - Conversion a formato `.webp` con calidad 80%.
     - Generacion de nombre unico UUID.
   - [x] Validacion de documentos PDF (cabecera MIME `application/pdf`, tamano maximo 15 MB).
-  - [x] Registro en tabla `DocumentAttachment` vinculando la entidad correspondiente (`purchaseId`, `transferId`, `movementId`, `custodyId`) con marca `isConfidential`.
+  - [x] Registro en tabla `DocumentAttachment` vinculando la entidad correspondiente (`purchaseId`, `transferId`, `movementId`, `custodyId`) con marca `isConfidential` y proposito `proofType` (`DISPATCH` | `RETURN`).
+  - [x] Carga multiple simultanea de hasta 10 archivos en un unico payload multipart con procesamiento paralelo de Sharp.
   - [x] **Descarga Segura y Confidencialidad:**
     - Endpoint `GET /documents/:id/download`.
     - Verificacion de permisos: si `isConfidential == true` (facturas de compra), acceso exclusivo a usuarios con rol `ADMIN`.
     - Emision en streaming de archivo protegido.
-  - [x] Endpoints: `POST /documents/upload`, `GET /documents`, `GET /documents/:id`, `GET /documents/:id/download`, `DELETE /documents/:id`.
+  - [x] Endpoints: `POST /documents/upload`, `POST /documents/upload-multiple`, `GET /documents`, `GET /documents/:id`, `GET /documents/:id/download`, `DELETE /documents/:id`.
 - [x] **Documentacion OpenAPI Swagger:**
   - [x] Decoradores `@ApiTags`, `@ApiOperation`, `@ApiResponse`, `@ApiBearerAuth` y `@ApiProperty` para pruebas interactivas en `/api/docs`.
 
