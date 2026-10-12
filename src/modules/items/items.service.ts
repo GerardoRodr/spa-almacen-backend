@@ -206,4 +206,103 @@ export class ItemsService {
 
     return { message: 'Alias eliminado exitosamente' };
   }
+
+  // Listar alertas de insumos perecibles con existencias activas
+  async getPerishableAlerts(warehouseId?: string) {
+    const stockWhere: Record<string, unknown> = {
+      physicalQty: { gt: 0 },
+    };
+
+    if (warehouseId && warehouseId !== 'ALL') {
+      stockWhere.warehouseId = warehouseId;
+    }
+
+    const items = await this.prisma.item.findMany({
+      where: {
+        isPerishable: true,
+        stocks: {
+          some: stockWhere,
+        },
+      },
+      include: {
+        stocks: {
+          where: stockWhere,
+          include: {
+            warehouse: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+              },
+            },
+          },
+        },
+        purchaseDetails: {
+          orderBy: {
+            purchase: {
+              issueDate: 'desc',
+            },
+          },
+          take: 1,
+          include: {
+            purchase: {
+              select: {
+                id: true,
+                invoiceSeries: true,
+                issueDate: true,
+                supplier: {
+                  select: {
+                    id: true,
+                    businessName: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return items.map((item) => {
+      const totalPhysicalQty = item.stocks.reduce(
+        (acc, s) => acc + Number(s.physicalQty),
+        0,
+      );
+      const lastPurchase = item.purchaseDetails[0]?.purchase;
+      const lastPurchaseDate = lastPurchase?.issueDate ?? null;
+
+      let daysInStorage: number | null = null;
+      if (lastPurchaseDate) {
+        const now = new Date();
+        const diffTime = Math.abs(
+          now.getTime() - new Date(lastPurchaseDate).getTime(),
+        );
+        daysInStorage = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      }
+
+      return {
+        id: item.id,
+        sku: item.sku,
+        name: item.name,
+        baseUnit: item.baseUnit,
+        type: item.type,
+        minStockAlert: Number(item.minStockAlert),
+        isPerishable: item.isPerishable,
+        totalPhysicalQty,
+        lastPurchaseDate,
+        daysInStorage,
+        lastSupplier: lastPurchase?.supplier?.businessName ?? null,
+        lastInvoiceSeries: lastPurchase?.invoiceSeries ?? null,
+        stocks: item.stocks.map((s) => ({
+          stockId: s.id,
+          warehouseId: s.warehouseId,
+          warehouseName: s.warehouse.name,
+          warehouseType: s.warehouse.type,
+          physicalQty: Number(s.physicalQty),
+          averageCost: Number(s.averageCost),
+        })),
+      };
+    });
+  }
 }

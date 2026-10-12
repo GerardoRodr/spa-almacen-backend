@@ -133,7 +133,54 @@ Crea un nuevo SKU corporativo oficial. Restringido exclusivamente al administrad
 
 ---
 
-### 2.3 Obtener Detalle y Consolidado Corporativo de Stock
+### 2.3 Listar Alertas de Insumos Perecibles con Stock Activo
+Retorna todos los insumos catalogados como perecibles (`isPerishable: true`) que mantienen existencias fisicas activas (`physicalQty > 0`) en almacenes, detallando el stock por sede, la fecha del ultimo ingreso por compra y los dias transcurridos en almacenamiento.
+
+- **Metodo:** `GET`
+- **Ruta:** `/api/v1/items/perishable-alerts`
+- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+
+#### Query Parameters
+| Parametro | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `warehouseId` | string (UUID o 'ALL') | No | Filtrar alertas para un almacen especifico. Si se omite, evalua todas las sedes. |
+
+#### Respuesta Exitosa (200 OK)
+```json
+[
+  {
+    "id": "e0000000-0000-4000-8000-000000000008",
+    "sku": "MAT-ADI-001",
+    "name": "Aditivo Plastificante Acelerante SikaCem",
+    "baseUnit": "GLN",
+    "type": "CONSUMABLE",
+    "minStockAlert": 20,
+    "isPerishable": true,
+    "totalPhysicalQty": 35,
+    "lastPurchaseDate": "2026-09-15T00:00:00.000Z",
+    "daysInStorage": 27,
+    "lastSupplier": "Quimicos de la Construccion SAC",
+    "lastInvoiceSeries": "F001-0004523",
+    "stocks": [
+      {
+        "stockId": "s0000000-0000-4000-8000-000000000010",
+        "warehouseId": "b0000000-0000-4000-8000-000000000001",
+        "warehouseName": "Almacen Central Principal (Lurin)",
+        "warehouseType": "CENTRAL",
+        "physicalQty": 35,
+        "averageCost": 48.5
+      }
+    ]
+  }
+]
+```
+*Nota: Para usuarios con rol `WAREHOUSE_KEEPER`, el interceptor `CostMaskingInterceptor` enmascara automaticamente la propiedad `averageCost` en cada elemento del arreglo `stocks`.*
+
+---
+
+### 2.4 Obtener Detalle y Consolidado Corporativo de Stock
 Obtiene la ficha del item junto con el desglose de existencias por almacen, calculando los totales fisicos, reservados y prestados a nivel de toda la empresa.
 
 - **Metodo:** `GET`

@@ -51,6 +51,19 @@ export class ItemsController {
     return this.itemsService.create(dto);
   }
 
+  @Get('perishable-alerts')
+  @UseInterceptors(CostMaskingInterceptor)
+  @ApiOperation({
+    summary: 'Listar alertas de insumos perecibles con existencias activas en almacenes',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Alertas de insumos perecibles obtenidas exitosamente',
+  })
+  getPerishableAlerts(@Query('warehouseId') warehouseId?: string) {
+    return this.itemsService.getPerishableAlerts(warehouseId);
+  }
+
   @Get(':id')
   @UseInterceptors(CostMaskingInterceptor)
   @ApiOperation({

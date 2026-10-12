@@ -14,9 +14,12 @@ const FINANCIAL_KEYS = new Set([
   'unitPriceOriginal',
   'unitCostBasePEN',
   'subtotalPEN',
+  'igvAmountPEN',
   'totalAmountPEN',
   'unitCostSnapshot',
   'totalCostSnapshot',
+  'inventoryValuationPEN',
+  'toolsInvestmentPEN',
 ]);
 
 // Funcion recursiva para eliminar datos de costos y precios

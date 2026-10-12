@@ -195,7 +195,8 @@
       "description": "Bolsa de cemento estandar para vaciado de columnas, vigas y losas",
       "baseUnit": "BOLSA",
       "type": "CONSUMABLE",
-      "minStockAlert": 100.0
+      "minStockAlert": 100.0,
+      "isPerishable": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000002",
@@ -258,7 +259,8 @@
       "description": "Aditivo liquido para acelerar fraguado de concreto estructural",
       "baseUnit": "GLN",
       "type": "CONSUMABLE",
-      "minStockAlert": 20.0
+      "minStockAlert": 20.0,
+      "isPerishable": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000009",

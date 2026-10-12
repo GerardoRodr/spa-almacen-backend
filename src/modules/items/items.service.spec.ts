@@ -142,4 +142,49 @@ describe('ItemsService', () => {
       }),
     ).rejects.toThrow(ConflictException);
   });
+
+  it('debe obtener alertas de insumos perecibles con stock activo y metadatos de compra', async () => {
+    const mockPerishableItem = {
+      id: 'item-perishable-1',
+      sku: 'ADI-01',
+      name: 'Aditivo Plastificante Acelerante',
+      baseUnit: 'GLN',
+      type: ItemType.CONSUMABLE,
+      minStockAlert: 10,
+      isPerishable: true,
+      stocks: [
+        {
+          id: 'stock-1',
+          warehouseId: 'wh-1',
+          physicalQty: 25,
+          averageCost: 45.0,
+          warehouse: { id: 'wh-1', name: 'Almacen Central', type: 'CENTRAL' },
+        },
+      ],
+      purchaseDetails: [
+        {
+          purchase: {
+            id: 'purch-1',
+            invoiceSeries: 'F001-0001',
+            issueDate: new Date('2026-09-01T00:00:00Z'),
+            supplier: { id: 'sup-1', businessName: 'Quimicos de la Construccion SAC' },
+          },
+        },
+      ],
+    };
+
+    vi.spyOn(prisma.item, 'findMany').mockResolvedValue([mockPerishableItem] as any);
+
+    const alerts = await service.getPerishableAlerts('wh-1');
+
+    expect(alerts.length).toBe(1);
+    expect(alerts[0].sku).toBe('ADI-01');
+    expect(alerts[0].isPerishable).toBe(true);
+    expect(alerts[0].totalPhysicalQty).toBe(25);
+    expect(alerts[0].lastSupplier).toBe('Quimicos de la Construccion SAC');
+    expect(alerts[0].lastInvoiceSeries).toBe('F001-0001');
+    expect(alerts[0].daysInStorage).toBeGreaterThan(0);
+    expect(alerts[0].stocks.length).toBe(1);
+    expect(alerts[0].stocks[0].physicalQty).toBe(25);
+  });
 });

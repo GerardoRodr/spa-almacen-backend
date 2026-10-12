@@ -150,16 +150,16 @@ Para garantizar que ningun agente quede bloqueado por falta de endpoints o model
 
 ### Fase 4: Custodia de Herramientas y Modulo de Maquinaria
 
-- [ ] **Fotografias al Despachar Prestamos de Herramientas y Equipos**:
-  - [ ] En `src/app/features/herramientas/components/custody-dispatch-modal/`:
+- [x] **Fotografias al Despachar Prestamos de Herramientas y Equipos**:
+  - [x] En `src/app/features/herramientas/components/custody-dispatch-modal/`:
     - Incorporar `ui-dropzone` con activacion de camara para tomar foto del estado fisico inicial, serie y accesorios antes de entregar.
     - Enviar las fotos asociadas al `custodyId` tras la creacion del vale.
-  - [ ] En vista de detalle de custodia (`custody-detail-modal.component.ts`):
+  - [x] En vista de detalle de custodia (`custody-detail-modal.component.ts`):
     - Mostrar seccion comparativa: "Evidencia de Entrega" vs "Evidencia de Devolucion".
 
-- [ ] **Control de Turnos y Horometros de Maquinaria**:
-  - [ ] Crear interfaces y servicio `MachineryService` para consulta y registro de turnos.
-  - [ ] En la vista movil (`/movil/herramientas` o nueva subvista `/movil/maquinaria`):
+- [x] **Control de Turnos y Horometros de Maquinaria**:
+  - [x] Crear interfaces y servicio `MachineryService` para consulta y registro de turnos.
+  - [x] En la vista movil (`/movil/herramientas` o nueva subvista `/movil/maquinaria`):
     - Flujo de apertura de jornada: captura de foto del horometro inicial y valor numerico.
     - Flujo de cierre de jornada: captura de foto del horometro final, calculo de horas consumidas y foto de combustible (opcional).
 
@@ -256,14 +256,14 @@ Para garantizar que ningun agente quede bloqueado por falta de endpoints o model
 
 ### Fase 5: Agregaciones Analiticas para el Dashboard (`/api/v1/dashboard`)
 
-- [ ] **Calculo de Inversion Patrimonial en Herramientas**:
-  - [ ] En `DashboardService.getMetrics()`:
+- [x] **Calculo de Inversion Patrimonial en Herramientas**:
+  - [x] En `DashboardService.getMetrics()`:
     - Sumar existencias fisicas de items clasificados como `TOOL`, `EQUIPMENT` o `MACHINERY` multiplicadas por su costo promedio o costo historico.
     - Asignar resultado a propiedad `toolsInvestmentPEN`.
     - Asegurar que `CostMaskingInterceptor` oculte esta cifra a usuarios que no posean rol `ADMIN`.
 
-- [ ] **Endpoint de Alertas de Caducidad de Perecibles**:
-  - [ ] Endpoint `GET /api/v1/items/perishable-alerts`:
+- [x] **Endpoint de Alertas de Caducidad de Perecibles**:
+  - [x] Endpoint `GET /api/v1/items/perishable-alerts`:
     - Retornar items marcados como `isPerishable` con existencias activas en almacenes o lotes con vencimiento proximo.
 
 ---
@@ -282,6 +282,13 @@ Utiliza este espacio para registrar decisiones de diseno, hashes de commits rele
     - Se anadio campo notes en registro y directorios de proveedores (modal y listado responsivo).
     - Se implemento selector reactivo Con/Sin IGV en compras con recalculo dinamico e indicadores en tablas, tarjetas y liquidacion tributaria.
     - Se subsano la inyeccion de enrutador en pruebas de movil-operaciones, logrando 100% de tests aprobados (170 pruebas unitarias) y compilacion limpia.
+  * *Fase 4 (Maquinaria y Custodia):*
+    - Se incorporo soporte de evidencias fotograficas en despacho de herramientas (custody-dispatch-modal y modo DISPATCH de movil-herramientas) guardadas con proofType 'DISPATCH'.
+    - Se dividio la presentacion de adjuntos en custody-detail-modal en secciones comparativas ('Evidencia de Entrega Inicial' vs 'Evidencia de Devolucion').
+    - Se crearon modelos y servicio MachineryService consumiendo los 5 endpoints de /api/v1/machinery.
+    - Se implemento la interfaz tactil /movil/maquinaria con validacion reactiva de estado operativo de maquina, precarga de horometro, foto obligatoria de horometro inicial para apertura, y calculo dinamico de horas, foto de horometro final y combustible para cierre de jornada.
+    - Se desarrollo la vista de gestion en escritorio /maquinaria con tarjetas KPI, tabla filtrada, modales de inicio/cierre/detalle y exportacion a Excel.
+    - Se anadieron pruebas unitarias para MachineryService y navegacion a maquinaria, logrando 100% de tests aprobados (183 pruebas unitarias en 44 suites) y compilacion de produccion limpia.
 
 * **Backend**:
   * *Fecha:* 2026-10-11
@@ -292,3 +299,12 @@ Utiliza este espacio para registrar decisiones de diseno, hashes de commits rele
     - Se anadieron endpoints de consulta GET shifts (con filtros por operador, fecha y estado abierto/cerrado), GET shifts/:id y GET item/:itemId/status para deteccion rapida del estado operativo de cada equipo en la app movil.
     - Se agregaron items de maquinaria de prueba en seed-data.json (Retroexcavadora y Rodillo) y se documento el Modulo 12 en docs/modules/12_machinery.md.
     - Se crearon 22 pruebas unitarias en machinery.service.spec.ts, alcanzando 197 pruebas unitarias exitosas (19 suites), compilacion ESM limpia y cero errores de linter.
+  * *Fecha:* 2026-10-12 (Fase 5 - Dashboard, Inversion en Herramientas y Alertas Perecibles)
+  * *Modulo intervenido:* DashboardModule, DashboardController, DashboardService, ItemsController, ItemsService, CostMaskingInterceptor
+  * *Decisiones tomadas:*
+    - Se creo el modulo de Dashboard en /api/v1/dashboard con GET /metrics, implementando el calculo de toolsInvestmentPEN (sumatoria de physicalQty * averageCost para items tipo TOOL, EQUIPMENT y MACHINERY, excluyendo CONSUMABLE) e inventoryValuationPEN.
+    - Se agregaron endpoints analiticos auxiliares GET /dashboard/stock-comparison, GET /dashboard/urgent-replenishments y GET /dashboard/logical-reservations.
+    - Se incorporaron las propiedades toolsInvestmentPEN, inventoryValuationPEN e igvAmountPEN a FINANCIAL_KEYS en CostMaskingInterceptor para purgar automaticamente cualquier cifra monetaria en respuestas enviadas a usuarios con rol WAREHOUSE_KEEPER.
+    - Se implemento el endpoint GET /api/v1/items/perishable-alerts en ItemsController (posicionado antes de :id para evitar colisiones de rutas) e ItemsService, retornando insumos perecibles activos con desglose de sedes, fecha de ultimo ingreso y calculo de dias en almacenamiento.
+    - Se documento el Modulo 13 en docs/modules/13_dashboard.md, se actualizaron docs/modules/04_items.md y docs/modules/README.md.
+    - Se crearon 6 pruebas unitarias para DashboardService, 1 prueba para getPerishableAlerts y 1 para enmascaramiento de metricas en CostMaskingInterceptor, alcanzando 205 pruebas unitarias exitosas (20 suites) y compilacion limpia con nest build.

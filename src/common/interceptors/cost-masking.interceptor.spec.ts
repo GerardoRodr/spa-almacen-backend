@@ -63,6 +63,9 @@ describe('CostMaskingInterceptor', () => {
       id: 'stock-1',
       physicalQty: 100,
       averageCost: 45.5,
+      inventoryValuationPEN: 4550.0,
+      toolsInvestmentPEN: 1200.0,
+      igvAmountPEN: 819.0,
     };
 
     const context = createMockContext(Role.ADMIN);
@@ -70,7 +73,36 @@ describe('CostMaskingInterceptor', () => {
 
     interceptor.intercept(context, handler).subscribe((result: any) => {
       expect(result.averageCost).toBe(45.5);
+      expect(result.inventoryValuationPEN).toBe(4550.0);
+      expect(result.toolsInvestmentPEN).toBe(1200.0);
+      expect(result.igvAmountPEN).toBe(819.0);
       expect(result.physicalQty).toBe(100);
+    });
+  });
+
+  it('debe purgar metricas de valorizacion e inversion en dashboard para WAREHOUSE_KEEPER', async () => {
+    const rawData = {
+      totalActiveSkus: 42,
+      inventoryValuationPEN: 98500.5,
+      toolsInvestmentPEN: 25400.0,
+      igvAmountPEN: 15000.0,
+      toolsInField: 8,
+      criticalItemsCount: 3,
+      warehouseId: 'ALL',
+      warehouseName: 'Consolidado General (Todas las Sedes)',
+    };
+
+    const context = createMockContext(Role.WAREHOUSE_KEEPER);
+    const handler = createMockHandler(rawData);
+
+    interceptor.intercept(context, handler).subscribe((result: any) => {
+      expect(result.inventoryValuationPEN).toBeUndefined();
+      expect(result.toolsInvestmentPEN).toBeUndefined();
+      expect(result.igvAmountPEN).toBeUndefined();
+      expect(result.totalActiveSkus).toBe(42);
+      expect(result.toolsInField).toBe(8);
+      expect(result.criticalItemsCount).toBe(3);
+      expect(result.warehouseId).toBe('ALL');
     });
   });
 });

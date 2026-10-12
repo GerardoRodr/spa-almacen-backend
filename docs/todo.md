@@ -17,6 +17,7 @@ Este documento representa la hoja de ruta integral y el estado de avance para el
 - [x] **Paso 8: Gestion de Archivos Seguros y Pipeline de Optimizacion Sharp**
 - [x] **Paso 9: Mantenimiento, Backups Diarios y Hardening Final**
 - [x] **Paso 10: Maquinaria Pesada y Control de Horometros**
+- [x] **Paso 11: Dashboard Analitico, Inversion Patrimonial y Alertas de Perecibles**
 
 ---
 
@@ -272,5 +273,31 @@ Control operativo de equipos pesados, apertura y cierre de turnos diarios, regis
 - [x] **Documentacion OpenAPI Swagger y Manuales:**
   - [x] Decoradores OpenAPI en controlador y DTOs para `/api/docs`.
   - [x] Creacion del manual tecnico `docs/modules/12_machinery.md`.
+
+---
+
+## Paso 11: Dashboard Analitico, Inversion Patrimonial y Alertas de Perecibles (Completado)
+
+Centralizacion de metricas corporativas, separacion de inversion patrimonial en herramientas y equipos respecto a consumibles, proteccion de confidencialidad financiera y alertas de insumos perecibles.
+
+### Tareas:
+- [x] **Modulo de Dashboard (`src/modules/dashboard`):**
+  - [x] DTOs `DashboardFilterDto` y `DashboardMetricsDto`.
+  - [x] Servicio `DashboardService`:
+    - Calculo de `toolsInvestmentPEN` (sumatoria de `physicalQty * averageCost` unicamente para `TOOL`, `EQUIPMENT` y `MACHINERY`).
+    - Calculo de `inventoryValuationPEN`, `totalActiveSkus`, `toolsInField` y `criticalItemsCount`.
+    - Metodos analiticos auxiliares: `getStockComparison()`, `getUrgentReplenishments()`, `getLogicalReservations()`.
+  - [x] Controlador `DashboardController` con endpoints `/api/v1/dashboard/metrics`, `/api/v1/dashboard/stock-comparison`, `/api/v1/dashboard/urgent-replenishments` y `/api/v1/dashboard/logical-reservations`.
+  - [x] Pruebas unitarias de `DashboardService` en `dashboard.service.spec.ts` (6 pruebas pasando).
+- [x] **Proteccion RBAC en `CostMaskingInterceptor`:**
+  - [x] Incorporacion de `toolsInvestmentPEN`, `inventoryValuationPEN` e `igvAmountPEN` a `FINANCIAL_KEYS`.
+  - [x] Pruebas unitarias en `cost-masking.interceptor.spec.ts` (3 pruebas pasando).
+- [x] **Alertas de Perecibles en `ItemsModule`:**
+  - [x] Endpoint `GET /api/v1/items/perishable-alerts` en `ItemsController` e `ItemsService`.
+  - [x] Pruebas unitarias en `items.service.spec.ts` (7 pruebas pasando).
+- [x] **Documentacion:**
+  - [x] Creacion de `docs/modules/13_dashboard.md`.
+  - [x] Actualizacion de `docs/modules/04_items.md` y `docs/modules/README.md`.
+
 
 
