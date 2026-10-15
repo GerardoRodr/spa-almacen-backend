@@ -8,10 +8,14 @@ import {
 import { ItemType, MovementType, Role } from '@prisma/client';
 import { MovementsService } from './movements.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { SequenceGeneratorService } from '../../common/services/sequence-generator.service.js';
 import { AdjustmentDirection } from './dto/inventory-adjustment-item.dto.js';
 
 describe('MovementsService', () => {
   let service: MovementsService;
+  let sequenceGenerator: {
+    getNextCode: ReturnType<typeof vi.fn>;
+  };
   let prisma: {
     movement: {
       findMany: ReturnType<typeof vi.fn>;
@@ -79,12 +83,23 @@ describe('MovementsService', () => {
       $transaction: vi.fn(),
     };
 
+    sequenceGenerator = {
+      getNextCode: vi.fn().mockImplementation((_tx, prefix, targetYear) => {
+        const year = targetYear ?? 2026;
+        return `${prefix}-${year}-00001`;
+      }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MovementsService,
         {
           provide: PrismaService,
           useValue: prisma,
+        },
+        {
+          provide: SequenceGeneratorService,
+          useValue: sequenceGenerator,
         },
       ],
     }).compile();

@@ -3,8 +3,10 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Cron } from '@nestjs/schedule';
 import fs from 'node:fs';
 import path from 'node:path';
 import { exec } from 'node:child_process';
@@ -21,7 +23,7 @@ export class BackupService {
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly prisma: PrismaService,
+    private readonly prisma?: PrismaService,
   ) {
     const configuredDir =
       process.env.BACKUP_DIR || './backups';
@@ -94,37 +96,14 @@ export class BackupService {
       }
     }
 
-    // 3. Fallback estructurado si no hay binario nativo en el entorno
+    // 3. Fallback controlado: Si no se pudo generar el volcado binario, rechazar operacion
     if (!generatedSuccessfully) {
-      const header = [
-        '-- PostgreSQL Database Dump Backup (SPA-ALMACEN-ERP)',
-        `-- Fecha de extraccion: ${now.toISOString()}`,
-        '-- Base de datos: almacen_erp',
-        '-- Modo de extraccion: Structured Snapshot',
-        '',
-      ].join('\n');
-
-      const [usersCount, warehousesCount, itemsCount, movementsCount] =
-        await Promise.all([
-          this.prisma.user.count(),
-          this.prisma.warehouse.count(),
-          this.prisma.item.count(),
-          this.prisma.movement.count(),
-        ]);
-
-      const metadataSnapshot = [
-        header,
-        `-- Conteo de registros auditados:`,
-        `-- Usuarios: ${usersCount}`,
-        `-- Almacenes: ${warehousesCount}`,
-        `-- Items: ${itemsCount}`,
-        `-- Movimientos Kardex: ${movementsCount}`,
-        '',
-        'SELECT pg_catalog.set_config(\'search_path\', \'\', false);',
-      ].join('\n');
-
-      await fs.promises.writeFile(targetFilePath, Buffer.from(metadataSnapshot, 'utf-8'));
-      this.logger.log('Respaldo generado via snapshot estructurado de emergencia');
+      this.logger.error(
+        'Fallo en la generacion de copia de seguridad: ni docker exec almacen-postgres ni pg_dump local estan disponibles en el entorno',
+      );
+      throw new ServiceUnavailableException(
+        'El utilitario de volcado pg_dump o el contenedor de base de datos no se encuentran disponibles en el entorno',
+      );
     }
 
     const stat = await fs.promises.stat(targetFilePath);
@@ -139,6 +118,22 @@ export class BackupService {
       createdAt: now,
       status: 'COMPLETED',
     };
+  }
+
+  // Tarea programada diaria a las 02:00 AM para respaldo automatico
+  @Cron('0 2 * * *')
+  async handleScheduledBackup(): Promise<void> {
+    this.logger.log('Iniciando respaldo automatico programado (cron 02:00 AM)...');
+    try {
+      const backup = await this.generateBackup();
+      this.logger.log(
+        `Respaldo automatico nocturno finalizado exitosamente: ${backup.fileName} (${backup.sizeBytes} bytes)`,
+      );
+    } catch (error: any) {
+      this.logger.error(
+        `Error en el respaldo automatico nocturno programado: ${error?.message || error}`,
+      );
+    }
   }
 
   // Listar todas las copias de seguridad existentes

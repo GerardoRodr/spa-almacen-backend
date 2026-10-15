@@ -129,20 +129,26 @@ export class DocumentsService {
     const isConfidential = this.resolveConfidentiality(dto);
     const saved = await this.processFile(file, category);
 
-    return this.prisma.documentAttachment.create({
-      data: {
-        purchaseId: dto.purchaseId ?? null,
-        transferId: dto.transferId ?? null,
-        movementId: dto.movementId ?? null,
-        custodyId: dto.custodyId ?? null,
-        proofType: dto.proofType ?? null,
-        originalName: file.originalname?.trim() || 'documento',
-        storedPath: saved.storedPath,
-        mimeType: saved.mimeType,
-        fileSizeBytes: saved.fileSizeBytes,
-        isConfidential,
-      },
-    });
+    try {
+      return await this.prisma.documentAttachment.create({
+        data: {
+          purchaseId: dto.purchaseId ?? null,
+          transferId: dto.transferId ?? null,
+          movementId: dto.movementId ?? null,
+          custodyId: dto.custodyId ?? null,
+          proofType: dto.proofType ?? null,
+          originalName: file.originalname?.trim() || 'documento',
+          storedPath: saved.storedPath,
+          mimeType: saved.mimeType,
+          fileSizeBytes: saved.fileSizeBytes,
+          isConfidential,
+        },
+      });
+    } catch (error) {
+      // Revertir archivo fisico si la insercion en base de datos falla
+      await this.storageService.deleteFile(saved.storedPath);
+      throw error;
+    }
   }
 
   // Subir multiples documentos en paralelo optimizando con Sharp
@@ -170,36 +176,46 @@ export class DocumentsService {
     const category = await this.resolveCategoryAndValidate(dto);
     const isConfidential = this.resolveConfidentiality(dto);
 
-    // Procesar todos los archivos en paralelo
-    const processedFiles = await Promise.all(
-      files.map(async (file) => {
-        const saved = await this.processFile(file, category);
-        return {
-          originalName: file.originalname?.trim() || 'documento',
-          saved,
-        };
-      }),
-    );
-
-    // Persistir todos los adjuntos creados
-    return Promise.all(
-      processedFiles.map(({ originalName, saved }) =>
-        this.prisma.documentAttachment.create({
-          data: {
-            purchaseId: dto.purchaseId ?? null,
-            transferId: dto.transferId ?? null,
-            movementId: dto.movementId ?? null,
-            custodyId: dto.custodyId ?? null,
-            proofType: dto.proofType ?? null,
-            originalName,
-            storedPath: saved.storedPath,
-            mimeType: saved.mimeType,
-            fileSizeBytes: saved.fileSizeBytes,
-            isConfidential,
-          },
+    const savedPaths: string[] = [];
+    try {
+      // Procesar todos los archivos en paralelo acumulando rutas para rollback
+      const processedFiles = await Promise.all(
+        files.map(async (file) => {
+          const saved = await this.processFile(file, category);
+          savedPaths.push(saved.storedPath);
+          return {
+            originalName: file.originalname?.trim() || 'documento',
+            saved,
+          };
         }),
-      ),
-    );
+      );
+
+      // Persistir todos los adjuntos creados
+      return await Promise.all(
+        processedFiles.map(({ originalName, saved }) =>
+          this.prisma.documentAttachment.create({
+            data: {
+              purchaseId: dto.purchaseId ?? null,
+              transferId: dto.transferId ?? null,
+              movementId: dto.movementId ?? null,
+              custodyId: dto.custodyId ?? null,
+              proofType: dto.proofType ?? null,
+              originalName,
+              storedPath: saved.storedPath,
+              mimeType: saved.mimeType,
+              fileSizeBytes: saved.fileSizeBytes,
+              isConfidential,
+            },
+          }),
+        ),
+      );
+    } catch (error) {
+      // Revertir y limpiar archivos en disco si falla la base de datos o el procesamiento
+      await Promise.allSettled(
+        savedPaths.map((p) => this.storageService.deleteFile(p)),
+      );
+      throw error;
+    }
   }
 
   // Listar documentos con filtros y proteccion de confidencialidad

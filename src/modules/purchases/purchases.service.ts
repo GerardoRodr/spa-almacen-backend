@@ -10,12 +10,16 @@ import {
   WarehouseType,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { SequenceGeneratorService } from '../../common/services/sequence-generator.service.js';
 import { CreatePurchaseDto } from './dto/create-purchase.dto.js';
 import { PurchaseFilterDto } from './dto/purchase-filter.dto.js';
 
 @Injectable()
 export class PurchasesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sequenceGenerator: SequenceGeneratorService,
+  ) {}
 
   // Listar compras paginadas con filtros de proveedor, serie y fechas
   async findAll(filter: PurchaseFilterDto) {
@@ -184,24 +188,10 @@ export class PurchasesService {
     // 5. Ejecutar transaccion atomica
     return this.prisma.$transaction(async (tx) => {
       // Generar correlativo inmutable para el movimiento de inventario MOV-YYYY-NNNNN
-      const currentYear = new Date().getFullYear();
-      const prefix = `MOV-${currentYear}-`;
-      const lastMovement = await tx.movement.findFirst({
-        where: {
-          movementNumber: { startsWith: prefix },
-        },
-        orderBy: { movementNumber: 'desc' },
-        select: { movementNumber: true },
-      });
-
-      let nextSeq = 1;
-      if (lastMovement) {
-        const match = lastMovement.movementNumber.match(/MOV-\d{4}-(\d+)/);
-        if (match) {
-          nextSeq = parseInt(match[1], 10) + 1;
-        }
-      }
-      const movementNumber = `${prefix}${String(nextSeq).padStart(5, '0')}`;
+      const movementNumber = await this.sequenceGenerator.getNextCode(
+        tx,
+        'MOV',
+      );
 
       // Crear encabezado de Purchase
       const purchase = await tx.purchase.create({

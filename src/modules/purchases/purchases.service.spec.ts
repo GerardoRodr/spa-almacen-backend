@@ -4,9 +4,13 @@ import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { Currency, MovementType, WarehouseType } from '@prisma/client';
 import { PurchasesService } from './purchases.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { SequenceGeneratorService } from '../../common/services/sequence-generator.service.js';
 
 describe('PurchasesService', () => {
   let service: PurchasesService;
+  let sequenceGenerator: {
+    getNextCode: ReturnType<typeof vi.fn>;
+  };
   let prisma: {
     supplier: {
       findUnique: ReturnType<typeof vi.fn>;
@@ -27,6 +31,13 @@ describe('PurchasesService', () => {
   };
 
   beforeEach(async () => {
+    sequenceGenerator = {
+      getNextCode: vi.fn().mockImplementation((_tx, prefix, targetYear) => {
+        const year = targetYear ?? 2026;
+        return `${prefix}-${year}-00001`;
+      }),
+    };
+
     prisma = {
       supplier: {
         findUnique: vi.fn(),
@@ -52,6 +63,10 @@ describe('PurchasesService', () => {
         {
           provide: PrismaService,
           useValue: prisma,
+        },
+        {
+          provide: SequenceGeneratorService,
+          useValue: sequenceGenerator,
         },
       ],
     }).compile();
@@ -399,6 +414,8 @@ describe('PurchasesService', () => {
       prisma.$transaction.mockImplementation(async (callback) => {
         return callback(mockTx);
       });
+
+      sequenceGenerator.getNextCode.mockResolvedValueOnce('MOV-2026-00002');
 
       const result = await service.create(dto, 'user-admin');
 

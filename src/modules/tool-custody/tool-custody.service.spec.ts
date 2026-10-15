@@ -4,9 +4,13 @@ import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { ItemType, MovementType, Role, ToolCondition } from '@prisma/client';
 import { ToolCustodyService } from './tool-custody.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { SequenceGeneratorService } from '../../common/services/sequence-generator.service.js';
 
 describe('ToolCustodyService', () => {
   let service: ToolCustodyService;
+  let sequenceGenerator: {
+    getNextCode: ReturnType<typeof vi.fn>;
+  };
   let prisma: {
     toolCustody: {
       findMany: ReturnType<typeof vi.fn>;
@@ -66,12 +70,23 @@ describe('ToolCustodyService', () => {
       $transaction: vi.fn(),
     };
 
+    sequenceGenerator = {
+      getNextCode: vi.fn().mockImplementation((_tx, prefix, targetYear) => {
+        const year = targetYear ?? 2026;
+        return `${prefix}-${year}-00001`;
+      }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ToolCustodyService,
         {
           provide: PrismaService,
           useValue: prisma,
+        },
+        {
+          provide: SequenceGeneratorService,
+          useValue: sequenceGenerator,
         },
       ],
     }).compile();

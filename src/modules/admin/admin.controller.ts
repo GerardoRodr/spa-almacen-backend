@@ -54,14 +54,6 @@ export class AdminController {
     return this.backupService.generateBackup();
   }
 
-  @Post('backups/generate')
-  @ApiOperation({
-    summary: 'Alias de generacion manual de respaldo (/admin/backups)',
-  })
-  generateBackupAlias() {
-    return this.backupService.generateBackup();
-  }
-
   @Get('backups/:fileName/download')
   @ApiOperation({
     summary: 'Descargar archivo de copia de seguridad en flujo binario',
@@ -87,17 +79,6 @@ export class AdminController {
     });
 
     stream.pipe(res);
-  }
-
-  @Get('backups/:fileName')
-  @ApiOperation({
-    summary: 'Descargar archivo de copia de seguridad (alias directo)',
-  })
-  downloadBackupDirect(
-    @Param('fileName') fileName: string,
-    @Res() res: Response,
-  ) {
-    return this.downloadBackup(fileName, res);
   }
 
   @Delete('backups/:fileName')

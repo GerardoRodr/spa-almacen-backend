@@ -8,9 +8,13 @@ import {
 import { Role, TransferStatus } from '@prisma/client';
 import { TransfersService } from './transfers.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { SequenceGeneratorService } from '../../common/services/sequence-generator.service.js';
 
 describe('TransfersService', () => {
   let service: TransfersService;
+  let sequenceGenerator: {
+    getNextCode: ReturnType<typeof vi.fn>;
+  };
   let prisma: {
     transfer: {
       findMany: ReturnType<typeof vi.fn>;
@@ -96,12 +100,26 @@ describe('TransfersService', () => {
       $transaction: vi.fn(),
     };
 
+    let seqCounter: Record<string, number> = {};
+    sequenceGenerator = {
+      getNextCode: vi.fn().mockImplementation((_tx, prefix, targetYear) => {
+        const year = targetYear ?? 2026;
+        seqCounter[prefix] = (seqCounter[prefix] ?? 0) + 1;
+        const formatted = String(seqCounter[prefix]).padStart(5, '0');
+        return `${prefix}-${year}-${formatted}`;
+      }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TransfersService,
         {
           provide: PrismaService,
           useValue: prisma,
+        },
+        {
+          provide: SequenceGeneratorService,
+          useValue: sequenceGenerator,
         },
       ],
     }).compile();

@@ -141,6 +141,7 @@ model Stock {
   item        Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   @@unique([warehouseId, itemId])
+  @@index([itemId])
 }
 
 // --------------------------------------------------------
@@ -168,6 +169,9 @@ model Item {
   
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
+
+  @@index([type])
+  @@index([isPerishable])
 }
 
 model ItemAlias {
@@ -249,6 +253,10 @@ model Purchase {
   documents      DocumentAttachment[]
   
   createdAt      DateTime             @default(now())
+
+  @@index([supplierId])
+  @@index([issueDate])
+  @@index([createdAt])
 }
 
 model PurchaseDetail {
@@ -265,6 +273,9 @@ model PurchaseDetail {
 
   purchase          Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   item              Item     @relation(fields: [itemId], references: [id])
+
+  @@index([purchaseId])
+  @@index([itemId])
 }
 
 // --------------------------------------------------------
@@ -298,6 +309,11 @@ model Transfer {
   
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
+
+  @@index([originWarehouseId])
+  @@index([destWarehouseId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model TransferItem {
@@ -311,6 +327,9 @@ model TransferItem {
 
   transfer         Transfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
   item             Item     @relation(fields: [itemId], references: [id])
+
+  @@index([transferId])
+  @@index([itemId])
 }
 
 // --------------------------------------------------------
@@ -342,6 +361,14 @@ model Movement {
   documents         DocumentAttachment[]
   
   createdAt         DateTime             @default(now())
+
+  @@index([originWarehouseId])
+  @@index([destWarehouseId])
+  @@index([projectId])
+  @@index([userId])
+  @@index([transferId])
+  @@index([type])
+  @@index([createdAt])
 }
 
 model MovementItem {
@@ -354,6 +381,9 @@ model MovementItem {
 
   movement          Movement @relation(fields: [movementId], references: [id], onDelete: Cascade)
   item              Item     @relation(fields: [itemId], references: [id])
+
+  @@index([movementId])
+  @@index([itemId])
 }
 
 // --------------------------------------------------------
@@ -389,6 +419,12 @@ model ToolCustody {
   
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
+
+  @@index([warehouseId])
+  @@index([itemId])
+  @@index([assignedToDni])
+  @@index([returnDate])
+  @@index([dispatchDate])
 }
 
 // --------------------------------------------------------
@@ -415,6 +451,11 @@ model DocumentAttachment {
   custody       ToolCustody? @relation(fields: [custodyId], references: [id], onDelete: Cascade)
   
   createdAt     DateTime     @default(now())
+
+  @@index([purchaseId])
+  @@index([transferId])
+  @@index([movementId])
+  @@index([custodyId])
 }
 
 // --------------------------------------------------------
@@ -444,4 +485,19 @@ model MachineryShiftLog {
 
   @@index([itemId])
   @@index([warehouseId])
+}
+
+// --------------------------------------------------------
+// SECUENCIAS ATOMICAS PARA CORRELATIVOS
+// --------------------------------------------------------
+
+model DocumentSequence {
+  id        String   @id @default(uuid())
+  year      Int
+  prefix    String
+  nextSeq   Int      @default(1)
+  updatedAt DateTime @updatedAt
+
+  @@unique([year, prefix])
+  @@index([year, prefix])
 }

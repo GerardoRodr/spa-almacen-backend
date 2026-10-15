@@ -25,6 +25,7 @@ describe('DashboardService', () => {
       projectRequirement: {
         findMany: vi.fn(),
       },
+      $queryRaw: vi.fn(),
     } as unknown as PrismaService;
 
     service = new DashboardService(prisma);
@@ -32,52 +33,19 @@ describe('DashboardService', () => {
 
   describe('getMetrics', () => {
     it('debe calcular metricas consolidadas separando inversion patrimonial de consumibles', async () => {
-      const mockStocks = [
-        {
-          id: 'stock-1',
-          itemId: 'item-consumable-1',
-          warehouseId: 'wh-1',
-          physicalQty: 100,
-          averageCost: 20.0,
-          item: {
-            id: 'item-consumable-1',
-            sku: 'CEM-01',
-            name: 'Cemento Portland',
-            type: ItemType.CONSUMABLE,
-            minStockAlert: 50,
+      vi.spyOn(prisma, '$queryRaw')
+        .mockResolvedValueOnce([
+          {
+            totalValuation: 154500,
+            toolsValuation: 152500,
+            totalActiveSkus: 3,
           },
-        },
-        {
-          id: 'stock-2',
-          itemId: 'item-tool-1',
-          warehouseId: 'wh-1',
-          physicalQty: 5,
-          averageCost: 500.0,
-          item: {
-            id: 'item-tool-1',
-            sku: 'TAL-01',
-            name: 'Taladro Percutor Bosch',
-            type: ItemType.TOOL,
-            minStockAlert: 2,
+        ])
+        .mockResolvedValueOnce([
+          {
+            criticalCount: 0,
           },
-        },
-        {
-          id: 'stock-3',
-          itemId: 'item-machinery-1',
-          warehouseId: 'wh-2',
-          physicalQty: 1,
-          averageCost: 150000.0,
-          item: {
-            id: 'item-machinery-1',
-            sku: 'MAQ-01',
-            name: 'Retroexcavadora CAT',
-            type: ItemType.MACHINERY,
-            minStockAlert: 1,
-          },
-        },
-      ];
-
-      vi.spyOn(prisma.stock, 'findMany').mockResolvedValue(mockStocks as any);
+        ]);
       vi.spyOn(prisma.toolCustody, 'count').mockResolvedValue(4);
 
       const metrics = await service.getMetrics('ALL');
@@ -107,24 +75,19 @@ describe('DashboardService', () => {
         type: WarehouseType.PROJECT_SITE,
       } as any);
 
-      const mockStocks = [
-        {
-          id: 'stock-1',
-          itemId: 'item-1',
-          warehouseId: 'wh-1',
-          physicalQty: 2,
-          averageCost: 300.0,
-          item: {
-            id: 'item-1',
-            sku: 'AMO-01',
-            name: 'Amoladora Angular',
-            type: ItemType.TOOL,
-            minStockAlert: 5, // En nivel critico (2 <= 5)
+      vi.spyOn(prisma, '$queryRaw')
+        .mockResolvedValueOnce([
+          {
+            totalValuation: 600,
+            toolsValuation: 600,
+            totalActiveSkus: 1,
           },
-        },
-      ];
-
-      vi.spyOn(prisma.stock, 'findMany').mockResolvedValue(mockStocks as any);
+        ])
+        .mockResolvedValueOnce([
+          {
+            criticalCount: 1,
+          },
+        ]);
       vi.spyOn(prisma.toolCustody, 'count').mockResolvedValue(1);
 
       const metrics = await service.getMetrics('wh-1');
@@ -149,24 +112,16 @@ describe('DashboardService', () => {
 
   describe('getStockComparison', () => {
     it('debe comparar existencias entre Central y Obra ordenadas por volumen', async () => {
-      vi.spyOn(prisma.item, 'findMany').mockResolvedValue([
+      vi.spyOn(prisma, '$queryRaw').mockResolvedValueOnce([
         {
-          id: 'item-1',
+          itemId: 'item-1',
           sku: 'CEM-01',
           name: 'Cemento',
           baseUnit: 'BOLSA',
-          stocks: [
-            {
-              physicalQty: 200,
-              warehouse: { type: 'CENTRAL' },
-            },
-            {
-              physicalQty: 50,
-              warehouse: { type: 'PROJECT_SITE' },
-            },
-          ],
+          centralQty: 200,
+          projectsQty: 50,
         },
-      ] as any);
+      ]);
 
       const result = await service.getStockComparison();
 

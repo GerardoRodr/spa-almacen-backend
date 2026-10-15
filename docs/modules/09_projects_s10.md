@@ -286,7 +286,7 @@ Calcula el estado del abastecimiento del proyecto comparando:
 Incrementa `allocatedQty` en el requerimiento del proyecto y `Stock.reservedQty` en el Almacen Central tras validar que existe stock fisico disponible no comprometido (`physicalQty - reservedQty >= Q`).
 
 - **Metodo:** `POST`
-- **Ruta:** `/api/v1/projects/:id/allocate-stock` (alias `/api/v1/projects/:id/reserve`)
+- **Ruta:** `/api/v1/projects/:id/allocate-stock`
 - **Acceso:** Protegido (`ADMIN`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`

@@ -224,6 +224,28 @@ describe('DocumentsService', () => {
       });
       expect(result.id).toBe('doc-3');
     });
+
+    it('debe eliminar el archivo fisico en disco si la persistencia en bd falla', async () => {
+      prisma.toolCustody.findUnique.mockResolvedValue({ id: 'cust-1' });
+      storageService.processAndSaveImage.mockResolvedValue({
+        storedPath: 'custody/2026/10/entrega.webp',
+        mimeType: 'image/webp',
+        fileSizeBytes: 85000,
+      });
+      prisma.documentAttachment.create.mockRejectedValue(new Error('Fallo de base de datos'));
+
+      const file = {
+        buffer: Buffer.from('simulated-bytes'),
+        originalname: 'entrega.png',
+        mimetype: 'image/png',
+      };
+
+      await expect(
+        service.upload(file, { custodyId: 'cust-1' }),
+      ).rejects.toThrow('Fallo de base de datos');
+
+      expect(storageService.deleteFile).toHaveBeenCalledWith('custody/2026/10/entrega.webp');
+    });
   });
 
   describe('uploadMultiple', () => {
@@ -312,6 +334,44 @@ describe('DocumentsService', () => {
       expect(results).toHaveLength(2);
       expect(results[0].id).toBe('doc-m1');
       expect(results[1].id).toBe('doc-m2');
+    });
+
+    it('debe limpiar todos los archivos fisicos procesados si la insercion en bd falla', async () => {
+      prisma.toolCustody.findUnique.mockResolvedValue({ id: 'cust-1' });
+      storageService.processAndSaveImage.mockResolvedValue({
+        storedPath: 'custody/2026/10/img.webp',
+        mimeType: 'image/webp',
+        fileSizeBytes: 95000,
+      });
+      storageService.savePdf.mockResolvedValue({
+        storedPath: 'custody/2026/10/doc.pdf',
+        mimeType: 'application/pdf',
+        fileSizeBytes: 200000,
+      });
+
+      prisma.documentAttachment.create
+        .mockResolvedValueOnce({ id: 'doc-m1' })
+        .mockRejectedValueOnce(new Error('Fallo al insertar segundo documento'));
+
+      const files = [
+        {
+          buffer: Buffer.from('img-bytes'),
+          originalname: 'danio.jpg',
+          mimetype: 'image/jpeg',
+        },
+        {
+          buffer: Buffer.from('%PDF-acta'),
+          originalname: 'acta.pdf',
+          mimetype: 'application/pdf',
+        },
+      ];
+
+      await expect(
+        service.uploadMultiple(files, { custodyId: 'cust-1' }),
+      ).rejects.toThrow('Fallo al insertar segundo documento');
+
+      expect(storageService.deleteFile).toHaveBeenCalledWith('custody/2026/10/img.webp');
+      expect(storageService.deleteFile).toHaveBeenCalledWith('custody/2026/10/doc.pdf');
     });
   });
 

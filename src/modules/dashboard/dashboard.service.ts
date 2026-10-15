@@ -32,80 +32,67 @@ export class DashboardService {
       targetWarehouseType = warehouse.type;
     }
 
-    const stockWhere: Record<string, unknown> = {
-      physicalQty: { gt: 0 },
-    };
+    // Inversion y valorizacion calculada directamente en PostgreSQL
+    let valuationRows: Array<{
+      totalValuation: string | number;
+      toolsValuation: string | number;
+      totalActiveSkus: string | number;
+    }>;
 
     if (isSpecificWarehouse) {
-      stockWhere.warehouseId = warehouseId;
-    }
-
-    // Consulta de existencias activas con tipo de item y alertas de stock
-    const stocks = await this.prisma.stock.findMany({
-      where: stockWhere,
-      include: {
-        item: {
-          select: {
-            id: true,
-            sku: true,
-            name: true,
-            type: true,
-            minStockAlert: true,
-          },
-        },
-      },
-    });
-
-    // Total de SKUs unicos activos con existencia fisica positiva
-    const activeItemIds = new Set<string>();
-    let totalValuation = 0;
-    let toolsValuation = 0;
-
-    const toolTypes = new Set<ItemType>([
-      ItemType.TOOL,
-      ItemType.EQUIPMENT,
-      ItemType.MACHINERY,
-    ]);
-
-    for (const s of stocks) {
-      activeItemIds.add(s.itemId);
-      const pQty = Number(s.physicalQty);
-      const avgCost = Number(s.averageCost);
-      const subtotal = pQty * avgCost;
-
-      totalValuation += subtotal;
-
-      // Inversion patrimonial exclusiva para herramientas, equipos y maquinaria
-      if (toolTypes.has(s.item.type)) {
-        toolsValuation += subtotal;
-      }
-    }
-
-    // Calculo de insumos en nivel critico de existencias
-    let criticalItemsCount = 0;
-
-    if (isSpecificWarehouse) {
-      criticalItemsCount = stocks.filter((s) => {
-        const minAlert = Number(s.item.minStockAlert);
-        return minAlert > 0 && Number(s.physicalQty) <= minAlert;
-      }).length;
+      valuationRows = await this.prisma.$queryRaw`
+        SELECT 
+          COALESCE(SUM(s."physicalQty" * s."averageCost"), 0)::numeric AS "totalValuation",
+          COALESCE(SUM(CASE WHEN i."type" IN ('TOOL', 'EQUIPMENT', 'MACHINERY') THEN s."physicalQty" * s."averageCost" ELSE 0 END), 0)::numeric AS "toolsValuation",
+          COUNT(DISTINCT s."itemId")::int AS "totalActiveSkus"
+        FROM "Stock" s
+        JOIN "Item" i ON s."itemId" = i."id"
+        WHERE s."physicalQty" > 0 AND s."warehouseId" = ${warehouseId}
+      `;
     } else {
-      // Consolidar cantidades por insumo para evaluar alerta global
-      const aggregatedQty = new Map<string, { qty: number; minAlert: number }>();
-      for (const s of stocks) {
-        const cur = aggregatedQty.get(s.itemId) ?? {
-          qty: 0,
-          minAlert: Number(s.item.minStockAlert),
-        };
-        cur.qty += Number(s.physicalQty);
-        aggregatedQty.set(s.itemId, cur);
-      }
+      valuationRows = await this.prisma.$queryRaw`
+        SELECT 
+          COALESCE(SUM(s."physicalQty" * s."averageCost"), 0)::numeric AS "totalValuation",
+          COALESCE(SUM(CASE WHEN i."type" IN ('TOOL', 'EQUIPMENT', 'MACHINERY') THEN s."physicalQty" * s."averageCost" ELSE 0 END), 0)::numeric AS "toolsValuation",
+          COUNT(DISTINCT s."itemId")::int AS "totalActiveSkus"
+        FROM "Stock" s
+        JOIN "Item" i ON s."itemId" = i."id"
+        WHERE s."physicalQty" > 0
+      `;
+    }
 
-      for (const { qty, minAlert } of aggregatedQty.values()) {
-        if (minAlert > 0 && qty <= minAlert) {
-          criticalItemsCount++;
-        }
-      }
+    const valuation = valuationRows[0];
+    const totalValuation = Number(valuation?.totalValuation ?? 0);
+    const toolsValuation = Number(valuation?.toolsValuation ?? 0);
+    const totalActiveSkus = Number(valuation?.totalActiveSkus ?? 0);
+
+    // Conteo de insumos en nivel critico de existencias calculado en motor SQL
+    let criticalItemsCount = 0;
+    if (isSpecificWarehouse) {
+      const critRows = await this.prisma.$queryRaw<
+        Array<{ criticalCount: string | number }>
+      >`
+        SELECT COUNT(*)::int AS "criticalCount"
+        FROM "Stock" s
+        JOIN "Item" i ON s."itemId" = i."id"
+        WHERE s."warehouseId" = ${warehouseId} AND i."minStockAlert" > 0 AND s."physicalQty" <= i."minStockAlert"
+      `;
+      criticalItemsCount = Number(critRows[0]?.criticalCount ?? 0);
+    } else {
+      const critRows = await this.prisma.$queryRaw<
+        Array<{ criticalCount: string | number }>
+      >`
+        SELECT COUNT(*)::int AS "criticalCount"
+        FROM (
+          SELECT s."itemId"
+          FROM "Stock" s
+          JOIN "Item" i ON s."itemId" = i."id"
+          WHERE i."minStockAlert" > 0
+          GROUP BY s."itemId", i."minStockAlert"
+          HAVING SUM(s."physicalQty") <= i."minStockAlert"
+        ) sub
+      `;
+      criticalItemsCount = Number(critRows[0]?.criticalCount ?? 0);
     }
 
     // Cantidad de custodias pendientes de devolucion en campo
@@ -122,7 +109,7 @@ export class DashboardService {
     });
 
     return {
-      totalActiveSkus: activeItemIds.size,
+      totalActiveSkus,
       inventoryValuationPEN: Number(totalValuation.toFixed(2)),
       toolsInvestmentPEN: Number(toolsValuation.toFixed(2)),
       toolsInField,
@@ -133,55 +120,42 @@ export class DashboardService {
     };
   }
 
-  // Comparativa de volumen fisico entre Almacen Central y Almacenes de Obra
+  // Comparativa de volumen fisico entre Almacen Central y Almacenes de Obra (Top 8 en SQL nativo)
   async getStockComparison() {
-    const items = await this.prisma.item.findMany({
-      include: {
-        stocks: {
-          include: {
-            warehouse: {
-              select: {
-                id: true,
-                name: true,
-                type: true,
-                isTemporary: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        itemId: string;
+        sku: string;
+        name: string;
+        baseUnit: string;
+        centralQty: string | number;
+        projectsQty: string | number;
+      }>
+    >`
+      SELECT 
+        i."id" AS "itemId",
+        i."sku",
+        i."name",
+        i."baseUnit",
+        COALESCE(SUM(CASE WHEN w."type" = 'CENTRAL' THEN s."physicalQty" ELSE 0 END), 0)::numeric AS "centralQty",
+        COALESCE(SUM(CASE WHEN w."type" != 'CENTRAL' THEN s."physicalQty" ELSE 0 END), 0)::numeric AS "projectsQty"
+      FROM "Item" i
+      JOIN "Stock" s ON i."id" = s."itemId"
+      JOIN "Warehouse" w ON s."warehouseId" = w."id"
+      GROUP BY i."id", i."sku", i."name", i."baseUnit"
+      HAVING SUM(s."physicalQty") > 0
+      ORDER BY SUM(s."physicalQty") DESC
+      LIMIT 8;
+    `;
 
-    const comparisons = [];
-
-    for (const it of items) {
-      let centralQty = 0;
-      let projectsQty = 0;
-
-      for (const s of it.stocks ?? []) {
-        const pQty = Number(s.physicalQty);
-        if (s.warehouse?.type === 'CENTRAL') {
-          centralQty += pQty;
-        } else {
-          projectsQty += pQty;
-        }
-      }
-
-      if (centralQty > 0 || projectsQty > 0) {
-        comparisons.push({
-          itemId: it.id,
-          sku: it.sku,
-          name: it.name,
-          baseUnit: it.baseUnit,
-          centralQty,
-          projectsQty,
-        });
-      }
-    }
-
-    return comparisons
-      .sort((a, b) => b.centralQty + b.projectsQty - (a.centralQty + a.projectsQty))
-      .slice(0, 8);
+    return rows.map((r) => ({
+      itemId: r.itemId,
+      sku: r.sku,
+      name: r.name,
+      baseUnit: r.baseUnit,
+      centralQty: Number(r.centralQty),
+      projectsQty: Number(r.projectsQty),
+    }));
   }
 
   // Lista de insumos con deficit o por debajo del umbral de reposicion urgente

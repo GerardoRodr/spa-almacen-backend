@@ -18,6 +18,7 @@ Este documento representa la hoja de ruta integral y el estado de avance para el
 - [x] **Paso 9: Mantenimiento, Backups Diarios y Hardening Final**
 - [x] **Paso 10: Maquinaria Pesada y Control de Horometros**
 - [x] **Paso 11: Dashboard Analitico, Inversion Patrimonial y Alertas de Perecibles**
+- [x] **Paso 12: Optimizaciones de Rendimiento, Correlativos Atomicos y Saneamiento de Endpoints**
 
 ---
 
@@ -298,6 +299,36 @@ Centralizacion de metricas corporativas, separacion de inversion patrimonial en 
 - [x] **Documentacion:**
   - [x] Creacion de `docs/modules/13_dashboard.md`.
   - [x] Actualizacion de `docs/modules/04_items.md` y `docs/modules/README.md`.
+
+---
+
+## Paso 12: Optimizaciones de Rendimiento, Correlativos Atomicos y Saneamiento de Endpoints (Completado)
+
+Refactorizacion de rendimiento en base de datos, eliminacion de condiciones de carrera en generacion de correlativos, aceleracion analitica en PostgreSQL, resiliencia en almacenamiento y depuracion de endpoints.
+
+### Tareas:
+- [x] **Indices de Rendimiento y Modelo de Secuencias en PostgreSQL:**
+  - [x] Incorporacion de bloques `@@index` en `schema.prisma` para `Movement`, `MovementItem`, `Transfer`, `TransferItem`, `ToolCustody`, `DocumentAttachment`, `Purchase`, `PurchaseDetail`, `Stock` e `Item`.
+  - [x] Creacion de modelo `DocumentSequence` con restriccion `@@unique([docType, year])`.
+  - [x] Ejecucion de migracion `20261015170421_add_performance_indexes_and_sequences`.
+- [x] **Generador Atomico de Correlativos (`SequenceGeneratorService`):**
+  - [x] Implementacion con `UPDATE ... RETURNING` y bloqueo de fila a nivel de motor de base de datos.
+  - [x] Inicializacion automatica consultando el valor maximo historico preexistente.
+  - [x] Integracion en `MovementsService` (`KDX`), `PurchasesService` (`OC`), `TransfersService` (`TR`, `REC`) y `ToolCustodyService` (`CUST`, `DEV`).
+- [x] **Aceleracion SQL en Dashboard (`DashboardService`):**
+  - [x] Reemplazo de carga masiva en memoria por queries de agregacion `$queryRaw` para valorizaciones de inventario e inversion en herramientas.
+  - [x] Calculo de Top 8 insumos por valorizacion resuelto nativamente en PostgreSQL.
+- [x] **Saneamiento de Rutas REST:**
+  - [x] Eliminacion de alias redundantes: `POST /admin/backups/generate`, `GET /admin/backups/:fileName` y `POST /projects/:id/reserve`.
+  - [x] Generacion de guia de impacto y migracion `docs/cambios-frontend.md`.
+  - [x] Actualizacion de manuales tecnicos `docs/modules/11_admin_maintenance.md` y `docs/modules/09_projects_s10.md`.
+- [x] **Automatizacion de Respaldo y Rollback de Archivos:**
+  - [x] Registro global de `@nestjs/schedule` y activacion de `@Cron('0 2 * * *')` en `BackupService`.
+  - [x] Control estricto de disponibilidad en `BackupService` con `ServiceUnavailableException`.
+  - [x] Rollback fisico con `deleteFile` en `DocumentsService` (`upload` y `uploadMultiple`) ante fallos de persistencia en base de datos.
+- [x] **Verificacion y Cobertura de Pruebas:**
+  - [x] Actualizacion y ejecucion exitosa de todas las suites de pruebas unitarias (`vitest`).
+
 
 
 

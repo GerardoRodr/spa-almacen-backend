@@ -18,10 +18,14 @@ import {
 } from './dto/create-inventory-adjustment.dto.js';
 import { AdjustmentDirection } from './dto/inventory-adjustment-item.dto.js';
 import { MovementFilterDto } from './dto/movement-filter.dto.js';
+import { SequenceGeneratorService } from '../../common/services/sequence-generator.service.js';
 
 @Injectable()
 export class MovementsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sequenceGenerator: SequenceGeneratorService,
+  ) {}
 
   // Listar movimientos de inventario en Kardex con filtros y paginacion
   async findAll(
@@ -260,22 +264,10 @@ export class MovementsService {
 
     // 6. Transaccion atomica de salida por consumo
     return this.prisma.$transaction(async (tx) => {
-      const currentYear = new Date().getFullYear();
-      const movPrefix = `MOV-${currentYear}-`;
-
-      const lastMov = await tx.movement.findFirst({
-        where: { movementNumber: { startsWith: movPrefix } },
-        orderBy: { movementNumber: 'desc' },
-        select: { movementNumber: true },
-      });
-      let nextSeq = 1;
-      if (lastMov) {
-        const match = lastMov.movementNumber.match(/MOV-\d{4}-(\d+)/);
-        if (match) {
-          nextSeq = parseInt(match[1], 10) + 1;
-        }
-      }
-      const movementNumber = `${movPrefix}${String(nextSeq).padStart(5, '0')}`;
+      const movementNumber = await this.sequenceGenerator.getNextCode(
+        tx,
+        'MOV',
+      );
 
       const movementItemsData = [];
 
@@ -421,22 +413,10 @@ export class MovementsService {
 
     // 5. Transaccion atomica de baja por merma
     return this.prisma.$transaction(async (tx) => {
-      const currentYear = new Date().getFullYear();
-      const movPrefix = `MOV-${currentYear}-`;
-
-      const lastMov = await tx.movement.findFirst({
-        where: { movementNumber: { startsWith: movPrefix } },
-        orderBy: { movementNumber: 'desc' },
-        select: { movementNumber: true },
-      });
-      let nextSeq = 1;
-      if (lastMov) {
-        const match = lastMov.movementNumber.match(/MOV-\d{4}-(\d+)/);
-        if (match) {
-          nextSeq = parseInt(match[1], 10) + 1;
-        }
-      }
-      const movementNumber = `${movPrefix}${String(nextSeq).padStart(5, '0')}`;
+      const movementNumber = await this.sequenceGenerator.getNextCode(
+        tx,
+        'MOV',
+      );
 
       const movementItemsData = [];
 
@@ -566,22 +546,10 @@ export class MovementsService {
 
     // 5. Transaccion atomica de ajuste de inventario
     return this.prisma.$transaction(async (tx) => {
-      const currentYear = new Date().getFullYear();
-      const movPrefix = `MOV-${currentYear}-`;
-
-      const lastMov = await tx.movement.findFirst({
-        where: { movementNumber: { startsWith: movPrefix } },
-        orderBy: { movementNumber: 'desc' },
-        select: { movementNumber: true },
-      });
-      let nextSeq = 1;
-      if (lastMov) {
-        const match = lastMov.movementNumber.match(/MOV-\d{4}-(\d+)/);
-        if (match) {
-          nextSeq = parseInt(match[1], 10) + 1;
-        }
-      }
-      const movementNumber = `${movPrefix}${String(nextSeq).padStart(5, '0')}`;
+      const movementNumber = await this.sequenceGenerator.getNextCode(
+        tx,
+        'MOV',
+      );
 
       const movementItemsData = [];
 

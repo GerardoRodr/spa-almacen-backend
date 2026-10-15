@@ -58,7 +58,7 @@ Verifica la disponibilidad de la base de datos PostgreSQL, espacio de almacenami
 Ejecuta la orden de extraccion `pg_dump` sobre la base de datos `almacen_erp` en el contenedor `almacen-postgres` (o vuelco de emergencia) y almacena el archivo comprimido `.dump` en la ruta segura de copias de seguridad.
 
 - **Metodo:** `POST`
-- **Ruta:** `/api/v1/admin/backups` (alias `/api/v1/admin/backups/generate`)
+- **Ruta:** `/api/v1/admin/backups`
 - **Acceso:** Protegido (`ADMIN`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
@@ -106,10 +106,10 @@ Retorna el historial de archivos de backup existentes en el servidor ordenados p
 ---
 
 ### 2.4 Descargar Copia de Seguridad
-Descarga el archivo `.dump` binario para custodia off-site.
+Descarga el archivo `.dump` binario para custodia off-site en streaming.
 
 - **Metodo:** `GET`
-- **Ruta:** `/api/v1/admin/backups/:fileName` (alias `/api/v1/admin/backups/:fileName/download`)
+- **Ruta:** `/api/v1/admin/backups/:fileName/download`
 - **Acceso:** Protegido (`ADMIN`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`

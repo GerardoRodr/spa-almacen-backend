@@ -209,19 +209,6 @@ export class ProjectsController {
     return this.projectsService.allocateStock(id, dto);
   }
 
-  @Post(':id/reserve')
-  @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
-  @ApiOperation({
-    summary: 'Alias de reserva de insumos en Almacen Central (/allocate-stock)',
-  })
-  reserveStock(
-    @Param('id') id: string,
-    @Body() dto: AllocateStockDto,
-  ) {
-    return this.projectsService.allocateStock(id, dto);
-  }
-
   @Post(':id/release-stock')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)

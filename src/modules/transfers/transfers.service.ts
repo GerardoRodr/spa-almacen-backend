@@ -11,13 +11,17 @@ import {
   TransferStatus,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { SequenceGeneratorService } from '../../common/services/sequence-generator.service.js';
 import { DispatchTransferDto } from './dto/dispatch-transfer.dto.js';
 import { ReceiveTransferDto } from './dto/receive-transfer.dto.js';
 import { TransferFilterDto } from './dto/transfer-filter.dto.js';
 
 @Injectable()
 export class TransfersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sequenceGenerator: SequenceGeneratorService,
+  ) {}
 
   // Listar transferencias con filtros y paginacion
   async findAll(
@@ -278,39 +282,15 @@ export class TransfersService {
 
     // 7. Ejecutar transaccion atomica de despacho
     return this.prisma.$transaction(async (tx) => {
-      const currentYear = new Date().getFullYear();
-
-      // Generar correlativo inmutable de transferencia TR-YYYY-NNNNN
-      const trPrefix = `TR-${currentYear}-`;
-      const lastTransfer = await tx.transfer.findFirst({
-        where: { transferNumber: { startsWith: trPrefix } },
-        orderBy: { transferNumber: 'desc' },
-        select: { transferNumber: true },
-      });
-      let nextTrSeq = 1;
-      if (lastTransfer) {
-        const match = lastTransfer.transferNumber.match(/TR-\d{4}-(\d+)/);
-        if (match) {
-          nextTrSeq = parseInt(match[1], 10) + 1;
-        }
-      }
-      const transferNumber = `${trPrefix}${String(nextTrSeq).padStart(5, '0')}`;
-
-      // Generar correlativo inmutable de movimiento MOV-YYYY-NNNNN
-      const movPrefix = `MOV-${currentYear}-`;
-      const lastMov = await tx.movement.findFirst({
-        where: { movementNumber: { startsWith: movPrefix } },
-        orderBy: { movementNumber: 'desc' },
-        select: { movementNumber: true },
-      });
-      let nextMovSeq = 1;
-      if (lastMov) {
-        const match = lastMov.movementNumber.match(/MOV-\d{4}-(\d+)/);
-        if (match) {
-          nextMovSeq = parseInt(match[1], 10) + 1;
-        }
-      }
-      const movementNumber = `${movPrefix}${String(nextMovSeq).padStart(5, '0')}`;
+      // Generar correlativos inmutables atomicos
+      const transferNumber = await this.sequenceGenerator.getNextCode(
+        tx,
+        'TR',
+      );
+      const movementNumber = await this.sequenceGenerator.getNextCode(
+        tx,
+        'MOV',
+      );
 
       // Crear registro encabezado de transferencia
       const transfer = await tx.transfer.create({
@@ -504,23 +484,6 @@ export class TransfersService {
 
     // 4. Ejecutar transaccion atomica de recepcion
     return this.prisma.$transaction(async (tx) => {
-      const currentYear = new Date().getFullYear();
-      const movPrefix = `MOV-${currentYear}-`;
-
-      // Obtener secuencia base para correlativos MOV-YYYY-NNNNN
-      const lastMov = await tx.movement.findFirst({
-        where: { movementNumber: { startsWith: movPrefix } },
-        orderBy: { movementNumber: 'desc' },
-        select: { movementNumber: true },
-      });
-      let nextMovSeq = 1;
-      if (lastMov) {
-        const match = lastMov.movementNumber.match(/MOV-\d{4}-(\d+)/);
-        if (match) {
-          nextMovSeq = parseInt(match[1], 10) + 1;
-        }
-      }
-
       const updatedItems = [];
       const receiptMovementItems = [];
       const shrinkageMovementItems = [];
@@ -639,8 +602,10 @@ export class TransfersService {
 
       // 1. Movimiento de ingreso fisico TRANSFER_RECEIPT si hubo unidades conformes
       if (receiptMovementItems.length > 0) {
-        receiptMovementNumber = `${movPrefix}${String(nextMovSeq).padStart(5, '0')}`;
-        nextMovSeq++;
+        receiptMovementNumber = await this.sequenceGenerator.getNextCode(
+          tx,
+          'MOV',
+        );
         await tx.movement.create({
           data: {
             movementNumber: receiptMovementNumber,
@@ -662,8 +627,10 @@ export class TransfersService {
 
       // 2. Movimiento automatico de merma SHRINKAGE_EXIT si hubo discrepancias en transporte
       if (hasDiscrepancy) {
-        shrinkageMovementNumber = `${movPrefix}${String(nextMovSeq).padStart(5, '0')}`;
-        nextMovSeq++;
+        shrinkageMovementNumber = await this.sequenceGenerator.getNextCode(
+          tx,
+          'MOV',
+        );
         await tx.movement.create({
           data: {
             movementNumber: shrinkageMovementNumber,

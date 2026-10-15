@@ -11,13 +11,17 @@ import {
   ToolCondition,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { SequenceGeneratorService } from '../../common/services/sequence-generator.service.js';
 import { DispatchToolCustodyDto } from './dto/dispatch-tool-custody.dto.js';
 import { ReturnToolCustodyDto } from './dto/return-tool-custody.dto.js';
 import { ToolCustodyFilterDto } from './dto/tool-custody-filter.dto.js';
 
 @Injectable()
 export class ToolCustodyService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sequenceGenerator: SequenceGeneratorService,
+  ) {}
 
   // Listar vales de prestamo con paginacion y filtros
   async findAll(
@@ -212,39 +216,15 @@ export class ToolCustodyService {
 
     // 4. Ejecutar transaccion atomica
     return this.prisma.$transaction(async (tx) => {
-      const currentYear = new Date().getFullYear();
-
-      // Generar correlativo inmutable VALE-YYYY-NNNNN
-      const valePrefix = `VALE-${currentYear}-`;
-      const lastVale = await tx.toolCustody.findFirst({
-        where: { custodyNumber: { startsWith: valePrefix } },
-        orderBy: { custodyNumber: 'desc' },
-        select: { custodyNumber: true },
-      });
-      let nextValeSeq = 1;
-      if (lastVale) {
-        const match = lastVale.custodyNumber.match(/VALE-\d{4}-(\d+)/);
-        if (match) {
-          nextValeSeq = parseInt(match[1], 10) + 1;
-        }
-      }
-      const custodyNumber = `${valePrefix}${String(nextValeSeq).padStart(5, '0')}`;
-
-      // Generar correlativo inmutable MOV-YYYY-NNNNN
-      const movPrefix = `MOV-${currentYear}-`;
-      const lastMov = await tx.movement.findFirst({
-        where: { movementNumber: { startsWith: movPrefix } },
-        orderBy: { movementNumber: 'desc' },
-        select: { movementNumber: true },
-      });
-      let nextMovSeq = 1;
-      if (lastMov) {
-        const match = lastMov.movementNumber.match(/MOV-\d{4}-(\d+)/);
-        if (match) {
-          nextMovSeq = parseInt(match[1], 10) + 1;
-        }
-      }
-      const movementNumber = `${movPrefix}${String(nextMovSeq).padStart(5, '0')}`;
+      // Generar correlativos inmutables atomicos
+      const custodyNumber = await this.sequenceGenerator.getNextCode(
+        tx,
+        'VALE',
+      );
+      const movementNumber = await this.sequenceGenerator.getNextCode(
+        tx,
+        'MOV',
+      );
 
       // Incrementar Stock.loanedQty
       const newLoanedQty = Number((loanedQty + qty).toFixed(4));
@@ -363,24 +343,13 @@ export class ToolCustodyService {
 
     return this.prisma.$transaction(async (tx) => {
       const returnDate = new Date();
-      const currentYear = returnDate.getFullYear();
       const qty = Number(custody.quantity);
 
       // Generar correlativo inmutable MOV-YYYY-NNNNN
-      const movPrefix = `MOV-${currentYear}-`;
-      const lastMov = await tx.movement.findFirst({
-        where: { movementNumber: { startsWith: movPrefix } },
-        orderBy: { movementNumber: 'desc' },
-        select: { movementNumber: true },
-      });
-      let nextMovSeq = 1;
-      if (lastMov) {
-        const match = lastMov.movementNumber.match(/MOV-\d{4}-(\d+)/);
-        if (match) {
-          nextMovSeq = parseInt(match[1], 10) + 1;
-        }
-      }
-      const movementNumber = `${movPrefix}${String(nextMovSeq).padStart(5, '0')}`;
+      const movementNumber = await this.sequenceGenerator.getNextCode(
+        tx,
+        'MOV',
+      );
 
       // Actualizar registro de ToolCustody
       const updatedCustody = await tx.toolCustody.update({

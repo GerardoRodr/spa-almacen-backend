@@ -1,10 +1,30 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import fs from 'node:fs';
 import path from 'node:path';
+import { exec } from 'node:child_process';
 import { BackupService } from './backup.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+
+vi.mock('node:child_process', () => ({
+  exec: vi.fn((cmd: string, cb: (err: Error | null, result?: { stdout: string; stderr: string }) => void) => {
+    // Si el comando especifica un archivo de destino .dump, crear archivo simulado
+    const match = cmd.match(/"([^"]+\.dump)"/);
+    if (match && match[1]) {
+      try {
+        fs.writeFileSync(match[1], 'mock binary dump content');
+      } catch {
+        // Ignorar
+      }
+    }
+    cb(null, { stdout: '', stderr: '' });
+  }),
+}));
 
 describe('BackupService', () => {
   let service: BackupService;
@@ -18,6 +38,19 @@ describe('BackupService', () => {
 
   beforeEach(() => {
     process.env.BACKUP_DIR = './test-backups';
+
+    // Restaurar implementacion por defecto del mock de exec
+    vi.mocked(exec).mockImplementation((cmd: any, cb: any) => {
+      const match = typeof cmd === 'string' ? cmd.match(/"([^"]+\.dump)"/) : null;
+      if (match && match[1]) {
+        try {
+          fs.writeFileSync(match[1], 'mock binary dump content');
+        } catch {
+          // Ignorar
+        }
+      }
+      cb(null, { stdout: '', stderr: '' });
+    });
 
     prisma = {
       user: { count: vi.fn().mockResolvedValue(2) },
@@ -60,6 +93,16 @@ describe('BackupService', () => {
 
       const filePath = path.resolve(testBackupDir, result.fileName);
       expect(fs.existsSync(filePath)).toBe(true);
+    });
+
+    it('debe lanzar ServiceUnavailableException si fallan docker exec y pg_dump local', async () => {
+      vi.mocked(exec).mockImplementation((_cmd: any, cb: any) => {
+        cb(new Error('pg_dump command not found'));
+      });
+
+      await expect(service.generateBackup()).rejects.toThrow(
+        ServiceUnavailableException,
+      );
     });
   });
 

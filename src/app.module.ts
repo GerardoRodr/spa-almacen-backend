@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { configuration } from './config/configuration.js';
 import { PrismaModule } from './prisma/prisma.module.js';
@@ -28,6 +29,8 @@ import { AppService } from './app.service.js';
       isGlobal: true,
       load: [configuration],
     }),
+    // Modulo de tareas programadas y cron en segundo plano
+    ScheduleModule.forRoot(),
     // Modulo de limitacion de peticiones para seguridad
     ThrottlerModule.forRoot([
       {
