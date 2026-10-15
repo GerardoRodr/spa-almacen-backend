@@ -17,6 +17,7 @@ async function main() {
 
   // Limpieza previa en orden inverso de dependencias para garantizar idempotencia
   console.log('Limpiando datos existentes...');
+  await prisma.documentSequence.deleteMany();
   await prisma.documentAttachment.deleteMany();
   await prisma.machineryShiftLog.deleteMany();
   await prisma.movementItem.deleteMany();
@@ -317,15 +318,52 @@ async function main() {
     await prisma.documentAttachment.create({
       data: {
         id: doc.id,
-        purchaseId: doc.purchaseId,
-        transferId: doc.transferId,
-        movementId: doc.movementId,
-        custodyId: doc.custodyId,
+        purchaseId: doc.purchaseId ?? null,
+        transferId: doc.transferId ?? null,
+        movementId: doc.movementId ?? null,
+        custodyId: doc.custodyId ?? null,
+        proofType: doc.proofType ?? null,
         originalName: doc.originalName,
         storedPath: doc.storedPath,
         mimeType: doc.mimeType,
         fileSizeBytes: doc.fileSizeBytes,
-        isConfidential: doc.isConfidential,
+        isConfidential: doc.isConfidential ?? false,
+      },
+    });
+  }
+
+  // 18. Jornadas de Maquinaria Pesada y Horometros
+  console.log('Sembrando jornadas de maquinaria...');
+  for (const shift of data.machineryShiftLogs) {
+    await prisma.machineryShiftLog.create({
+      data: {
+        id: shift.id,
+        itemId: shift.itemId,
+        warehouseId: shift.warehouseId,
+        operatorName: shift.operatorName,
+        operatorDni: shift.operatorDni,
+        startHourMeter: shift.startHourMeter,
+        endHourMeter: shift.endHourMeter !== undefined && shift.endHourMeter !== null ? shift.endHourMeter : null,
+        totalHours: shift.totalHours !== undefined && shift.totalHours !== null ? shift.totalHours : null,
+        startDateTime: new Date(shift.startDateTime),
+        endDateTime: shift.endDateTime ? new Date(shift.endDateTime) : null,
+        startPhotoId: shift.startPhotoId ?? null,
+        endPhotoId: shift.endPhotoId ?? null,
+        fuelPhotoId: shift.fuelPhotoId ?? null,
+        notes: shift.notes ?? null,
+      },
+    });
+  }
+
+  // 19. Secuencias Atomicas Correlativas
+  console.log('Sembrando secuencias correlativas de documentos...');
+  for (const seq of data.documentSequences) {
+    await prisma.documentSequence.create({
+      data: {
+        id: seq.id,
+        year: seq.year,
+        prefix: seq.prefix,
+        nextSeq: seq.nextSeq,
       },
     });
   }
