@@ -11,12 +11,14 @@ Este modulo controla el ciclo de vida y prestamo temporal de bienes clasificados
 - **Items Admitidos:** Unicamente items con `ItemType` igual a `TOOL` o `EQUIPMENT`. Si se intenta prestar un bien `CONSUMABLE` o `MACHINERY`, el sistema rechaza la operacion con `BadRequestException`.
 - **Identificacion del Trabajador:** Todo prestamo exige obligatoriamente DNI (8 digitos) y nombre completo del operario receptor.
 - **Calificacion Fisica al Despacho y al Retorno:**
-  - Valores posibles del enum `ToolCondition`: `OPERATIVE`, `DAMAGED_USABLE`, `DAMAGED_UNUSABLE`, `MAINTENANCE_REQUIRED`, `LOST`.
-  - Si el retorno es `OPERATIVE` o `DAMAGED_USABLE`: se decrementa `loanedQty` y se genera `LOAN_RETURN`.
+  - Valores del enum `ToolCondition`: `NEW`, `OPERATIVE`, `DAMAGED_USABLE`, `DAMAGED_UNUSABLE`, `MAINTENANCE_REQUIRED`, `LOST`.
+  - Condiciones permitidas al despacho: `NEW` (nueva), `OPERATIVE` (operativa) o `DAMAGED_USABLE` (desgaste normal).
+  - Si el retorno es `NEW`, `OPERATIVE`, `DAMAGED_USABLE` o `MAINTENANCE_REQUIRED`: retorno conforme, decrementa `loanedQty` y genera `LOAN_RETURN`.
   - Si el retorno es `DAMAGED_UNUSABLE` o `LOST`: se da de baja patrimonial decrementando tanto `loanedQty` como `physicalQty`, y emitiendo un `SHRINKAGE_EXIT`.
 - **Evidencias Adjuntas y Tipos de Prueba:** Los documentos adjuntos asociados a un vale de custodia clasifican su proposito mediante `proofType`:
   - `DISPATCH`: Actas de entrega, firmas o fotografias del estado inicial al salir de caseta.
   - `RETURN`: Fotografias de recepcion, actas de conformidad o reportes de daño al retornar.
+  - Disponibles tanto en el detalle (`GET /tools/custody/:id`) como en el listado (`GET /tools/custody`) clasificados en `documents`, `dispatchDocuments` y `returnDocuments`.
 
 - **Ruta Base:** `/api/v1/tools/custody`
 - **Entidades Vinculadas:** `ToolCustody`, `Item`, `Warehouse`, `User`, `Stock`, `Movement`, `DocumentAttachment`
@@ -26,7 +28,7 @@ Este modulo controla el ciclo de vida y prestamo temporal de bienes clasificados
 ## 2. Endpoints
 
 ### 2.1 Listar Vales de Prestamo y Custodia
-Consulta las ordenes de prestamo con filtro por almacen, estado activo (no devuelto), vencimiento de fecha esperada y DNI del trabajador.
+Consulta las ordenes de prestamo con filtro por almacen, estado activo (no devuelto), vencimiento de fecha esperada y DNI del trabajador, retornando ademas las fotografias y documentos adjuntos clasificados.
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/tools/custody`
@@ -58,7 +60,7 @@ Consulta las ordenes de prestamo con filtro por almacen, estado activo (no devue
       "dispatchDate": "2026-09-23T08:00:00.000Z",
       "expectedReturnDate": "2026-09-23T17:00:00.000Z",
       "returnDate": null,
-      "conditionOnDispatch": "OPERATIVE",
+      "conditionOnDispatch": "NEW",
       "conditionOnReturn": null,
       "item": {
         "sku": "HERR-TALADRO-ROTO",
@@ -67,7 +69,10 @@ Consulta las ordenes de prestamo con filtro por almacen, estado activo (no devue
       },
       "warehouse": {
         "name": "Almacen Obra San Isidro"
-      }
+      },
+      "documents": [],
+      "dispatchDocuments": [],
+      "returnDocuments": []
     }
   ],
   "meta": {
@@ -101,7 +106,7 @@ Registra la entrega fisica de una o varias herramientas a un trabajador en obra,
 | `assignedToName` | string | Si | Nombre completo del operario. |
 | `assignedToDni` | string | Si | Documento Nacional de Identidad (8 digitos). |
 | `expectedReturnDate` | ISO Date | No | Fecha/hora estimada de devolucion a caseta. |
-| `conditionOnDispatch` | `ToolCondition` | No | Estado fisico al entregar (por defecto: `OPERATIVE`). |
+| `conditionOnDispatch` | `ToolCondition` | No | Estado fisico al entregar: `NEW`, `OPERATIVE` (defecto) o `DAMAGED_USABLE`. |
 | `notes` | string | No | Observaciones o accesorios incluidos (brocas, maletin, cable). |
 
 **Ejemplo de Peticion:**

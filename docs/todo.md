@@ -19,6 +19,7 @@ Este documento representa la hoja de ruta integral y el estado de avance para el
 - [x] **Paso 10: Maquinaria Pesada y Control de Horometros**
 - [x] **Paso 11: Dashboard Analitico, Inversion Patrimonial y Alertas de Perecibles**
 - [x] **Paso 12: Optimizaciones de Rendimiento, Correlativos Atomicos y Saneamiento de Endpoints**
+- [x] **Paso 13: Clasificaciones Personalizadas de Insumos, Ampliacion de Custodias y Migracion v2**
 
 ---
 
@@ -328,6 +329,32 @@ Refactorizacion de rendimiento en base de datos, eliminacion de condiciones de c
   - [x] Rollback fisico con `deleteFile` en `DocumentsService` (`upload` y `uploadMultiple`) ante fallos de persistencia en base de datos.
 - [x] **Verificacion y Cobertura de Pruebas:**
   - [x] Actualizacion y ejecucion exitosa de todas las suites de pruebas unitarias (`vitest`).
+
+---
+
+## Paso 13: Clasificaciones Personalizadas de Insumos, Ampliacion de Custodias y Migracion v2 (Completado)
+
+Implementacion del modelado de datos de la reunion de revision y despliegue de contratos para clasificaciones de insumos y custodias de herramientas (Fases 1 y 2).
+
+### Tareas:
+- [x] **Esquema de Base de Datos y Migraciones (`schema.prisma`):**
+  - [x] Extension del enum `ToolCondition` con el valor `NEW` al inicio.
+  - [x] Creacion del modelo `ItemCategory` (`id`, `name`, `code`, `description`, `isActive`) y relacion opcional `category` en `Item` con indice `categoryId`.
+  - [x] Incorporacion de `s10UnitPrice Decimal? @db.Decimal(14, 4)` en `ProjectRequirement`.
+  - [x] Agregados campos `notes String? @db.Text` en `Purchase` y `PurchaseDetail`, mas `warehouseId String?` en `Purchase` vinculado a `Warehouse`.
+  - [x] Generacion y aplicacion de migracion `20261018061033_add_meeting_corrections_v2` en PostgreSQL y regeneracion del cliente de Prisma.
+- [x] **Custodia y Prestamo de Herramientas (`src/modules/tool-custody`):**
+  - [x] Soporte explicito de condicion inicial `ToolCondition.NEW` en `DispatchToolCustodyDto` (`NEW`, `OPERATIVE`, `DAMAGED_USABLE`).
+  - [x] Retorno de fotografias y evidencias clasificadas (`documents`, `dispatchDocuments`, `returnDocuments`) en el listado paginado `GET /api/v1/tools/custody`.
+  - [x] Aceptacion de `ToolCondition.NEW` como retorno conforme (`CONFORMING_RETURN`) en `ToolCustodyService.processReturn()`.
+- [x] **Gestor de Clasificaciones de Insumos (`src/modules/items`):**
+  - [x] DTOs: `CreateItemCategoryDto`, `UpdateItemCategoryDto`.
+  - [x] Controlador `ItemCategoriesController` con endpoints CRUD `/api/v1/item-categories` (`GET`, `POST`, `PATCH`, `DELETE`) con proteccion RBAC (`ADMIN`).
+  - [x] Logica de eliminacion fisica (si no tiene dependencias) vs desactivacion logica (si tiene items vinculados).
+  - [x] Integracion de `categoryId` y entidad `category` en `CreateItemDto`, `UpdateItemDto`, `ItemFilterDto` y metodos de `ItemsService`.
+- [x] **Pruebas y Documentacion:**
+  - [x] 216 pruebas unitarias pasando al 100% y compilacion limpia.
+  - [x] Actualizacion de manuales tecnicos `docs/modules/04_items.md`, `docs/modules/08_tool_custody.md` y `docs/business/BUSINESS_RULES.md`.
 
 
 

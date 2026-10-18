@@ -8,6 +8,8 @@ Este documento constituye la **Fuente Unica de Verdad (Single Source of Truth - 
 
 ### 1.1. `CONSUMABLE` (Materiales Consumibles)
 - Materiales de gasto definitivo en obra (cemento, arena, acero corrugado, aditivos, tuberias, cables).
+- **Clasificaciones Personalizadas (`ItemCategory`):**
+  - Permite agrupar los insumos en categorias adicionales creadas por la administracion (ej. "Arrendamiento", "Agregados", "Material Electrico", "Pinturas"), facilitando filtros avanzados sin alterar la tipificacion base.
 - **Atributo de Perecibilidad (`isPerishable`):**
   - Si es `true`: materiales con vida util limitada o propensos a caducidad (quimicos, aditivos, resinas epoxicas, bolsas de cemento).
   - Si es `false`: materiales sin fecha de vencimiento corto (acero corrugado, agregados gruesos, ladrillos, tuberias PVC).
@@ -22,10 +24,12 @@ Este documento constituye la **Fuente Unica de Verdad (Single Source of Truth - 
 - Bienes manuales requeridos para ejecucion de cuadrillas (palas, picos, carretillas, combas, llanas, serruchos, cinceles).
 - No son consumibles; permanecen en el activo patrimonial de la empresa.
 - Se gestionan en piso mediante vales de prestamo y custodia en caseta (`ToolCustody`), controlados por cantidad (`quantity`).
+- **Condicion Inicial en Despacho:** Soporta entrega en condicion `NEW` (nueva), `OPERATIVE` (operativa) o `DAMAGED_USABLE` (desgaste normal).
 
 ### 1.3. `EQUIPMENT` (Equipos Menores y Portatiles)
 - Bienes electromecanicos o electronicos portatiles de obra (rotomartillos, vibradoras de concreto, teodolitos, compactadoras livianas, bombas sumergibles).
 - No son consumibles. Requieren registro de serie o codigo patrimonial (`serialOrCode`) y vales de custodia (`ToolCustody`) vinculados a un responsable individual con DNI.
+- **Condicion Inicial en Despacho:** Soporta entrega en condicion `NEW` (nueva), `OPERATIVE` (operativa) o `DAMAGED_USABLE` (desgaste normal).
 
 ### 1.4. `MACHINERY` (Maquinaria Pesada y Flota)
 - Equipos pesados o autopropulsados (retroexcavadoras, cargadores frontales, camiones volquete, torres grua, grupos electrogenos de alta potencia).

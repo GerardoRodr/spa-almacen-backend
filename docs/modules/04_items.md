@@ -7,17 +7,17 @@ El modulo de catalogo maestro centraliza el inventario corporativo de insumos y 
 - **Equipos y Herramientas de Poder (`EQUIPMENT`):** Bienes patrimoniales sujetos a custodia, serial y retorno calificado a caseta (rotomartillos, teodolitos, amoladoras, niveles laser).
 - **Maquinaria Pesada (`MACHINERY`):** Equipos mayores autopropulsados o de linea amarilla/blanca controlados mediante turnos de operacion y horometros (retroexcavadoras, cargadores frontales, rodillos).
 
-Adicionalmente, este modulo implementa la capa de homologacion de nombres crudos provenientes del software de presupuestos S10 (`ItemAlias`), permitiendo mapear denominaciones no estandarizadas hacia el SKU unico con su respectivo factor de conversion de unidades, y la clasificacion de materiales perecibles (`isPerishable`).
+Adicionalmente, este modulo implementa la capa de homologacion de nombres crudos provenientes del software de presupuestos S10 (`ItemAlias`), clasificaciones personalizadas creadas por el usuario (`ItemCategory`, ej. "Arrendamiento", "Agregados", "Electricos"), y la clasificacion de materiales perecibles (`isPerishable`).
 
-- **Ruta Base:** `/api/v1/items`
-- **Entidades Vinculadas:** `Item`, `ItemAlias`, `Stock`, `Warehouse`
+- **Rutas Base:** `/api/v1/items` y `/api/v1/item-categories`
+- **Entidades Vinculadas:** `Item`, `ItemCategory`, `ItemAlias`, `Stock`, `Warehouse`
 
 ---
 
 ## 2. Endpoints
 
 ### 2.1 Listar Catalogo Paginado
-Obtiene el listado de insumos y herramientas con paginacion, busqueda por texto en SKU o nombre, filtro por tipo de recurso y filtro por caducidad (perecibles).
+Obtiene el listado de insumos y herramientas con paginacion, busqueda por texto en SKU o nombre, filtro por tipo de recurso, filtro por clasificacion personalizada (`categoryId`) y filtro por caducidad (perecibles).
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/items`
@@ -32,6 +32,7 @@ Obtiene el listado de insumos y herramientas con paginacion, busqueda por texto 
 | `limit` | integer | `20` | Cantidad de registros por pagina. |
 | `search` | string | opcional | Cadena de busqueda por SKU o nombre. |
 | `type` | `CONSUMABLE` \| `TOOL` \| `EQUIPMENT` \| `MACHINERY` | opcional | Filtro por clasificacion del item. |
+| `categoryId` | string (UUID) | opcional | Filtro por clasificacion personalizada asignada. |
 | `isPerishable` | boolean (`true` \| `false`) | opcional | Filtrar insumos perecibles o no perecibles. |
 
 **Ejemplo de Peticion:**
@@ -89,6 +90,7 @@ Crea un nuevo SKU corporativo oficial. Restringido exclusivamente al administrad
 | `description` | string | No | Ficha o especificacion tecnica resumida. |
 | `baseUnit` | string | Si | Unidad de medida base de control (ej. `UND`, `KG`, `M3`, `BOLSA`, `VARILLA`). |
 | `type` | `CONSUMABLE` \| `TOOL` \| `EQUIPMENT` \| `MACHINERY` | Si | Clasificacion contable y operativa. |
+| `categoryId` | string (UUID) | No | Identificador UUID de la clasificacion personalizada asignada. |
 | `isPerishable` | boolean | No | Indica si el insumo es perecible y sujeto a caducidad (por defecto: `false`). |
 | `minStockAlert` | number | No | Cantidad minima para alerta de reposicion (por defecto: `0`). |
 
@@ -431,5 +433,92 @@ Elimina un mapeo de equivalencia de S10 existente sin alterar el registro maestr
   "statusCode": 404,
   "message": "Alias no encontrado",
   "error": "Not Found"
+}
+```
+
+---
+
+## 3. Gestor de Clasificaciones Personalizadas (`/api/v1/item-categories`)
+
+Permite a la organizacion definir agrupaciones libres para los insumos del catalogo maestro (ej. "Arrendamiento", "Agregados", "Material Electrico", "Pinturas").
+
+### 3.1 Listar Clasificaciones
+Obtiene las clasificaciones ordenadas por nombre, incluyendo la cantidad de items vinculados.
+
+- **Metodo:** `GET`
+- **Ruta:** `/api/v1/item-categories`
+- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Parametros Query:**
+  - `includeInactive` (boolean, opcional, default: `false`): Si es `true`, incluye clasificaciones inactivas.
+
+**Respuesta 200 OK:**
+```json
+[
+  {
+    "id": "cat-uuid-1",
+    "name": "Arrendamiento",
+    "code": "CAT-ARREND",
+    "description": "Insumos y servicios vinculados a alquiler de equipos",
+    "isActive": true,
+    "_count": {
+      "items": 4
+    }
+  }
+]
+```
+
+### 3.2 Crear Clasificacion Personalizada
+Crea una nueva categoria validando unicidad de `name` y `code`.
+
+- **Metodo:** `POST`
+- **Ruta:** `/api/v1/item-categories`
+- **Acceso:** Exclusivo `ADMIN`
+- **Body (`CreateItemCategoryDto`):**
+  - `name` (string, obligatorio, max 100)
+  - `code` (string, opcional, max 30)
+  - `description` (string, opcional, max 500)
+  - `isActive` (boolean, opcional, default `true`)
+
+**Respuesta 201 Created:**
+```json
+{
+  "id": "cat-uuid-1",
+  "name": "Arrendamiento",
+  "code": "CAT-ARREND",
+  "description": "Insumos y servicios vinculados a alquiler de equipos",
+  "isActive": true,
+  "createdAt": "2026-10-18T06:22:00.000Z",
+  "updatedAt": "2026-10-18T06:22:00.000Z"
+}
+```
+
+### 3.3 Actualizar Clasificacion
+Actualiza nombre, codigo, descripcion o estado activo.
+
+- **Metodo:** `PATCH`
+- **Ruta:** `/api/v1/item-categories/:id`
+- **Acceso:** Exclusivo `ADMIN`
+- **Body (`UpdateItemCategoryDto`):** `name?`, `code?`, `description?`, `isActive?`
+
+### 3.4 Eliminar o Desactivar Clasificacion
+Elimina fisicamente la clasificacion si no tiene items asociados. Si cuenta con insumos asociados, la desactiva logicamente (`isActive: false`) preservando la integridad referencial.
+
+- **Metodo:** `DELETE`
+- **Ruta:** `/api/v1/item-categories/:id`
+- **Acceso:** Exclusivo `ADMIN`
+
+**Respuesta 200 OK (Eliminada fisicamente):**
+```json
+{
+  "action": "DELETED",
+  "message": "Clasificacion eliminada exitosamente"
+}
+```
+
+**Respuesta 200 OK (Desactivada logicamente por tener items):**
+```json
+{
+  "action": "DEACTIVATED",
+  "message": "La clasificacion tiene 3 insumo(s) asociado(s). Se ha desactivado logicamente para preservar la integridad del catalogo."
 }
 ```
