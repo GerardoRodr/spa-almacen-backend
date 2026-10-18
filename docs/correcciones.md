@@ -1,6 +1,6 @@
 # Guia de Correcciones y Plan de Trabajo Cruzado: SPA-ALMACEN-ERP
 
-Este documento centraliza las tareas pendientes, adaptaciones operativas y nuevas funcionalidades surgidas de las reuniones de coordinacion para el sistema **SPA-ALMACEN-ERP**.
+Este documento centraliza las nuevas tareas pendientes, adaptaciones operativas y funcionalidades acordadas en la reunion de revision del proyecto (2026-10-11) para el sistema **SPA-ALMACEN-ERP**.
 
 Este archivo esta disenado para compartirse entre los repositorios de **Frontend** (`spa-almacen-frontend`) y **Backend** (`spa-almacen-backend`). Los agentes de IA y desarrolladores deben marcar con una `[x]` las tareas completadas y consultar este documento para mantener la continuidad del desarrollo.
 
@@ -25,286 +25,226 @@ Este archivo esta disenado para compartirse entre los repositorios de **Frontend
 Para garantizar que ningun agente quede bloqueado por falta de endpoints o modelos, se establece el siguiente orden secuencial de desarrollo:
 
 ```
-[FASE 0: Frontend Autonomo]
-  ├── Renombrar Demanda S10 a Presupuesto Programado
-  ├── Servicio Global de Exportacion a Excel en Tablas Visibles
-  ├── Operacion Total del Almacenero en Movil y Escritorio (Multiplataforma)
-  └── [DESCARTADO] Rediseño de Vales PDF en Blanco y Negro (Se conserva en azul)
+[FASE 0: Ajustes Autonomos de Frontend (Sin dependencias de Backend)]
+  ├── Habilitar carga de fotos en devolucion de herramientas para TODOS los estados
+  ├── Integrar visualizacion y miniaturas de fotos en el historial/detalle de devoluciones
+  ├── Reordenar indicadores KPI y uniformizar etiqueta "Stock en Almacen" en Proyectos S10
+  └── Vincular selector global de Almacen (Topbar) con el Catalogo Maestro
 
-[FASE 1: Modelado de Datos y Core de Negocio (Backend)]
-  ├── Modificar Prisma Schema (Supplier, Purchase, Item, ItemType)
-  ├── Ejecutar Migraciones de Base de Datos
-  ├── Actualizar DTOs y Validadores
-  └── Ajustar Algoritmo de Costo Promedio Ponderado (CPP) para compras sin IGV
+[FASE 1: Modelado de Datos y Contratos Core (Backend)]
+  ├── Extender enum ToolCondition con valor NEW (Nuevo) en schema.prisma
+  ├── Agregar campo notes (observaciones/caducidad de lote) en Purchase y PurchaseItem
+  ├── Crear modelo ItemCategory para clasificaciones personalizadas de insumos
+  ├── Agregar campo s10UnitPrice en ProjectRequirement para precio de expediente S10
+  └── Ejecutar migraciones de base de datos en PostgreSQL
 
-[FASE 2: Integracion de Catalogos, Proveedores y Compras (Frontend)]
-  ├── Integrar Categoria Maquinaria, Equipos y Herramientas en Catalogo
-  ├── Checkbox y Filtros de Insumos Perecibles
-  ├── Observaciones en Modales y Listas de Proveedores
-  └── Selector de Compras Con/Sin IGV y Recalculo Dinamico
+[FASE 2: Custodias y Gestor de Clasificaciones (Backend -> Frontend)]
+  ├── Validar condicion inicial NEW en despacho de herramientas (Backend y Frontend)
+  ├── Endpoints CRUD para ItemCategory (/api/v1/item-categories en Backend)
+  └── Modal Gestor de Clasificaciones y selector en Catalogo Maestro (Frontend)
 
-[FASE 3: Infraestructura Multimedia y Carga Multiple (Backend -> Frontend)]
-  ├── Endpoint de Subida Multiple (POST /documents/upload-multiple en Backend)
-  ├── Evolucion de UiDropzone a Soporte Multiple (File[] en Frontend)
-  └── Integracion de Carga Multiple en Compras, Mermas y Custodias
+[FASE 3: Compras por Almacen/Obra, Observaciones y Cuadro Comparativo (Backend -> Frontend)]
+  ├── Permitir compras directas a cualquier Almacen/Obra activa (central o caseta) y filtrar por sede
+  ├── Persistir y mostrar observaciones de compra (fechas de vencimiento por lote perecible)
+  ├── Filtro de compras por producto/insumo y endpoint de Cuadro Comparativo de Precios
+  └── Interfaz de Busqueda por Producto y Cuadro Comparativo de Proveedores en Compras (Frontend)
 
-[FASE 4: Custodia de Herramientas y Modulo de Maquinaria (Backend -> Frontend)]
-  ├── Soporte de Fotos de Entrega Inicial en Custodia de Herramientas
-  ├── Modelo y Endpoints para Control de Jornada de Maquinaria y Horometros
-  └── Interfaces de Captura de Horometro y Fotos en Movil y Escritorio
-
-[FASE 5: Metricas y Dashboard Analitico (Backend -> Frontend)]
-  ├── Endpoint de Calculo de Inversion Patrimonial en Herramientas (Backend)
-  ├── Tarjeta KPI de Inversion en Herramientas en Dashboard (Frontend)
-  └── Alertas de Materiales Perecibles Proximos a Caducar
+[FASE 4: Precios Historicos, Ponderados y de Expediente en Matriz S10 (Backend -> Frontend)]
+  ├── Extraer precio unitario del CSV S10 en la ingesta y guardarlo en ProjectRequirement
+  ├── Exponer minHistoricalUnitCost, weightedAverageCost y s10BudgetUnitPrice en Gap Analysis
+  └── Incorporar las 3 columnas de precios en la tabla y exportacion Excel de Proyectos S10
 ```
 
 ---
 
 ## 3. Tareas Detalladas para Frontend (`spa-almacen-frontend`)
 
-### Fase 0: Ajustes Autonomos de UI y Exportacion
+### Fase 0: Ajustes Autonomos de UI, Custodias y Proyectos S10
 
-- [x] **Renombrado terminologico a Presupuesto Programado**:
+- [x] **Evidencia fotografica en TODOS los estados de devolucion de herramientas**:
+  - [x] En `src/app/features/herramientas/components/custody-return-modal/custody-return-modal.component.ts`:
+    - Eliminar la condicional `@if (isDamageOrLost())` que oculta el bloque de `ui-dropzone` para permitir adjuntar hasta 10 fotografias tanto en `OPERATIVE`, `DAMAGED_USABLE` (Desgaste Normal) y `MAINTENANCE_REQUIRED` como en `DAMAGED_UNUSABLE` y `LOST`.
+    - Mantener la validacion obligatoria de foto/sustento unicamente cuando el estado sea `DAMAGED_UNUSABLE` o `LOST`, siendo opcional en los demas estados.
+  - [x] En `src/app/features/movil/movil-herramientas.component.html` y `.ts`:
+    - Mostrar el `ui-dropzone` de evidencia fotografica para todos los estados de retorno en la vista movil.
+
+- [x] **Visualizacion de fotos adjuntas en el historial y detalle de devoluciones**:
+  - [x] En `src/app/features/herramientas/herramientas-custodia.component.ts`:
+    - En `openDetailModal(custody: ToolCustody)`, invocar `this.custodyService.getCustodyById(custody.id)` para obtener la entidad completa con su arreglo `documents` (clasificados por `proofType`: `DISPATCH` y `RETURN`) y actualizar `selectedCustody`.
+  - [x] En `src/app/features/herramientas/components/custody-detail-modal/custody-detail-modal.component.ts`:
+    - Incorporar previsualizacion visual (miniaturas de imagen / lightbox o vista previa mediante blob URL) ademas del boton de descarga para las evidencias de entrega inicial (`DISPATCH`) y de devolucion (`RETURN`).
+
+- [x] **Reordenamiento de indicadores KPI y etiqueta "Stock en Almacen" en Proyectos S10**:
   - [x] En `src/app/features/proyectos-s10/proyectos-s10.component.html`:
-    - Reemplazar todas las etiquetas `Demanda S10` por `Presupuesto Programado` (tarjetas superiores, cabeceras de tabla, modal de reserva y vista responsiva movil).
-    - Actualizar textos de ayuda y descripciones contextuales.
-  - [x] En la generacion de Excel del proyecto S10 (`gap-analysis-excel.service.ts`):
-    - Renombrar la columna `Demanda S10` a `Presupuesto Programado`.
+    - Reordenar las 4 tarjetas KPI superiores de la Matriz de Brechas para que sigan el flujo logico de lectura:
+      1. `Partidas`
+      2. `Presupuesto Programado`
+      3. `Stock en Almacen` (porcentaje y barra de abastecimiento)
+      4. `Deficit Pendiente` (partidas con brecha)
+    - Cambiar la etiqueta `Cumplimiento Global:` en la cinta informativa del proyecto activo por `Stock en Almacen:` y la columna `Cumplimiento` de la tabla por `Stock en Almacen`.
 
-- [x] **[DESCARTADO] Optimizacion de Vales de Prestamo PDF para Ahorro de Tinta**:
-  - *Decision tomada*: Se descarta modificar la paleta a escala de grises. Se mantiene el diseno actual con azul corporativo para que los vales luzcan presentables al compartirse digitalmente por WhatsApp; en obra, las impresiones fisicas se realizan en blanco y negro directamente mediante la configuracion de la impresora.
+- [x] **Sincronizacion del Selector Global de Almacen (Topbar) con Catalogo Maestro**:
+  - [x] En `src/app/features/catalogo/catalogo.component.ts` y `.html`:
+    - Inyectar `WarehouseContextService` y reaccionar a `activeWarehouseId`.
+    - Cuando se seleccione un almacen/obra especifico en el topbar (`activeWarehouseId() !== 'ALL'`), mostrar el stock disponible y costo promedio especifico de esa sede/obra (o filtrar los insumos con presencia en dicho almacen), manteniendo las columnas de Stock Central y Stock en Obras cuando este seleccionado `[ Consolidado General (Todos) ]`.
 
-- [x] **Servicio Centralizado de Exportacion a Excel (`ExcelExportService`)**:
-  - [x] Crear `src/app/core/services/excel-export.service.ts`:
-    - Metodo generico `exportToExcel(options: ExcelExportOptions): Promise<void>`.
-    - Configuracion con `exceljs`: titulo de reporte, metadatos, cabeceras con fondo corporativo sobrio, autofit de columnas y formatos de fecha/moneda.
-  - [x] Agregar boton `Exportar a Excel` con icono Lucide en las barras de herramientas de:
-    - [x] Catalogo Maestro de Insumos (`/catalogo`).
-    - [x] Registro de Facturas de Compra (`/compras`).
-    - [x] Kardex General y Movimientos (`/kardex`).
-    - [x] Transferencias y Despachos (`/transferencias`).
-    - [x] Custodia de Herramientas (`/herramientas-custodia`).
+### Fase 2: Condicion Inicial de Herramientas y Gestor de Clasificaciones
 
-- [x] **Operacion Total del Almacenero en Movil y Escritorio (Multiplataforma)**:
-  - [x] **Operacion 100% Autonoma en Telefono Movil**:
-    - El almacenero (`WAREHOUSE_KEEPER`) dispone de acceso total y directo a sus actividades operativas desde su smartphone:
-      - Recepcion conforme de traslados y registro de mermas (`/movil/recepcion`).
-      - Despacho y salida diaria de consumos a cuadrillas (`/movil/consumo`).
-      - Prestamo y devolucion calificada de herramientas y equipos (`/movil/herramientas`).
-      - Consulta rapida de existencias y disponibles en su obra (`/movil/stock`).
-      - Accesos integrados directos a transferencias, kardex y catalogo en `movil-operaciones.component.html`.
-  - [x] **Acceso y Soporte en Computadora de Escritorio (PC)**:
-    - Login condicional responsivo segun resolucion en `login.component.ts` (`>= 1024px` a `/dashboard`, smartphone a `/movil/operaciones`).
-    - Conmutador rapido "Modo Caseta Movil" en el topbar y sidebar de `admin-layout`.
-    - Conmutador rapido "Modo Escritorio" en el header de `mobile-layout`.
+- [ ] **Tres niveles de Condicion Inicial en Prestamos de Herramientas (`NEW`, `OPERATIVE`, `DAMAGED_USABLE`)**:
+  - [ ] En `src/app/core/models/tool-custody.models.ts`:
+    - Extender el tipo `ToolCondition` a `'NEW' | 'OPERATIVE' | 'DAMAGED_USABLE' | 'DAMAGED_UNUSABLE' | 'MAINTENANCE_REQUIRED' | 'LOST'`.
+  - [ ] En `src/app/features/herramientas/components/custody-dispatch-modal/custody-dispatch-modal.component.ts` y `src/app/features/movil/movil-herramientas.component.html`:
+    - Actualizar el selector de Condicion Inicial para ofrecer las 3 opciones acordadas:
+      - `NEW` -> `NUEVO`
+      - `OPERATIVE` -> `OPERATIVO`
+      - `DAMAGED_USABLE` -> `DESGASTE NORMAL`
+  - [ ] En `herramientas-custodia.component.ts`, `custody-detail-modal.component.ts` y `tool-custody-pdf.service.ts`:
+    - Agregar la traduccion `'NEW' -> 'NUEVO'` en `translateCondition()`.
 
-### Fase 2: Catalogos, Proveedores y Compras con/sin IGV
+- [ ] **Gestor de Clasificaciones Personalizadas en Catalogo (`ItemCategory`)**:
+  - [ ] En `src/app/core/models/item.models.ts`:
+    - Definir la interfaz `ItemCategory` (`id`, `name`, `code`, `description`, `isActive`) y agregar `categoryId?: string | null` y `category?: ItemCategory | null` al modelo `Item`, `CreateItemDto`, `UpdateItemDto` e `ItemFilterDto`.
+  - [ ] Crear servicio o metodos en `ItemService` para consumir el CRUD `/api/v1/item-categories`.
+  - [ ] En `src/app/features/catalogo/catalogo.component.ts` y `.html`:
+    - Agregar boton **"Clasificaciones"** en la barra de herramientas del Catalogo que abra un modal gestor para listar, crear, editar y eliminar clasificaciones personalizadas (ej. "Arrendamiento", "Agregados", "Electricos", "Pinturas").
+    - En el modal de creacion/edicion de insumo, permitir seleccionar la clasificacion personalizada (`categoryId`) ademas del tipo operativo base (`CONSUMABLE`, `TOOL`, `EQUIPMENT`, `MACHINERY`).
+    - Agregar filtro por columna y visualizacion de la clasificacion en la tabla del catalogo.
 
-- [x] **Clasificacion de Insumos: Maquinarias, Equipos y Herramientas**:
-  - [x] En `src/app/core/models/item.models.ts`:
-    - Actualizar `ItemType` a `'CONSUMABLE' | 'TOOL' | 'EQUIPMENT' | 'MACHINERY'` (o segun contrato acordado con backend).
-  - [x] En modal de nuevo insumo (`src/app/features/catalogo/components/item-form-modal/`):
-    - Selector con las 4 categorias bien diferenciadas.
-  - [x] En tabla de catalogo (`catalogo.component.html`):
-    - Filtro por tipo de item ampliado.
-    - Chips/badges semanticos con colores especificos (naranja para maquinaria, azul para equipos, cian para herramientas, verde para consumibles).
+### Fase 3: Compras por Almacen/Obra, Observaciones y Cuadro Comparativo de Precios
 
-- [x] **Insumos Perecibles en Catalogo**:
-  - [x] En `src/app/core/models/item.models.ts`:
-    - Agregar campo `isPerishable?: boolean` a la interfaz `Item` y `CreateItemDto`.
-  - [x] En modal de item:
-    - Checkbox o toggle `Material Perecible (Sujeto a caducidad)`.
-  - [x] En tabla de catalogo:
-    - Columna indicativa o badge `Perecible` / `No Perecible`.
+- [ ] **Seleccion de Almacen / Obra de Destino en Compras y Filtro Global por Sede**:
+  - [ ] En `src/app/core/models/purchase.models.ts`:
+    - Incluir `warehouse?: { id: string; name: string; type: string }` en `Purchase` y permitir `warehouseId?: string` en `PurchaseFilterDto`.
+  - [ ] En `src/app/features/compras/components/purchase-form/purchase-form.component.ts`:
+    - Reemplazar el destino fijo "Almacen Central" por un selector de **Almacen / Obra de Destino** precargado con el almacen activo del topbar (o Almacen Central por defecto), permitiendo que las compras de provincias/obras (ej. Chepen, Pacasmayo, Trujillo) ingresen directamente al stock de su respectivo almacen de obra.
+  - [ ] En `src/app/features/compras/compras.component.ts` y `.html`:
+    - Vincular `WarehouseContextService.activeWarehouseId` para filtrar automaticamente las facturas de compra pertenecientes al almacen/obra seleccionado en el topbar (o mostrar todas cuando sea `'ALL'`), agregando la columna `Almacen / Obra` en la tabla de compras.
 
-- [x] **Observaciones en Registro de Proveedores**:
-  - [x] En `src/app/core/models/supplier.models.ts`:
-    - Anadir `notes?: string | null` en `Supplier`, `CreateSupplierDto` y `UpdateSupplierDto`.
-  - [x] En modal de nuevo proveedor (`supplier-modal.component.ts`):
-    - Agregar campo `textarea` de observaciones ("Nivel de cumplimiento, puntualidad o incidentes").
-  - [x] En modal de seleccion y detalle (`supplier-list-modal.component.ts`):
-    - Mostrar las observaciones registradas del proveedor.
+- [ ] **Observaciones en Compras para Fecha de Caducidad por Lote de Perecibles**:
+  - [ ] En `src/app/core/models/purchase.models.ts`:
+    - Agregar `notes?: string | null` a `Purchase`, `CreatePurchaseDto`, `PurchaseItem` y `CreatePurchaseItemDto`.
+  - [ ] En `src/app/features/compras/components/purchase-form/purchase-form.component.ts`:
+    - Agregar campo de **Observaciones de la Compra** (y/o nota por linea cuando el insumo sea `isPerishable === true`) con texto de ayuda explicito para registrar fechas de vencimiento o lotes (ej. `"Lote cemento/pintura vence: 15/12/2026"`).
+  - [ ] En `src/app/features/compras/components/purchase-detail-modal/purchase-detail-modal.component.ts`:
+    - Mostrar de forma destacada las observaciones registradas en la compra y por cada linea de insumo.
 
-- [x] **Compras con Opcion Sin IGV (Exoneradas / Comprobantes Simples)**:
-  - [x] En `src/app/core/models/purchase.models.ts`:
-    - Agregar `hasIgv?: boolean` a `CreatePurchaseDto` y `Purchase`.
-  - [x] En formulario de compras (`purchase-form.component.ts`):
-    - Switch o selector: `Comprobante con IGV (18%)` vs `Compra sin IGV / Exonerada (0%)`.
-    - Logica reactiva: si `hasIgv === false`, fijar `igvAmountPEN = 0` y `totalAmountPEN = subtotalPEN`.
-    - Si `hasIgv === true`, calcular `igvAmountPEN = Math.round(subtotalPEN * 0.18 * 100) / 100`.
-    - Actualizar el panel de Liquidacion Tributaria y tabla de facturas con indicador visual `Con IGV` / `Sin IGV`.
+- [ ] **Busqueda de Compras por Producto y Cuadro Comparativo de Precios de Proveedores**:
+  - [ ] En `src/app/features/compras/compras.component.ts` y `.html`:
+    - Habilitar filtro por insumo/producto (busqueda por nombre o SKU de material, ej. "cemento", "tuberia") enviando `itemSearch` o `itemId` al backend para listar todas las compras donde se adquirio dicho producto.
+    - Agregar pestaña o modal **"Cuadro Comparativo de Precios"** donde el administrador pueda seleccionar o buscar un insumo y visualizar:
+      - Tarjetas de resumen: **Precio Minimo Historico** (con nombre del proveedor y fecha), **Precio Promedio Ponderado (CPP)** y **Precio Maximo Registrado**.
+      - Tabla comparativa de proveedores que han vendido ese insumo (Proveedor, RUC, Factura, Fecha, Almacen/Obra, Cantidad Comprada, Precio Unitario Base en Soles, Estado IGV y Observaciones/Lote), ordenada de menor a mayor precio unitario.
+      - Boton de exportacion a Excel del cuadro comparativo.
 
-### Fase 3: Componente de Carga Multiple de Archivos
+### Fase 4: Precios Historicos, Ponderados y de Expediente en Matriz S10
 
-- [x] **Evolucion de `UiDropzoneComponent` a Carga Multiple**:
-  - [x] En `src/app/shared/components/ui-dropzone/ui-dropzone.component.ts`:
-    - Agregar input `multiple = input<boolean>(false)`.
-    - Modelo reactivo `files = model<File[]>([])`.
-    - Soporte para `<input type="file" multiple>` y captura secuencial con camara.
-    - Cuadricula/carrusel de miniaturas para previsualizar los archivos seleccionados.
-    - Boton individual para eliminar archivos de la lista antes de guardar.
-  - [x] Actualizar `PurchaseFormComponent`:
-    - Permitir adjuntar varios comprobantes (Factura PDF + Guia de Remision JPG + Voucher de Pago).
-  - [x] Actualizar modal de devolucion de herramientas y salidas por merma para admitir multiples fotos de evidencia.
-
-### Fase 4: Custodia de Herramientas y Modulo de Maquinaria
-
-- [x] **Fotografias al Despachar Prestamos de Herramientas y Equipos**:
-  - [x] En `src/app/features/herramientas/components/custody-dispatch-modal/`:
-    - Incorporar `ui-dropzone` con activacion de camara para tomar foto del estado fisico inicial, serie y accesorios antes de entregar.
-    - Enviar las fotos asociadas al `custodyId` tras la creacion del vale.
-  - [x] En vista de detalle de custodia (`custody-detail-modal.component.ts`):
-    - Mostrar seccion comparativa: "Evidencia de Entrega" vs "Evidencia de Devolucion".
-
-- [x] **Control de Turnos y Horometros de Maquinaria**:
-  - [x] Crear interfaces y servicio `MachineryService` para consulta y registro de turnos.
-  - [x] En la vista movil (`/movil/herramientas` o nueva subvista `/movil/maquinaria`):
-    - Flujo de apertura de jornada: captura de foto del horometro inicial y valor numerico.
-    - Flujo de cierre de jornada: captura de foto del horometro final, calculo de horas consumidas y foto de combustible (opcional).
-
-### Fase 5: Dashboard y Alertas Analiticas
-
-- [ ] **Inversion Patrimonial en Herramientas en el Dashboard**:
-  - [ ] En `src/app/core/models/dashboard.models.ts`:
-    - Agregar `toolsInvestmentPEN?: number | null` a `DashboardMetrics`.
-  - [ ] En `dashboard.component.html`:
-    - Agregar tarjeta KPI o bloque analitico para "Inversion Total en Herramientas y Maquinaria" protegido con `*appHasRole="'ADMIN'"`.
-
-- [ ] **Alertas de Insumos Perecibles en Dashboard**:
-  - [ ] Agregar panel o tarjeta de alerta con los insumos proximos a caducar en los siguientes 30 dias.
+- [ ] **Incorporacion de 3 Columnas de Precios en la Matriz de Brechas S10**:
+  - [ ] En `src/app/core/models/project.models.ts`:
+    - Extender `GapAnalysisItem` con:
+      - `minHistoricalUnitCost?: number | string | null` (Precio menor de compra historica)
+      - `weightedAverageCost?: number | string | null` (Precio ponderado CPP actual)
+      - `s10BudgetUnitPrice?: number | string | null` (Precio del expediente S10)
+  - [ ] En `src/app/features/proyectos-s10/proyectos-s10.component.html` y `.ts`:
+    - Agregar las 3 nuevas columnas en la tabla de Matriz de Brechas (`Precio Menor Compra`, `Precio Ponderado (CPP)` y `Precio Expediente S10`), con soporte de ordenamiento (`ui-sort-header`), formato monetario `S/ 1.2-4` y visualizacion en tarjetas moviles.
+    - Asegurar que la exportacion a Excel de la Matriz de Brechas incluya las 3 columnas de precios para facilitar la negociacion con proveedores.
 
 ---
 
 ## 4. Tareas Detalladas para Backend (`spa-almacen-backend`)
 
-### Fase 1: Esquema de Base de Datos, Migraciones y Contratos Core
+### Fase 1: Esquema de Base de Datos y Migraciones (`schema.prisma`)
 
-- [x] **Actualizacion del Esquema de Prisma (`schema.prisma`)**:
-  - [x] **Modelo `Supplier`**:
-    - Agregar campo `notes String? @db.Text` (u `observations`).
-  - [x] **Modelo `Item` y Enums**:
-    - Agregar campo `isPerishable Boolean @default(false)`.
-    - Extender `ItemType` a `CONSUMABLE`, `TOOL`, `EQUIPMENT`, `MACHINERY` (o modelar categoria de activo correspondiente).
-  - [x] **Modelo `Purchase`**:
-    - Agregar campo `hasIgv Boolean @default(true)`.
-    - Opcionalmente `voucherType String @default("FACTURA")`.
-  - [x] **Modelo `ToolCustody` y `DocumentAttachment`**:
-    - Agregar campo `proofType String?` (`DISPATCH` | `RETURN`) en `DocumentAttachment` para diferenciar fotografias de entrega y retorno.
-  - [x] **Modelo de Maquinaria y Horometros (Nuevo)**:
-    - Crear modelo `MachineryShiftLog`:
+- [x] **Actualizacion de Modelos en `prisma/schema.prisma`**:
+  - [x] **Enum `ToolCondition`**:
+    - Agregar el valor `NEW` al inicio del enum (`NEW`, `OPERATIVE`, `DAMAGED_USABLE`, `DAMAGED_UNUSABLE`, `MAINTENANCE_REQUIRED`, `LOST`).
+  - [x] **Modelo `Purchase` y `PurchaseItem`**:
+    - Agregar `notes String? @db.Text` en `Purchase` (observaciones generales de la factura/lotes).
+    - Agregar `notes String? @db.Text` en `PurchaseItem` (observacion especifica por linea, ej. fecha de caducidad del lote de insumo perecible).
+  - [x] **Nuevo Modelo `ItemCategory` (Clasificaciones Personalizadas)**:
+    - Crear tabla `ItemCategory`:
       - `id String @id @default(uuid())`
-      - `itemId String` (referencia a `Item` tipo `MACHINERY`)
-      - `warehouseId String`
-      - `operatorName String`
-      - `operatorDni String`
-      - `startHourMeter Decimal @db.Decimal(10, 2)`
-      - `endHourMeter Decimal? @db.Decimal(10, 2)`
-      - `totalHours Decimal? @db.Decimal(10, 2)`
-      - `startDateTime DateTime @default(now())`
-      - `endDateTime DateTime?`
-      - `startPhotoId String?`
-      - `endPhotoId String?`
-      - `fuelPhotoId String?`
-      - `notes String?`
-  - [x] Generar y ejecutar migracion en PostgreSQL (`prisma migrate dev --name add_corrections_fields`).
+      - `name String @unique` (ej. "Arrendamiento", "Agregados", "Material Electrico")
+      - `description String?`
+      - `isActive Boolean @default(true)`
+      - `createdAt DateTime @default(now())`
+      - `updatedAt DateTime @updatedAt`
+    - En modelo `Item`: agregar `categoryId String?` y relacion opcional `category ItemCategory? @relation(fields: [categoryId], references: [id])`.
+  - [x] **Modelo `ProjectRequirement` (Precio de Expediente S10)**:
+    - Agregar campo `s10UnitPrice Decimal? @db.Decimal(14, 4)` para conservar el costo unitario programado en el expediente del S10.
+  - [x] Generar y aplicar migracion (`npx prisma migrate dev --name add_meeting_corrections_v2`).
 
-- [x] **Modulo de Proveedores (`/api/v1/suppliers`)**:
-  - [x] En `CreateSupplierDto` y `UpdateSupplierDto`:
-    - Agregar propiedad `notes` con validadores `@IsOptional() @IsString() @MaxLength(1000)`.
-  - [x] En `SupplierService`:
-    - Persistir y retornar el campo `notes` en creacion, actualizacion y listados.
+### Fase 2: Custodias y Endpoints de Clasificaciones
 
-- [x] **Modulo de Items y Catalogo (`/api/v1/items`)**:
-  - [x] En `CreateItemDto` y `UpdateItemDto`:
-    - Agregar `isPerishable` con `@IsOptional() @IsBoolean()`.
-    - Actualizar validadores para el nuevo enum `ItemType`.
-  - [x] En `ItemService`:
-    - Filtrado por `isPerishable` y por las nuevas clasificaciones de item.
+- [ ] **Modulo de Custodia de Herramientas (`/api/v1/tools/custody`)**:
+  - [ ] En `DispatchToolCustodyDto`: permitir `ToolCondition.NEW` en `conditionOnDispatch`.
+  - [ ] En `GET /api/v1/tools/custody` (listado paginado) y `GET /api/v1/tools/custody/:id`: asegurar que la relacion `documents` sea devuelta con `proofType` (`DISPATCH` y `RETURN`) para que el historial de devoluciones muestre inmediatamente todas las fotografias adjuntas.
 
-- [x] **Modulo de Compras y Motor CPP (`/api/v1/purchases`)**:
-  - [x] En `CreatePurchaseDto`:
-    - Agregar `hasIgv` con `@IsOptional() @IsBoolean()`.
-  - [x] En `PurchaseService`:
-    - Regla de calculo: si `hasIgv === false`, validar que `igvAmountPEN === 0` y `totalAmountPEN === subtotalPEN`.
-    - Asegurar que el costo unitario base computable para el calculo del CPP tome el importe neto desembolsado sin deduccion de impuestos cuando no haya credito fiscal.
+- [ ] **Modulo de Clasificaciones de Insumos (`/api/v1/item-categories` e `/api/v1/items`)**:
+  - [ ] Crear controlador y servicio (o subruta en `ItemsModule`) con endpoints:
+    - `GET /api/v1/item-categories`: listar clasificaciones activas.
+    - `POST /api/v1/item-categories`: crear nueva clasificacion (solo `ADMIN`).
+    - `PATCH /api/v1/item-categories/:id`: actualizar nombre/descripcion/estado (solo `ADMIN`).
+    - `DELETE /api/v1/item-categories/:id`: eliminar o desactivar si no tiene items asociados (solo `ADMIN`).
+  - [ ] En `CreateItemDto`, `UpdateItemDto` e `ItemFilterDto`: aceptar `categoryId` opcional e incluir `category` en las respuestas de `ItemsService`.
 
-### Fase 3: Infraestructura de Almacenamiento y Carga Multiple
+### Fase 3: Compras Multi-Almacen, Observaciones y Cuadro Comparativo
 
-- [x] **Endpoint de Carga Multiple de Archivos (`/api/v1/documents/upload-multiple`)**:
-  - [x] En `DocumentsController`:
-    - Crear endpoint `POST /api/v1/documents/upload-multiple`.
-    - Usar `@UseInterceptors(FilesInterceptor('files', 10, multerOptions))`.
-  - [x] En `DocumentsService`:
-    - Procesar cada archivo en paralelo mediante Sharp (conversion a WebP al 80%, redimension a max 1920px).
-    - Persistir registros en `DocumentAttachment` vinculados a `purchaseId`, `transferId`, `movementId` o `custodyId`.
-    - Retornar arreglo de `DocumentAttachment[]`.
+- [ ] **Evolucion del Modulo de Compras (`/api/v1/purchases`)**:
+  - [ ] **Compras directas a Almacenes de Obra**:
+    - En `PurchaseService.createPurchase()`: permitir que `centralWarehouseId` (o alias `warehouseId`) acepte tanto el Almacen Central (`CENTRAL`) como cualquier Almacen de Obra (`PROJECT_SITE`) activo, incrementando el stock fisico y recalculando el CPP en ese almacen de destino.
+    - Incluir los datos de `warehouse` (`id`, `name`, `type`) en las respuestas de listado y detalle de compras.
+  - [ ] **Persistencia de Observaciones (`notes`)**:
+    - En `CreatePurchaseDto` y `CreatePurchaseItemDto`: agregar `@IsOptional() @IsString() @MaxLength(1000) notes?: string`.
+    - Guardar `notes` en la cabecera `Purchase` y en el detalle `PurchaseItem`.
+  - [ ] **Filtros por Almacen y por Producto en `GET /api/v1/purchases`**:
+    - En `PurchaseFilterDto`: agregar `warehouseId?: string`, `itemId?: string` e `itemSearch?: string`.
+    - Filtrar las compras por `centralWarehouseId = warehouseId` cuando se indique, y por coincidencia en `details.some(d => d.itemId === itemId || d.item.name.contains(itemSearch) || d.item.sku.contains(itemSearch))`.
+  - [ ] **Endpoint de Cuadro Comparativo de Precios (`GET /api/v1/purchases/price-comparison`)**:
+    - Recibir query params `itemId` (o `search` / `warehouseId`).
+    - Retornar para el insumo consultado:
+      - Datos del insumo (`id`, `sku`, `name`, `baseUnit`, `type`).
+      - Resumen estadistico: `minUnitCostPEN`, `maxUnitCostPEN`, `currentWeightedAverageCostPEN`, `bestSupplierName`, `bestSupplierTaxId`, `totalPurchasesCount`.
+      - Arreglo `entries` con cada compra historica del insumo (fecha, serie de factura, proveedor, RUC, almacen destino, cantidad comprada, unidad, costo unitario base PEN, indicador `hasIgv` y observaciones `notes`), ordenado por `unitCostBasePEN ASC`.
+    - Registrar las nuevas claves financieras en `CostMaskingInterceptor` para mantener la seguridad RBAC.
 
-- [x] **Filtro de Evidencias en Custodia de Herramientas**:
-  - [x] En `GET /api/v1/tools/custody/:id`:
-    - Incluir relacion con `documents` clasificados por `proofType` (`DISPATCH` vs `RETURN`).
+### Fase 4: Precios en Ingesta S10 y Matriz de Brechas (`/api/v1/projects`)
 
-### Fase 4: Modulo de Maquinaria y Horometros (`/api/v1/machinery`)
-
-- [x] **Controlador y Servicio de Maquinaria**:
-  - [x] Endpoint `POST /api/v1/machinery/shift/start`:
-    - Registra apertura de jornada, operador, fecha/hora del servidor, horometro inicial y foto obligatoria.
-  - [x] Endpoint `POST /api/v1/machinery/shift/:id/end`:
-    - Registra cierre de jornada, horometro final (debe ser mayor o igual al inicial), foto de cierre y calculo automatico de horas de trabajo.
-  - [x] Endpoint `GET /api/v1/machinery/shifts`:
-    - Historial de turnos con filtros por maquinaria, fecha y almacen.
-
-### Fase 5: Agregaciones Analiticas para el Dashboard (`/api/v1/dashboard`)
-
-- [x] **Calculo de Inversion Patrimonial en Herramientas**:
-  - [x] En `DashboardService.getMetrics()`:
-    - Sumar existencias fisicas de items clasificados como `TOOL`, `EQUIPMENT` o `MACHINERY` multiplicadas por su costo promedio o costo historico.
-    - Asignar resultado a propiedad `toolsInvestmentPEN`.
-    - Asegurar que `CostMaskingInterceptor` oculte esta cifra a usuarios que no posean rol `ADMIN`.
-
-- [x] **Endpoint de Alertas de Caducidad de Perecibles**:
-  - [x] Endpoint `GET /api/v1/items/perishable-alerts`:
-    - Retornar items marcados como `isPerishable` con existencias activas en almacenes o lotes con vencimiento proximo.
+- [ ] **Ingesta de Precio de Expediente S10 y Enriquecimiento de Gap Analysis**:
+  - [ ] En `IngestS10ResourceItemDto` y en el parser CSV de `ProjectsService.importS10File()`:
+    - Detectar y extraer la columna de precio unitario del archivo CSV/TXT exportado de S10 (`unitPrice` / `price` / `precio`) y persistirla en `ProjectRequirement.s10UnitPrice`.
+  - [ ] En `ProjectsService.getGapAnalysis(projectId)`:
+    - Para cada insumo requerido en el proyecto, calcular y retornar en cada fila de `analysis`:
+      - `minHistoricalUnitCost`: el menor `unitCostBasePEN` registrado en `PurchaseItem` para ese `itemId` (o `null` si nunca se ha comprado).
+      - `weightedAverageCost`: el `averageCost` vigente del insumo (en el almacen de la obra o en el Almacen Central como referencia).
+      - `s10BudgetUnitPrice`: el valor de `s10UnitPrice` almacenado en `ProjectRequirement` (o `null` si el CSV no incluia precio).
+  - [ ] Agregar `minHistoricalUnitCost`, `weightedAverageCost` y `s10BudgetUnitPrice` a `FINANCIAL_KEYS` en `CostMaskingInterceptor`.
 
 ---
 
-## 5. Espacio de Bitacora y Notas para el Agente Implementador
+## 5. Exclusiones Acordadas con el Cliente (Fuera de Alcance)
 
-Utiliza este espacio para registrar decisiones de diseno, hashes de commits relevantes o aclaraciones tecnicas surgidas durante el desarrollo en cada entorno:
+Para evitar desviaciones de alcance, queda documentado que los siguientes puntos discutidos en la llamada **NO deben implementarse**:
+
+1. **Modulo e Historial de Mantenimientos de Maquinaria y Herramientas (`00:59:02 - 01:01:44`)**: Excluido por acuerdo mutuo al constituir un modulo independiente fuera del presupuesto cotizado. Solo se mantiene el estado `MAINTENANCE_REQUIRED` al devolver una herramienta.
+2. **Fechas de caducidad por lote en el Catalogo Maestro (`00:03:53 - 00:08:50`)**: El Catalogo Maestro conserva unicamente el indicador booleano `isPerishable`. Las fechas de vencimiento de lotes especificos se registran en las observaciones de cada compra.
+3. **Modulos de Personal de Obra y Subcontratas (`01:09:32 - 01:13:18`)**: Pospuestos para evaluarse como un proyecto/modulo separado una vez finalizado y puesto en produccion el sistema de almacen.
+
+---
+
+## 6. Espacio de Bitacora y Notas para el Agente Implementador
+
+Utiliza este espacio para registrar decisiones de diseno, hashes de commits relevantes o aclaraciones tecnicas surgidas durante el desarrollo de este nuevo ciclo de correcciones:
 
 * **Frontend**:
-  * *Fecha:* 2026-10-11
-  * *Modulo intervenido:* ItemModels, UiBadge, CatalogoComponent, SupplierModal, SupplierListModal, PurchaseForm, ComprasComponent, PurchaseDetailModal, CustodyDispatchModal, MovilHerramientas
-  * *Decisiones tomadas:*
-    - Se amplio ItemType a CONSUMABLE, TOOL, EQUIPMENT, MACHINERY en item.models y modelos dependientes, ajustando los selectores de custodia y movil para admitir todo activo no consumible (type !== 'CONSUMABLE').
-    - Se incorporo soporte nativo en UiBadgeComponent para las 4 clasificaciones con sus colores corporativos (naranja maquinaria, azul equipos, cian herramientas y verde consumibles).
-    - Se integro campo isPerishable en Catalogo (modal, filtros, tabla con badge de advertencia y exportacion Excel).
-    - Se anadio campo notes en registro y directorios de proveedores (modal y listado responsivo).
-    - Se implemento selector reactivo Con/Sin IGV en compras con recalculo dinamico e indicadores en tablas, tarjetas y liquidacion tributaria.
-    - Se subsano la inyeccion de enrutador en pruebas de movil-operaciones, logrando 100% de tests aprobados (170 pruebas unitarias) y compilacion limpia.
-  * *Fase 4 (Maquinaria y Custodia):*
-    - Se incorporo soporte de evidencias fotograficas en despacho de herramientas (custody-dispatch-modal y modo DISPATCH de movil-herramientas) guardadas con proofType 'DISPATCH'.
-    - Se dividio la presentacion de adjuntos en custody-detail-modal en secciones comparativas ('Evidencia de Entrega Inicial' vs 'Evidencia de Devolucion').
-    - Se crearon modelos y servicio MachineryService consumiendo los 5 endpoints de /api/v1/machinery.
-    - Se implemento la interfaz tactil /movil/maquinaria con validacion reactiva de estado operativo de maquina, precarga de horometro, foto obligatoria de horometro inicial para apertura, y calculo dinamico de horas, foto de horometro final y combustible para cierre de jornada.
-    - Se desarrollo la vista de gestion en escritorio /maquinaria con tarjetas KPI, tabla filtrada, modales de inicio/cierre/detalle y exportacion a Excel.
-    - Se anadieron pruebas unitarias para MachineryService y navegacion a maquinaria, logrando 100% de tests aprobados (183 pruebas unitarias en 44 suites) y compilacion de produccion limpia.
+  * *(Pendiente de inicio)*
 
 * **Backend**:
-  * *Fecha:* 2026-10-11
-  * *Modulo intervenido:* MachineryModule, MachineryController, MachineryService, StartMachineryShiftDto, EndMachineryShiftDto, MachineryShiftFilterDto
-  * *Decisiones tomadas:*
-    - Se creo el modulo integral de maquinaria en /api/v1/machinery con soporte de apertura de jornada (POST shift/start) validando foto obligatoria, unicidad de turno abierto y consistencia de horometro inicial contra el ultimo cierre.
-    - Se implemento el cierre de jornada (POST shift/:id/end) con calculo automatico de totalHours, validacion endHourMeter >= startHourMeter, foto final obligatoria y foto opcional de combustible.
-    - Se anadieron endpoints de consulta GET shifts (con filtros por operador, fecha y estado abierto/cerrado), GET shifts/:id y GET item/:itemId/status para deteccion rapida del estado operativo de cada equipo en la app movil.
-    - Se agregaron items de maquinaria de prueba en seed-data.json (Retroexcavadora y Rodillo) y se documento el Modulo 12 en docs/modules/12_machinery.md.
-    - Se crearon 22 pruebas unitarias en machinery.service.spec.ts, alcanzando 197 pruebas unitarias exitosas (19 suites), compilacion ESM limpia y cero errores de linter.
-  * *Fecha:* 2026-10-12 (Fase 5 - Dashboard, Inversion en Herramientas y Alertas Perecibles)
-  * *Modulo intervenido:* DashboardModule, DashboardController, DashboardService, ItemsController, ItemsService, CostMaskingInterceptor
-  * *Decisiones tomadas:*
-    - Se creo el modulo de Dashboard en /api/v1/dashboard con GET /metrics, implementando el calculo de toolsInvestmentPEN (sumatoria de physicalQty * averageCost para items tipo TOOL, EQUIPMENT y MACHINERY, excluyendo CONSUMABLE) e inventoryValuationPEN.
-    - Se agregaron endpoints analiticos auxiliares GET /dashboard/stock-comparison, GET /dashboard/urgent-replenishments y GET /dashboard/logical-reservations.
-    - Se incorporaron las propiedades toolsInvestmentPEN, inventoryValuationPEN e igvAmountPEN a FINANCIAL_KEYS en CostMaskingInterceptor para purgar automaticamente cualquier cifra monetaria en respuestas enviadas a usuarios con rol WAREHOUSE_KEEPER.
-    - Se implemento el endpoint GET /api/v1/items/perishable-alerts en ItemsController (posicionado antes de :id para evitar colisiones de rutas) e ItemsService, retornando insumos perecibles activos con desglose de sedes, fecha de ultimo ingreso y calculo de dias en almacenamiento.
-    - Se documento el Modulo 13 en docs/modules/13_dashboard.md, se actualizaron docs/modules/04_items.md y docs/modules/README.md.
-    - Se crearon 6 pruebas unitarias para DashboardService, 1 prueba para getPerishableAlerts y 1 para enmascaramiento de metricas en CostMaskingInterceptor, alcanzando 205 pruebas unitarias exitosas (20 suites) y compilacion limpia con nest build.
+  * **2026-10-18 (Fase 1 - Modelado de Datos y Migraciones)**:
+    - Actualizado `schema.prisma`:
+      - Enum `ToolCondition`: Agregado valor `NEW` al inicio.
+      - Modelo `ItemCategory`: Creada entidad para clasificaciones personalizadas (`name`, `code`, `description`, `isActive`) y vinculada opcionalmente a `Item` (`categoryId`, `category`).
+      - Modelo `ProjectRequirement`: Agregado campo `s10UnitPrice Decimal? @db.Decimal(14, 4)`.
+      - Modelos `Purchase` y `PurchaseDetail`: Agregados campos `notes String? @db.Text` para observaciones y fechas de vencimiento. En `Purchase` se agrego tambien `warehouseId String?` vinculado a `Warehouse` para soportar compras directas a almacenes de obra.
+    - Actualizado `seed.ts` para limpiar `itemCategory` conservando la idempotencia.
+    - Generada y aplicada migracion en PostgreSQL: `20261018061033_add_meeting_corrections_v2`.
+    - Cliente de Prisma regenerado, compilacion NestJS (`npm run build`) y 208 pruebas unitarias (`vitest run`) ejecutadas exitosamente.

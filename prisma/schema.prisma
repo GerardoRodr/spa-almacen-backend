@@ -48,6 +48,7 @@ enum MovementType {
 }
 
 enum ToolCondition {
+  NEW
   OPERATIVE
   DAMAGED_USABLE
   DAMAGED_UNUSABLE
@@ -123,6 +124,7 @@ model Warehouse {
   movementsDest   Movement[]      @relation("MovementDestWarehouse")
   toolCustodies   ToolCustody[]
   machineryShifts MachineryShiftLog[]
+  purchases       Purchase[]
   
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
@@ -148,6 +150,19 @@ model Stock {
 // CATALOGO DE ITEMS Y ALIAS S10
 // --------------------------------------------------------
 
+model ItemCategory {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  code        String?  @unique
+  description String?
+  isActive    Boolean  @default(true)
+  
+  items       Item[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model Item {
   id              String               @id @default(uuid())
   sku             String               @unique
@@ -157,6 +172,8 @@ model Item {
   type            ItemType
   minStockAlert   Decimal              @default(0) @db.Decimal(12, 4)
   isPerishable    Boolean              @default(false)
+  categoryId      String?
+  category        ItemCategory?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   
   stocks          Stock[]
   aliases         ItemAlias[]
@@ -172,6 +189,7 @@ model Item {
 
   @@index([type])
   @@index([isPerishable])
+  @@index([categoryId])
 }
 
 model ItemAlias {
@@ -211,6 +229,7 @@ model ProjectRequirement {
   requiredQty  Decimal  @db.Decimal(12, 4) // Demanda total segun S10
   allocatedQty Decimal  @default(0) @db.Decimal(12, 4) // Stock reservado en Almacen Central
   consumedQty  Decimal  @default(0) @db.Decimal(12, 4) // Stock consumido definitivamente en obra
+  s10UnitPrice Decimal? @db.Decimal(14, 4) // Costo unitario programado en expediente S10
 
   project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   item         Item     @relation(fields: [itemId], references: [id])
@@ -238,6 +257,7 @@ model Supplier {
 model Purchase {
   id             String               @id @default(uuid())
   supplierId     String
+  warehouseId    String?              // Almacen de destino (CENTRAL o caseta de obra)
   invoiceSeries  String               // Factura o comprobante ej. F001-0004523
   voucherType    String               @default("FACTURA")
   hasIgv         Boolean              @default(true)
@@ -247,14 +267,17 @@ model Purchase {
   subtotalPEN    Decimal              @db.Decimal(14, 2) // Base imponible neta computable a stock
   igvAmountPEN   Decimal              @default(0) @db.Decimal(14, 2) // IGV 18% para cotejo contable
   totalAmountPEN Decimal              @db.Decimal(14, 2)
+  notes          String?              @db.Text // Observaciones generales de compra / fechas de caducidad
   
   supplier       Supplier             @relation(fields: [supplierId], references: [id])
+  warehouse      Warehouse?           @relation(fields: [warehouseId], references: [id])
   details        PurchaseDetail[]
   documents      DocumentAttachment[]
   
   createdAt      DateTime             @default(now())
 
   @@index([supplierId])
+  @@index([warehouseId])
   @@index([issueDate])
   @@index([createdAt])
 }
@@ -270,6 +293,7 @@ model PurchaseDetail {
   unitPriceOriginal Decimal  @db.Decimal(14, 4) // Precio unitario neto en moneda original
   unitCostBasePEN   Decimal  @db.Decimal(14, 4) // Costo neto por unidad base en Soles
   subtotalPEN       Decimal  @db.Decimal(14, 2)
+  notes             String?  @db.Text // Observacion especifica de linea / lote o vencimiento
 
   purchase          Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   item              Item     @relation(fields: [itemId], references: [id])

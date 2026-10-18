@@ -31,6 +31,7 @@ async function main() {
   await prisma.projectRequirement.deleteMany();
   await prisma.itemAlias.deleteMany();
   await prisma.item.deleteMany();
+  await prisma.itemCategory.deleteMany();
   await prisma.userWarehouse.deleteMany();
   await prisma.supplier.deleteMany();
   await prisma.warehouse.deleteMany();
