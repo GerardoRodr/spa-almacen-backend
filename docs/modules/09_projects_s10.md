@@ -218,13 +218,15 @@ Procesa un payload estructurado JSON con el listado de recursos del presupuesto 
       "s10Code": "0204010001",
       "s10RawName": "CEMENTO PORTLAND TIPO I (BOLSA 42.5KG)",
       "s10Unit": "BOL",
-      "quantity": 2500
+      "quantity": 2500,
+      "unitPrice": 26.5
     },
     {
       "s10Code": "0202010005",
       "s10RawName": "ACERO CORRUGADO 1/2 FY=4200 KG/CM2",
       "s10Unit": "VAR",
-      "quantity": 800
+      "quantity": 800,
+      "unitPrice": 36.0
     }
   ]
 }
@@ -251,6 +253,14 @@ Calcula el estado del abastecimiento del proyecto comparando:
 - `allocatedQty`: Cantidad reservada en Almacen Central a favor de esta obra.
 - `consumedQty`: Cantidad ya entregada y consumida en el frente de trabajo.
 - `pendingToSupply`: Cantidad restante por proveer (`requiredQty - allocatedQty - consumedQty`).
+- `fulfillmentPercentage`: Porcentaje de cobertura alcanzado.
+- `centralAvailableStock`: Stock neto disponible y no comprometido en Almacenes Centrales.
+- `purchaseDeficit`: Deficit real requerido para compra directa.
+- `minHistoricalUnitCost`: Menor precio unitario base en Soles registrado en compras historicas para ese insumo (`null` si no registra compras).
+- `weightedAverageCost`: Costo promedio ponderado (CPP) vigente en stock (priorizando el almacen de obra o referencia central).
+- `s10BudgetUnitPrice`: Precio unitario presupuestado en el expediente S10 (`null` si no se cargo precio).
+
+> **Aislamiento RBAC:** Las claves financieras `minHistoricalUnitCost`, `weightedAverageCost` y `s10BudgetUnitPrice` son filtradas automaticamente por `CostMaskingInterceptor` si la consulta es realizada por un usuario con rol `WAREHOUSE_KEEPER`.
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/projects/:id/gap-analysis`
@@ -259,7 +269,7 @@ Calcula el estado del abastecimiento del proyecto comparando:
   - `Authorization: Bearer <accessToken>`
 
 #### Respuestas
-**200 OK - Matriz de brechas calculada:**
+**200 OK - Matriz de brechas calculada (Vista ADMIN):**
 ```json
 {
   "projectId": "77777777-7777-7777-7777-777777777777",
@@ -274,7 +284,12 @@ Calcula el estado del abastecimiento del proyecto comparando:
       "allocatedQty": "500.0000",
       "consumedQty": "1200.0000",
       "pendingToSupply": "800.0000",
-      "fulfillmentPercentage": 68.0
+      "fulfillmentPercentage": 68.0,
+      "centralAvailableStock": "700.0000",
+      "purchaseDeficit": "100.0000",
+      "minHistoricalUnitCost": "26.2500",
+      "weightedAverageCost": "28.0000",
+      "s10BudgetUnitPrice": "26.5000"
     }
   ]
 }

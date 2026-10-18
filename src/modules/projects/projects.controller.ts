@@ -32,10 +32,12 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
+import { CostMaskingInterceptor } from '../../common/interceptors/cost-masking.interceptor.js';
 
 @ApiTags('Proyectos y S10')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
+@UseInterceptors(CostMaskingInterceptor)
 @Controller('projects')
 export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}

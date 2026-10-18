@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  Min,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -43,6 +44,26 @@ export class S10ResourceItemDto {
   @IsNumber({}, { message: 'La cantidad debe ser un valor numerico' })
   @IsPositive({ message: 'La cantidad presupuestada debe ser mayor a cero' })
   quantity: number;
+
+  @ApiPropertyOptional({
+    example: 24.5,
+    description: 'Precio unitario presupuestado en el expediente S10',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'El precio unitario debe ser un valor numerico' })
+  @Min(0, { message: 'El precio unitario no puede ser negativo' })
+  unitPrice?: number;
+
+  @ApiPropertyOptional({
+    example: 24.5,
+    description: 'Alias opcional para el precio unitario del expediente S10',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'El precio unitario S10 debe ser un valor numerico' })
+  @Min(0, { message: 'El precio unitario S10 no puede ser negativo' })
+  s10UnitPrice?: number;
 }
 
 export class IngestS10Dto {

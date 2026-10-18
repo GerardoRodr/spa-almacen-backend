@@ -289,12 +289,16 @@ export class ProjectsService {
       itemBySku.set(item.sku.trim().toUpperCase(), item);
     }
 
-    const mappedDemands = new Map<string, number>();
+    const mappedDemands = new Map<
+      string,
+      { baseQty: number; s10UnitPrice?: number }
+    >();
     const unmappedItems: Array<{
       s10Code?: string;
       s10RawName: string;
       s10Unit?: string;
       quantity: number;
+      unitPrice?: number;
     }> = [];
 
     for (const res of validResources) {
@@ -324,16 +328,38 @@ export class ProjectsService {
         matchedItemId = it.id;
       }
 
+      const rawPrice = res.unitPrice ?? res.s10UnitPrice;
+      let normalizedUnitPrice: number | undefined;
+      if (
+        rawPrice !== undefined &&
+        rawPrice !== null &&
+        !isNaN(Number(rawPrice)) &&
+        Number(rawPrice) > 0
+      ) {
+        normalizedUnitPrice =
+          conversionFactor > 0
+            ? Number((Number(rawPrice) / conversionFactor).toFixed(4))
+            : Number(Number(rawPrice).toFixed(4));
+      }
+
       if (matchedItemId) {
         const baseQty = Number((res.quantity * conversionFactor).toFixed(4));
-        const prev = mappedDemands.get(matchedItemId) ?? 0;
-        mappedDemands.set(matchedItemId, Number((prev + baseQty).toFixed(4)));
+        const prev = mappedDemands.get(matchedItemId);
+        const accumulatedQty = prev
+          ? Number((prev.baseQty + baseQty).toFixed(4))
+          : baseQty;
+        const resolvedUnitPrice = normalizedUnitPrice ?? prev?.s10UnitPrice;
+        mappedDemands.set(matchedItemId, {
+          baseQty: accumulatedQty,
+          s10UnitPrice: resolvedUnitPrice,
+        });
       } else {
         unmappedItems.push({
           s10Code: res.s10Code,
           s10RawName: res.s10RawName,
           s10Unit: res.s10Unit,
           quantity: res.quantity,
+          unitPrice: rawPrice,
         });
       }
     }
@@ -341,7 +367,7 @@ export class ProjectsService {
     // Persistir o actualizar ProjectRequirement en transaccion atomica
     let requirementsCreatedOrUpdated = 0;
     await this.prisma.$transaction(async (tx) => {
-      for (const [itemId, baseQty] of mappedDemands.entries()) {
+      for (const [itemId, demand] of mappedDemands.entries()) {
         const existingReq = await tx.projectRequirement.findUnique({
           where: {
             projectId_itemId: {
@@ -353,20 +379,27 @@ export class ProjectsService {
 
         if (existingReq) {
           const newRequired = Number(
-            (Number(existingReq.requiredQty) + baseQty).toFixed(4),
+            (Number(existingReq.requiredQty) + demand.baseQty).toFixed(4),
           );
           await tx.projectRequirement.update({
             where: { id: existingReq.id },
-            data: { requiredQty: newRequired },
+            data: {
+              requiredQty: newRequired,
+              s10UnitPrice:
+                demand.s10UnitPrice !== undefined
+                  ? demand.s10UnitPrice
+                  : existingReq.s10UnitPrice,
+            },
           });
         } else {
           await tx.projectRequirement.create({
             data: {
               projectId: id,
               itemId,
-              requiredQty: baseQty,
+              requiredQty: demand.baseQty,
               allocatedQty: 0,
               consumedQty: 0,
+              s10UnitPrice: demand.s10UnitPrice ?? null,
             },
           });
         }
@@ -411,7 +444,7 @@ export class ProjectsService {
 
   // Generar la Matriz de Brechas (Gap Analysis) en tiempo real
   async getGapAnalysis(id: string, user: { id: string; role: Role }) {
-    await this.findOne(id, user);
+    const project = await this.findOne(id, user);
 
     const requirements = await this.prisma.projectRequirement.findMany({
       where: { projectId: id },
@@ -433,20 +466,33 @@ export class ProjectsService {
     });
 
     if (requirements.length === 0) {
-      const proj = await this.prisma.project.findUnique({
-        where: { id },
-        select: { id: true, name: true },
-      });
       return {
         projectId: id,
-        projectName: proj?.name ?? '',
+        projectName: project.name ?? '',
         analysis: [],
       };
     }
 
     const itemIds = requirements.map((r) => r.itemId);
 
-    // Obtener almacenes de tipo CENTRAL activos
+    // 1. Consultar menor costo unitario historico de compra en PurchaseDetail
+    const purchaseDetails = await this.prisma.purchaseDetail.findMany({
+      where: { itemId: { in: itemIds } },
+      select: { itemId: true, unitCostBasePEN: true },
+    });
+
+    const minHistoricalCostMap = new Map<string, number>();
+    for (const pd of purchaseDetails) {
+      const cost = Number(pd.unitCostBasePEN);
+      if (cost > 0) {
+        const currentMin = minHistoricalCostMap.get(pd.itemId);
+        if (currentMin === undefined || cost < currentMin) {
+          minHistoricalCostMap.set(pd.itemId, cost);
+        }
+      }
+    }
+
+    // 2. Obtener almacenes de tipo CENTRAL activos
     const centralWarehouses = await this.prisma.warehouse.findMany({
       where: {
         type: WarehouseType.CENTRAL,
@@ -456,25 +502,46 @@ export class ProjectsService {
     });
     const centralWarehouseIds = centralWarehouses.map((w) => w.id);
 
-    // Consultar stock neto disponible en Almacenes Centrales
-    const centralStocks = await this.prisma.stock.findMany({
+    // 3. Consultar stocks en almacenes centrales y en el almacen de obra
+    const targetWarehouseIds = [...centralWarehouseIds];
+    if (
+      project.warehouse?.id &&
+      !targetWarehouseIds.includes(project.warehouse.id)
+    ) {
+      targetWarehouseIds.push(project.warehouse.id);
+    }
+
+    const allStocks = await this.prisma.stock.findMany({
       where: {
-        warehouseId: { in: centralWarehouseIds },
+        warehouseId: { in: targetWarehouseIds },
         itemId: { in: itemIds },
       },
     });
 
     const centralAvailableMap = new Map<string, number>();
-    for (const cs of centralStocks) {
-      const available = Math.max(
-        0,
-        Number(cs.physicalQty) - Number(cs.reservedQty),
-      );
-      const current = centralAvailableMap.get(cs.itemId) ?? 0;
-      centralAvailableMap.set(
-        cs.itemId,
-        Number((current + available).toFixed(4)),
-      );
+    const siteStockMap = new Map<string, (typeof allStocks)[0]>();
+    const centralStocksByItem = new Map<string, Array<(typeof allStocks)[0]>>();
+
+    for (const s of allStocks) {
+      if (centralWarehouseIds.includes(s.warehouseId)) {
+        const available = Math.max(
+          0,
+          Number(s.physicalQty) - Number(s.reservedQty),
+        );
+        const current = centralAvailableMap.get(s.itemId) ?? 0;
+        centralAvailableMap.set(
+          s.itemId,
+          Number((current + available).toFixed(4)),
+        );
+
+        const list = centralStocksByItem.get(s.itemId) ?? [];
+        list.push(s);
+        centralStocksByItem.set(s.itemId, list);
+      }
+
+      if (project.warehouse && s.warehouseId === project.warehouse.id) {
+        siteStockMap.set(s.itemId, s);
+      }
     }
 
     const analysis = requirements.map((req) => {
@@ -509,6 +576,44 @@ export class ProjectsService {
         Number((pendingToSupply - centralAvailableStock).toFixed(4)),
       );
 
+      // Indicadores de Precios:
+      // a) Menor precio historico de compra
+      const minHist = minHistoricalCostMap.get(req.itemId);
+      const minHistoricalUnitCost =
+        minHist !== undefined ? minHist.toFixed(4) : null;
+
+      // b) Costo promedio ponderado vigente (obra o referencia central)
+      let weightedAverageCost: string | null = null;
+      const siteStock = siteStockMap.get(req.itemId);
+      if (siteStock && Number(siteStock.averageCost) > 0) {
+        weightedAverageCost = Number(siteStock.averageCost).toFixed(4);
+      } else {
+        const cStocks = centralStocksByItem.get(req.itemId) ?? [];
+        const totalCentralPhysical = cStocks.reduce(
+          (acc, s) => acc + Number(s.physicalQty),
+          0,
+        );
+        if (totalCentralPhysical > 0) {
+          const totalVal = cStocks.reduce(
+            (acc, s) => acc + Number(s.physicalQty) * Number(s.averageCost),
+            0,
+          );
+          const avg = totalVal / totalCentralPhysical;
+          weightedAverageCost = avg > 0 ? avg.toFixed(4) : null;
+        } else if (cStocks.length > 0) {
+          const firstVal = cStocks.find((s) => Number(s.averageCost) > 0);
+          weightedAverageCost = firstVal
+            ? Number(firstVal.averageCost).toFixed(4)
+            : null;
+        }
+      }
+
+      // c) Precio presupuestado en expediente S10
+      const s10BudgetUnitPrice =
+        req.s10UnitPrice !== null && req.s10UnitPrice !== undefined
+          ? Number(req.s10UnitPrice).toFixed(4)
+          : null;
+
       return {
         itemId: req.itemId,
         sku: req.item.sku,
@@ -521,10 +626,13 @@ export class ProjectsService {
         fulfillmentPercentage,
         centralAvailableStock: centralAvailableStock.toFixed(4),
         purchaseDeficit: purchaseDeficit.toFixed(4),
+        minHistoricalUnitCost,
+        weightedAverageCost,
+        s10BudgetUnitPrice,
       };
     });
 
-    const projectName = requirements[0]?.project?.name ?? '';
+    const projectName = project.name ?? requirements[0]?.project?.name ?? '';
 
     return {
       projectId: id,

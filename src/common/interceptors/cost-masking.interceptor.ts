@@ -24,6 +24,10 @@ const FINANCIAL_KEYS = new Set([
   'maxUnitCostPEN',
   'currentWeightedAverageCostPEN',
   'newWarehouseAverageCost',
+  's10UnitPrice',
+  'minHistoricalUnitCost',
+  'weightedAverageCost',
+  's10BudgetUnitPrice',
 ]);
 
 // Funcion recursiva para eliminar datos de costos y precios

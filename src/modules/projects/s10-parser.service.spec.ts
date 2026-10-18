@@ -121,5 +121,22 @@ describe('S10ParserService', () => {
       expect(result.resources[2].s10Code).toBe('0301010002');
       expect(result.resources[2].quantity).toBe(40);
     });
+
+    it('debe extraer la columna de precio unitario en archivo CSV S10', () => {
+      const csvContent = [
+        'Codigo;Descripcion;Unidad;Cantidad;Precio',
+        '0204010001;CEMENTO PORTLAND TIPO I;BOL;2500;26.50',
+        '0202010005;ACERO CORRUGADO 1/2;VAR;800;36.00',
+        '0301010002;MEZCLADORA DE TROMPO 9P3;HM;40;0',
+      ].join('\n');
+
+      const buffer = Buffer.from(csvContent, 'utf-8');
+      const result = service.parseS10Buffer(buffer);
+
+      expect(result.resources).toHaveLength(3);
+      expect(result.resources[0].unitPrice).toBe(26.5);
+      expect(result.resources[1].unitPrice).toBe(36);
+      expect(result.resources[2].unitPrice).toBeUndefined(); // Precio 0 no se asigna
+    });
   });
 });

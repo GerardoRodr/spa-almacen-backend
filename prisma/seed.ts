@@ -154,6 +154,7 @@ async function main() {
         requiredQty: req.requiredQty,
         allocatedQty: req.allocatedQty,
         consumedQty: req.consumedQty,
+        s10UnitPrice: req.s10UnitPrice ?? null,
       },
     });
   }

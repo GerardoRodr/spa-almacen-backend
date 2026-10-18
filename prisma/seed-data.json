@@ -450,7 +450,8 @@
       "itemId": "e0000000-0000-4000-8000-000000000001",
       "requiredQty": 1500,
       "allocatedQty": 300,
-      "consumedQty": 450
+      "consumedQty": 450,
+      "s10UnitPrice": 26.5
     },
     {
       "id": "pr000000-0000-4000-8000-000000000002",
@@ -458,7 +459,8 @@
       "itemId": "e0000000-0000-4000-8000-000000000002",
       "requiredQty": 800,
       "allocatedQty": 200,
-      "consumedQty": 150
+      "consumedQty": 150,
+      "s10UnitPrice": 36
     },
     {
       "id": "pr000000-0000-4000-8000-000000000003",
@@ -466,7 +468,8 @@
       "itemId": "e0000000-0000-4000-8000-000000000003",
       "requiredQty": 600,
       "allocatedQty": 150,
-      "consumedQty": 120
+      "consumedQty": 120,
+      "s10UnitPrice": 27.5
     },
     {
       "id": "pr000000-0000-4000-8000-000000000004",
@@ -474,7 +477,8 @@
       "itemId": "e0000000-0000-4000-8000-000000000004",
       "requiredQty": 120,
       "allocatedQty": 30,
-      "consumedQty": 40
+      "consumedQty": 40,
+      "s10UnitPrice": 45
     },
     {
       "id": "pr000000-0000-4000-8000-000000000005",
@@ -482,7 +486,8 @@
       "itemId": "e0000000-0000-4000-8000-000000000006",
       "requiredQty": 25,
       "allocatedQty": 5,
-      "consumedQty": 8
+      "consumedQty": 8,
+      "s10UnitPrice": 750
     },
     {
       "id": "pr000000-0000-4000-8000-000000000006",
@@ -490,7 +495,8 @@
       "itemId": "e0000000-0000-4000-8000-000000000001",
       "requiredQty": 1000,
       "allocatedQty": 150,
-      "consumedQty": 100
+      "consumedQty": 100,
+      "s10UnitPrice": 26.5
     },
     {
       "id": "pr000000-0000-4000-8000-000000000007",
@@ -498,7 +504,8 @@
       "itemId": "e0000000-0000-4000-8000-000000000003",
       "requiredQty": 500,
       "allocatedQty": 100,
-      "consumedQty": 80
+      "consumedQty": 80,
+      "s10UnitPrice": 27.5
     },
     {
       "id": "pr000000-0000-4000-8000-000000000008",
@@ -506,7 +513,8 @@
       "itemId": "e0000000-0000-4000-8000-000000000007",
       "requiredQty": 200,
       "allocatedQty": 40,
-      "consumedQty": 35
+      "consumedQty": 35,
+      "s10UnitPrice": 34
     }
   ],
   "purchases": [

@@ -61,6 +61,9 @@ describe('ProjectsService', () => {
     transfer: {
       count: ReturnType<typeof vi.fn>;
     };
+    purchaseDetail: {
+      findMany: ReturnType<typeof vi.fn>;
+    };
     $transaction: ReturnType<typeof vi.fn>;
   };
 
@@ -107,6 +110,9 @@ describe('ProjectsService', () => {
       },
       transfer: {
         count: vi.fn(),
+      },
+      purchaseDetail: {
+        findMany: vi.fn().mockResolvedValue([]),
       },
       $transaction: vi.fn(async (cb: (tx: unknown) => unknown) => cb(prisma)),
     };
@@ -279,10 +285,19 @@ describe('ProjectsService', () => {
         resources: [
           // Partida de Mano de Obra: debe descartarse automaticamente
           { s10Code: '010101', s10RawName: 'OPERARIO', quantity: 100 },
-          // Mapeado por alias 1
-          { s10Code: '020101', s10RawName: 'CEMENTO PORTLAND TIPO I', quantity: 50 },
-          // Mapeado por alias 2 con factor 1.25 (50 * 1.25 = 62.5)
-          { s10Code: '0205010002', s10RawName: 'ARENA GRUESA EN METROS', quantity: 50 },
+          // Mapeado por alias 1 con precio unitario
+          {
+            s10Code: '020101',
+            s10RawName: 'CEMENTO PORTLAND TIPO I',
+            quantity: 50,
+            unitPrice: 26.5,
+          },
+          // Mapeado por alias 2 con factor 1.25 (50 * 1.25 = 62.5) y sin precio
+          {
+            s10Code: '0205010002',
+            s10RawName: 'ARENA GRUESA EN METROS',
+            quantity: 50,
+          },
           // No mapeado
           { s10Code: '020999', s10RawName: 'ADITIVO DESCONOCIDO S10', quantity: 10 },
         ],
@@ -300,6 +315,7 @@ describe('ProjectsService', () => {
           requiredQty: 50,
           allocatedQty: 0,
           consumedQty: 0,
+          s10UnitPrice: 26.5,
         },
       });
 
@@ -310,14 +326,19 @@ describe('ProjectsService', () => {
           requiredQty: 62.5,
           allocatedQty: 0,
           consumedQty: 0,
+          s10UnitPrice: null,
         },
       });
     });
   });
 
   describe('getGapAnalysis', () => {
-    it('debe calcular correctamente porcentajes de cumplimiento y deficit de compra', async () => {
-      prisma.project.findUnique.mockResolvedValue({ id: 'p1', name: 'Obra 1' });
+    it('debe calcular correctamente porcentajes de cumplimiento, deficit de compra e indicadores de precios', async () => {
+      prisma.project.findUnique.mockResolvedValue({
+        id: 'p1',
+        name: 'Obra 1',
+        warehouse: { id: 'wh-site-1', name: 'Almacen Obra 1' },
+      });
       prisma.projectRequirement.findMany.mockResolvedValue([
         {
           id: 'req1',
@@ -326,6 +347,7 @@ describe('ProjectsService', () => {
           requiredQty: 2500,
           allocatedQty: 500,
           consumedQty: 1200,
+          s10UnitPrice: 27.5,
           item: {
             id: 'item1',
             sku: 'CEM-01',
@@ -336,14 +358,19 @@ describe('ProjectsService', () => {
           project: { id: 'p1', name: 'Obra 1' },
         },
       ]);
+      prisma.purchaseDetail.findMany.mockResolvedValue([
+        { itemId: 'item1', unitCostBasePEN: 25.8 },
+        { itemId: 'item1', unitCostBasePEN: 26.5 },
+      ]);
       prisma.warehouse.findMany.mockResolvedValue([{ id: 'wh-central' }]);
-      // Almacen Central tiene 1500 fisico y 500 reservado -> disponible = 1000
+      // Almacen Central tiene 1500 fisico y 500 reservado -> disponible = 1000, costo promedio 26.00
       prisma.stock.findMany.mockResolvedValue([
         {
           warehouseId: 'wh-central',
           itemId: 'item1',
           physicalQty: 1500,
           reservedQty: 500,
+          averageCost: 26.0,
         },
       ]);
 
@@ -359,6 +386,11 @@ describe('ProjectsService', () => {
       expect(row.centralAvailableStock).toBe('1000.0000');
       // Deficit: max(0, 800 - 1000) = 0
       expect(row.purchaseDeficit).toBe('0.0000');
+
+      // Precios calculados
+      expect(row.minHistoricalUnitCost).toBe('25.8000');
+      expect(row.weightedAverageCost).toBe('26.0000');
+      expect(row.s10BudgetUnitPrice).toBe('27.5000');
     });
   });
 

@@ -140,6 +140,7 @@ export class S10ParserService {
       let s10RawName: string | undefined;
       let s10Unit: string | undefined;
       let rawQuantity: unknown;
+      let rawUnitPrice: unknown;
       let groupOrType: string | undefined;
 
       for (const [key, val] of Object.entries(row)) {
@@ -180,6 +181,19 @@ export class S10ParserService {
         ) {
           rawQuantity = val;
         } else if (
+          k === 'precio' ||
+          k === 'precio_unitario' ||
+          k === 'preciounitario' ||
+          k === 'pu' ||
+          k === 'p.u.' ||
+          k === 'price' ||
+          k === 'unitprice' ||
+          k === 'unit_price' ||
+          k === 's10unitprice' ||
+          k === 'costo_unitario'
+        ) {
+          rawUnitPrice = val;
+        } else if (
           k === 'tipo' ||
           k === 'grupo' ||
           k === 'clase' ||
@@ -205,12 +219,18 @@ export class S10ParserService {
         continue;
       }
 
+      const parsedUnitPrice =
+        rawUnitPrice !== undefined ? this.parseQuantity(rawUnitPrice) : undefined;
+      const unitPrice =
+        parsedUnitPrice && parsedUnitPrice > 0 ? parsedUnitPrice : undefined;
+
       materialsAndEquipmentRows++;
       resources.push({
         s10Code: s10Code || undefined,
         s10RawName,
         s10Unit: s10Unit || undefined,
         quantity,
+        unitPrice,
       });
     }
 

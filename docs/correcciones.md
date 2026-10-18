@@ -112,24 +112,24 @@ Para garantizar que ningun agente quede bloqueado por falta de endpoints o model
 
 ### Fase 3: Compras por Almacen/Obra, Observaciones y Cuadro Comparativo de Precios
 
-- [ ] **Seleccion de Almacen / Obra de Destino en Compras y Filtro Global por Sede**:
-  - [ ] En `src/app/core/models/purchase.models.ts`:
+- [x] **Seleccion de Almacen / Obra de Destino en Compras y Filtro Global por Sede**:
+  - [x] En `src/app/core/models/purchase.models.ts`:
     - Incluir `warehouse?: { id: string; name: string; type: string }` en `Purchase` y permitir `warehouseId?: string` en `PurchaseFilterDto`.
-  - [ ] En `src/app/features/compras/components/purchase-form/purchase-form.component.ts`:
+  - [x] En `src/app/features/compras/components/purchase-form/purchase-form.component.ts`:
     - Reemplazar el destino fijo "Almacen Central" por un selector de **Almacen / Obra de Destino** precargado con el almacen activo del topbar (o Almacen Central por defecto), permitiendo que las compras de provincias/obras (ej. Chepen, Pacasmayo, Trujillo) ingresen directamente al stock de su respectivo almacen de obra.
-  - [ ] En `src/app/features/compras/compras.component.ts` y `.html`:
+  - [x] En `src/app/features/compras/compras.component.ts` y `.html`:
     - Vincular `WarehouseContextService.activeWarehouseId` para filtrar automaticamente las facturas de compra pertenecientes al almacen/obra seleccionado en el topbar (o mostrar todas cuando sea `'ALL'`), agregando la columna `Almacen / Obra` en la tabla de compras.
 
-- [ ] **Observaciones en Compras para Fecha de Caducidad por Lote de Perecibles**:
-  - [ ] En `src/app/core/models/purchase.models.ts`:
+- [x] **Observaciones en Compras para Fecha de Caducidad por Lote de Perecibles**:
+  - [x] En `src/app/core/models/purchase.models.ts`:
     - Agregar `notes?: string | null` a `Purchase`, `CreatePurchaseDto`, `PurchaseItem` y `CreatePurchaseItemDto`.
-  - [ ] En `src/app/features/compras/components/purchase-form/purchase-form.component.ts`:
+  - [x] En `src/app/features/compras/components/purchase-form/purchase-form.component.ts`:
     - Agregar campo de **Observaciones de la Compra** (y/o nota por linea cuando el insumo sea `isPerishable === true`) con texto de ayuda explicito para registrar fechas de vencimiento o lotes (ej. `"Lote cemento/pintura vence: 15/12/2026"`).
-  - [ ] En `src/app/features/compras/components/purchase-detail-modal/purchase-detail-modal.component.ts`:
+  - [x] En `src/app/features/compras/components/purchase-detail-modal/purchase-detail-modal.component.ts`:
     - Mostrar de forma destacada las observaciones registradas en la compra y por cada linea de insumo.
 
-- [ ] **Busqueda de Compras por Producto y Cuadro Comparativo de Precios de Proveedores**:
-  - [ ] En `src/app/features/compras/compras.component.ts` y `.html`:
+- [x] **Busqueda de Compras por Producto y Cuadro Comparativo de Precios de Proveedores**:
+  - [x] En `src/app/features/compras/compras.component.ts` y `.html`:
     - Habilitar filtro por insumo/producto (busqueda por nombre o SKU de material, ej. "cemento", "tuberia") enviando `itemSearch` o `itemId` al backend para listar todas las compras donde se adquirio dicho producto.
     - Agregar pestaña o modal **"Cuadro Comparativo de Precios"** donde el administrador pueda seleccionar o buscar un insumo y visualizar:
       - Tarjetas de resumen: **Precio Minimo Historico** (con nombre del proveedor y fecha), **Precio Promedio Ponderado (CPP)** y **Precio Maximo Registrado**.
@@ -209,15 +209,15 @@ Para garantizar que ningun agente quede bloqueado por falta de endpoints o model
 
 ### Fase 4: Precios en Ingesta S10 y Matriz de Brechas (`/api/v1/projects`)
 
-- [ ] **Ingesta de Precio de Expediente S10 y Enriquecimiento de Gap Analysis**:
-  - [ ] En `IngestS10ResourceItemDto` y en el parser CSV de `ProjectsService.importS10File()`:
+- [x] **Ingesta de Precio de Expediente S10 y Enriquecimiento de Gap Analysis**:
+  - [x] En `IngestS10ResourceItemDto` y en el parser CSV de `ProjectsService.importS10File()`:
     - Detectar y extraer la columna de precio unitario del archivo CSV/TXT exportado de S10 (`unitPrice` / `price` / `precio`) y persistirla en `ProjectRequirement.s10UnitPrice`.
-  - [ ] En `ProjectsService.getGapAnalysis(projectId)`:
+  - [x] En `ProjectsService.getGapAnalysis(projectId)`:
     - Para cada insumo requerido en el proyecto, calcular y retornar en cada fila de `analysis`:
       - `minHistoricalUnitCost`: el menor `unitCostBasePEN` registrado en `PurchaseItem` para ese `itemId` (o `null` si nunca se ha comprado).
       - `weightedAverageCost`: el `averageCost` vigente del insumo (en el almacen de la obra o en el Almacen Central como referencia).
       - `s10BudgetUnitPrice`: el valor de `s10UnitPrice` almacenado en `ProjectRequirement` (o `null` si el CSV no incluia precio).
-  - [ ] Agregar `minHistoricalUnitCost`, `weightedAverageCost` y `s10BudgetUnitPrice` a `FINANCIAL_KEYS` en `CostMaskingInterceptor`.
+  - [x] Agregar `minHistoricalUnitCost`, `weightedAverageCost` y `s10BudgetUnitPrice` a `FINANCIAL_KEYS` en `CostMaskingInterceptor`.
 
 ---
 
@@ -269,3 +269,14 @@ Utiliza este espacio para registrar decisiones de diseno, hashes de commits rele
     - Actualizado `CostMaskingInterceptor` protegiendo `minUnitCostPEN`, `maxUnitCostPEN`, `currentWeightedAverageCostPEN` y `newWarehouseAverageCost`.
     - Actualizado `seed.ts` y `seed-data.json` con `warehouseId` en todas las compras y ejecutado `prisma db seed`.
     - 220 pruebas unitarias pasando al 100% y compilacion limpia.
+  * **2026-10-18 (Fase 4 - Precios en Ingesta S10 y Matriz de Brechas)**:
+    - En modulo `projects`:
+      - `S10ResourceItemDto`: Agregados `unitPrice` y `s10UnitPrice` opcionales con validadores numericos no negativos.
+      - `S10ParserService`: Extraccion automatica de precios unitarios desde columnas `precio`, `precio_unitario`, `preciounitario`, `pu`, `p.u.`, `price`, `unitprice`, `unit_price`, `s10unitprice` o `costo_unitario` en `parseS10Buffer`.
+      - `ProjectsService.ingestS10`: Acumulacion de `baseQty` y normalizacion de `s10UnitPrice` (dividiendo entre `conversionFactor` cuando aplique) y persistencia en `ProjectRequirement.s10UnitPrice` tanto en creacion como en actualizacion.
+      - `ProjectsService.getGapAnalysis`: Incorporadas las 3 columnas de precios requeridas: `minHistoricalUnitCost` (menor costo base PEN registrado en `PurchaseDetail`), `weightedAverageCost` (CPP vigente en almacen de obra o referencia central) y `s10BudgetUnitPrice` (precio de expediente almacenado en `ProjectRequirement`).
+      - `ProjectsController`: Aplicado `@UseInterceptors(CostMaskingInterceptor)` para proteger confidencialidad ante almaceneros (`WAREHOUSE_KEEPER`).
+    - En `CostMaskingInterceptor`: Agregadas `s10UnitPrice`, `minHistoricalUnitCost`, `weightedAverageCost` y `s10BudgetUnitPrice` a `FINANCIAL_KEYS`.
+    - En datos de semilla: `seed.ts` y `seed-data.json` actualizados con `s10UnitPrice` en requerimientos de proyecto.
+    - Documentacion sincronizada en `docs/modules/09_projects_s10.md`.
+    - Pruebas unitarias incrementadas a 222 tests (100% exitosos) y compilacion limpia.

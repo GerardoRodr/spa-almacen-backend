@@ -105,4 +105,45 @@ describe('CostMaskingInterceptor', () => {
       expect(result.warehouseId).toBe('ALL');
     });
   });
+
+  it('debe purgar precios de Matriz de Brechas e insumos S10 para WAREHOUSE_KEEPER', async () => {
+    const rawData = {
+      projectId: 'proj-1',
+      projectName: 'Obra 1',
+      analysis: [
+        {
+          itemId: 'item-1',
+          sku: 'CEM-01',
+          requiredQty: '1000.0000',
+          allocatedQty: '200.0000',
+          consumedQty: '300.0000',
+          pendingToSupply: '500.0000',
+          fulfillmentPercentage: 50.0,
+          centralAvailableStock: '400.0000',
+          purchaseDeficit: '100.0000',
+          minHistoricalUnitCost: '25.5000',
+          weightedAverageCost: '26.0000',
+          s10BudgetUnitPrice: '27.0000',
+        },
+      ],
+      requirements: [
+        {
+          id: 'req-1',
+          requiredQty: '1000.0000',
+          s10UnitPrice: '27.0000',
+        },
+      ],
+    };
+
+    const context = createMockContext(Role.WAREHOUSE_KEEPER);
+    const handler = createMockHandler(rawData);
+
+    interceptor.intercept(context, handler).subscribe((result: any) => {
+      expect(result.analysis[0].requiredQty).toBe('1000.0000');
+      expect(result.analysis[0].minHistoricalUnitCost).toBeUndefined();
+      expect(result.analysis[0].weightedAverageCost).toBeUndefined();
+      expect(result.analysis[0].s10BudgetUnitPrice).toBeUndefined();
+      expect(result.requirements[0].s10UnitPrice).toBeUndefined();
+    });
+  });
 });
