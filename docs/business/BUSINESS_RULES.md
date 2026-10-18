@@ -63,16 +63,19 @@ Este documento constituye la **Fuente Unica de Verdad (Single Source of Truth - 
 - En compras en moneda extranjera (USD), se aplica el tipo de cambio de compra (`exchangeRate`) registrado en el comprobante.
 
 ### 3.2. Formula de Recalculo Atomico
-Por cada ingreso por compra recibido en el Almacen Central:
+Por cada ingreso por compra recibido en el Almacen Central o en un Almacen de Obra temporal (`PROJECT_SITE`):
 
 $$\text{CPP}_{\text{nuevo}} = \frac{(S_{\text{ant}} \times \text{CPP}_{\text{ant}}) + (Q_{\text{ing}} \times C_{\text{unitPEN}})}{S_{\text{ant}} + Q_{\text{ing}}}$$
 
 Donde:
-- $S_{\text{ant}}$: `Stock.physicalQty` en Almacen Central previo al ingreso.
-- $\text{CPP}_{\text{ant}}$: `Stock.averageCost` en Almacen Central previo al ingreso. Si $S_{\text{ant}} \le 0$, entonces $\text{CPP}_{\text{nuevo}} = C_{\text{unitPEN}}$.
+- $S_{\text{ant}}$: `Stock.physicalQty` en el almacen de destino previo al ingreso.
+- $\text{CPP}_{\text{ant}}$: `Stock.averageCost` en el almacen de destino previo al ingreso. Si $S_{\text{ant}} \le 0$, entonces $\text{CPP}_{\text{nuevo}} = C_{\text{unitPEN}}$.
 - $Q_{\text{ing}}$: Cantidad ingresada expresada en la Unidad Base (`baseQty = purchaseQty \times conversionFactor`).
 - $C_{\text{unitPEN}}$: Costo unitario neto en Soles por unidad base:
   $$C_{\text{unitPEN}} = \frac{\text{unitPriceOriginalNeto} \times \text{exchangeRate}}{\text{conversionFactor}}$$
+
+- **Compras Multi-Almacen:** Las compras directas a almacenes de obra calculan y actualizan el CPP especifico de esa obra sin alterar el Almacen Central, reflejando fletes locales o costos provinciales (ej. Trujillo, Pacasmayo, Chepen).
+- **Cuadro Comparativo de Precios:** Los costos historicos de adquisicion de cada insumo alimentan el cuadro comparativo corporativo ordenado de menor a mayor costo unitario base (`unitCostBasePEN ASC`), identificando al mejor proveedor historico.
 
 ### 3.3. Snapshot de Costo en Movimientos
 - Cada transferencia despachada a obra o salida de consumo congela el `averageCost` vigente de ese momento en `MovementItem.unitCostSnapshot`.

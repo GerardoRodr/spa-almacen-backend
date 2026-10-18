@@ -47,6 +47,17 @@ describe('PurchasesService', () => {
       },
       item: {
         findMany: vi.fn(),
+        findUnique: vi.fn(),
+        findFirst: vi.fn(),
+      },
+      stock: {
+        findMany: vi.fn(),
+        findUnique: vi.fn(),
+        upsert: vi.fn(),
+      },
+      purchaseDetail: {
+        findMany: vi.fn(),
+        create: vi.fn(),
       },
       purchase: {
         findMany: vi.fn(),
@@ -162,16 +173,48 @@ describe('PurchasesService', () => {
       );
     });
 
-    it('debe lanzar BadRequestException si el almacen no es de tipo CENTRAL', async () => {
+    it('debe registrar exitosamente compra si el almacen es de tipo PROJECT_SITE', async () => {
       prisma.supplier.findUnique.mockResolvedValue({ id: 'sup-1' });
       prisma.warehouse.findUnique.mockResolvedValue({
         id: 'wh-obra',
         type: WarehouseType.PROJECT_SITE,
         isActive: true,
       });
+      prisma.item.findMany.mockResolvedValue([
+        { id: 'item-cemento', sku: 'CEM-01', name: 'Cemento', baseUnit: 'BOLSA' },
+      ]);
 
-      await expect(service.create(baseDto, 'user-admin')).rejects.toThrow(
-        BadRequestException,
+      const mockTx = {
+        movement: {
+          findFirst: vi.fn().mockResolvedValue(null),
+          create: vi.fn().mockImplementation((args) => ({ id: 'mov-1', ...args.data })),
+        },
+        purchase: {
+          create: vi.fn().mockImplementation((args) => ({ id: 'purch-1', ...args.data })),
+        },
+        purchaseDetail: {
+          create: vi.fn().mockImplementation((args) => ({ id: 'detail-1', ...args.data })),
+        },
+        stock: {
+          findUnique: vi.fn().mockResolvedValue(null),
+          upsert: vi.fn().mockResolvedValue({}),
+        },
+      };
+
+      prisma.$transaction.mockImplementation(async (callback) => callback(mockTx));
+
+      const result = await service.create(
+        { ...baseDto, warehouseId: 'wh-obra', centralWarehouseId: undefined },
+        'user-admin',
+      );
+
+      expect(result.id).toBe('purch-1');
+      expect(mockTx.movement.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            destWarehouseId: 'wh-obra',
+          }),
+        }),
       );
     });
 
@@ -607,6 +650,153 @@ describe('PurchasesService', () => {
       expect(result.totalAmountPEN).toBe(1500.0);
       expect(result.details[0].unitCostBasePEN).toBe(50.0);
       expect(result.details[0].newWarehouseAverageCost).toBe(50.0);
+    });
+  });
+
+  describe('Filtros avanzados en findAll() y Cuadro Comparativo de Precios', () => {
+    it('debe filtrar compras por warehouseId, itemId e itemSearch en findAll', async () => {
+      prisma.purchase.count.mockResolvedValue(1);
+      prisma.purchase.findMany.mockResolvedValue([
+        { id: 'purch-1', warehouseId: 'wh-obra', details: [] },
+      ]);
+
+      await service.findAll({
+        warehouseId: 'wh-obra',
+        itemId: 'item-cemento',
+        itemSearch: 'cemento',
+      });
+
+      expect(prisma.purchase.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            warehouseId: 'wh-obra',
+            details: expect.objectContaining({
+              some: expect.objectContaining({
+                itemId: 'item-cemento',
+                item: expect.objectContaining({
+                  OR: [
+                    { name: { contains: 'cemento', mode: 'insensitive' } },
+                    { sku: { contains: 'cemento', mode: 'insensitive' } },
+                  ],
+                }),
+              }),
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('debe lanzar BadRequestException si getPriceComparison no recibe ni itemId ni search', async () => {
+      await expect(service.getPriceComparison({})).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('debe lanzar NotFoundException si el insumo no existe en el catalogo', async () => {
+      vi.spyOn(prisma.item, 'findUnique').mockResolvedValue(null);
+
+      await expect(
+        service.getPriceComparison({ itemId: 'item-inexistente' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('debe generar cuadro comparativo ordenado por unitCostBasePEN ascendente con resumen estadistico', async () => {
+      vi.spyOn(prisma.item, 'findUnique').mockResolvedValue({
+        id: 'item-cemento',
+        sku: 'CEM-01',
+        name: 'Cemento Portland Tipo I',
+        baseUnit: 'BOLSA',
+        type: 'CONSUMABLE',
+        isPerishable: true,
+        category: null,
+      } as any);
+
+      prisma.stock = {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            physicalQty: 100,
+            averageCost: 27.5,
+            warehouse: { id: 'wh-1', name: 'Central', type: 'CENTRAL' },
+          },
+        ]),
+      } as any;
+
+      prisma.purchaseDetail = {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'pd-1',
+            purchaseId: 'p-1',
+            purchaseQty: 50,
+            purchaseUnit: 'BOLSA',
+            conversionFactor: 1,
+            baseQty: 50,
+            unitPriceOriginal: 26.0,
+            unitCostBasePEN: 26.0,
+            subtotalPEN: 1300,
+            notes: 'Lote A vence 2026-12',
+            purchase: {
+              id: 'p-1',
+              issueDate: new Date('2026-09-01'),
+              invoiceSeries: 'F001-01',
+              voucherType: 'FACTURA',
+              hasIgv: true,
+              currency: 'PEN',
+              exchangeRate: 1,
+              notes: 'Observacion general',
+              supplierId: 'sup-1',
+              supplier: {
+                businessName: 'PROVEEDOR BARATO',
+                taxId: '20100000001',
+              },
+              warehouseId: 'wh-1',
+              warehouse: { id: 'wh-1', name: 'Central', type: 'CENTRAL' },
+            },
+          },
+          {
+            id: 'pd-2',
+            purchaseId: 'p-2',
+            purchaseQty: 100,
+            purchaseUnit: 'BOLSA',
+            conversionFactor: 1,
+            baseQty: 100,
+            unitPriceOriginal: 29.0,
+            unitCostBasePEN: 29.0,
+            subtotalPEN: 2900,
+            notes: null,
+            purchase: {
+              id: 'p-2',
+              issueDate: new Date('2026-09-10'),
+              invoiceSeries: 'F001-02',
+              voucherType: 'FACTURA',
+              hasIgv: true,
+              currency: 'PEN',
+              exchangeRate: 1,
+              notes: null,
+              supplierId: 'sup-2',
+              supplier: {
+                businessName: 'PROVEEDOR CARO',
+                taxId: '20100000002',
+              },
+              warehouseId: 'wh-1',
+              warehouse: { id: 'wh-1', name: 'Central', type: 'CENTRAL' },
+            },
+          },
+        ]),
+      } as any;
+
+      const result = await service.getPriceComparison({ itemId: 'item-cemento' });
+
+      expect(result.item.sku).toBe('CEM-01');
+      expect(result.summary.totalPurchasesCount).toBe(2);
+      expect(result.summary.minUnitCostPEN).toBe(26.0);
+      expect(result.summary.maxUnitCostPEN).toBe(29.0);
+      expect(result.summary.bestSupplierName).toBe('PROVEEDOR BARATO');
+      expect(result.summary.bestSupplierTaxId).toBe('20100000001');
+      expect(result.summary.currentWeightedAverageCostPEN).toBe(27.5);
+      expect(result.entries).toHaveLength(2);
+      expect(result.entries[0].unitCostBasePEN).toBe(26.0);
+      expect(result.entries[0].notes).toBe('Lote A vence 2026-12');
+      expect(result.entries[1].unitCostBasePEN).toBe(29.0);
     });
   });
 });

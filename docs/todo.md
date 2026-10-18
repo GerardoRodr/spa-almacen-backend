@@ -20,6 +20,7 @@ Este documento representa la hoja de ruta integral y el estado de avance para el
 - [x] **Paso 11: Dashboard Analitico, Inversion Patrimonial y Alertas de Perecibles**
 - [x] **Paso 12: Optimizaciones de Rendimiento, Correlativos Atomicos y Saneamiento de Endpoints**
 - [x] **Paso 13: Clasificaciones Personalizadas de Insumos, Ampliacion de Custodias y Migracion v2**
+- [x] **Paso 14: Compras Multi-Almacen, Observaciones y Cuadro Comparativo de Precios**
 
 ---
 
@@ -355,6 +356,27 @@ Implementacion del modelado de datos de la reunion de revision y despliegue de c
 - [x] **Pruebas y Documentacion:**
   - [x] 216 pruebas unitarias pasando al 100% y compilacion limpia.
   - [x] Actualizacion de manuales tecnicos `docs/modules/04_items.md`, `docs/modules/08_tool_custody.md` y `docs/business/BUSINESS_RULES.md`.
+
+---
+
+## Paso 14: Compras Multi-Almacen, Observaciones y Cuadro Comparativo de Precios (Completado)
+
+Evolucion del modulo de compras para admitir recepcion directa en casetas de obra provinciales, trazabilidad de observaciones y fechas de caducidad de lotes perecibles, y generacion analitica de cuadros comparativos de precios de adquisicion por proveedor.
+
+### Tareas:
+- [x] **Modulo de Compras (`src/modules/purchases`):**
+  - [x] Soporte de `warehouseId` (o alias `centralWarehouseId`) en `CreatePurchaseDto` permitiendo ingresar compras a cualquier almacen activo (`CENTRAL` o `PROJECT_SITE`).
+  - [x] Recalculo ponderado de CPP en el almacen de destino seleccionado y emision de `Movement` (`PURCHASE_ENTRY`) asociado a dicha sede.
+  - [x] Persistencia del campo `notes` en cabecera `Purchase` y en lineas `PurchaseDetail`.
+  - [x] Filtros avanzados en `findAll()`: `warehouseId`, `itemId` e `itemSearch`.
+  - [x] Endpoint `GET /api/v1/purchases/price-comparison` con `PriceComparisonQueryDto`: resumen estadistico (`minUnitCostPEN`, `maxUnitCostPEN`, `currentWeightedAverageCostPEN`, mejor proveedor) y listado historico `entries` ordenado por `unitCostBasePEN ASC`.
+- [x] **Seguridad Financiera y Datos Semilla:**
+  - [x] Interceptor `CostMaskingInterceptor` enriquecido con `minUnitCostPEN`, `maxUnitCostPEN`, `currentWeightedAverageCostPEN` y `newWarehouseAverageCost`.
+  - [x] Actualizado `seed.ts` y `seed-data.json` con `warehouseId` en todas las compras y re-ejecutado `prisma db seed`.
+- [x] **Verificacion y Documentacion:**
+  - [x] 220 pruebas unitarias pasando al 100% en Vitest.
+  - [x] Compilacion NestJS limpia sin errores.
+  - [x] Actualizados manuales `docs/modules/05_purchases_suppliers.md`, `docs/business/BUSINESS_RULES.md`, `docs/correcciones.md` y `docs/todo.md`.
 
 
 

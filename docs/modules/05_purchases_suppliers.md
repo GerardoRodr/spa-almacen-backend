@@ -6,11 +6,13 @@ Este modulo gestiona el registro de proveedores comerciales (con RUC tributario 
 ### Reglas Clave:
 - **Base Imponible Neta sin IGV:** El costo unitario computable para el valor del inventario se calcula sin IGV (18%), puesto que el impuesto constituye credito fiscal.
 - **Conversion Monetaria:** En facturas emitidas en USD, los costos se transforman a Soles (PEN) multiplicando por el tipo de cambio oficial de compra (`exchangeRate`).
-- **Recalculo Atomico de CPP:** Por cada item ingresado, se actualiza el `Stock.averageCost` en el Almacen Central y se registra un movimiento inmutable `Movement` de tipo `PURCHASE_ENTRY`.
+- **Compras Multi-Almacen:** Las compras pueden ingresar directamente tanto a un Almacen Central (`CENTRAL`) como a cualquier Almacen de Obra (`PROJECT_SITE`) activo, valorizando el stock y recalculando el CPP en esa sede especifica.
+- **Observaciones y Caducidad:** Permite registrar notas de compra a nivel de cabecera (`Purchase.notes`) y por linea (`PurchaseDetail.notes`) para consignar lotes y fechas de vencimiento de insumos perecibles.
+- **Recalculo Atomico de CPP:** Por cada item ingresado, se actualiza el `Stock.averageCost` en el almacen de destino y se registra un movimiento inmutable `Movement` de tipo `PURCHASE_ENTRY`.
 - **Restriccion de Seguridad:** La creacion y consulta detallada de precios de compra esta restringida a `ADMIN` o protegida por `CostMaskingInterceptor` para usuarios con rol `WAREHOUSE_KEEPER`.
 
 - **Ruta Base:** `/api/v1/purchases` y `/api/v1/suppliers`
-- **Entidades Vinculadas:** `Supplier`, `Purchase`, `PurchaseDetail`, `Stock`, `Movement`, `MovementItem`
+- **Entidades Vinculadas:** `Supplier`, `Purchase`, `PurchaseDetail`, `Warehouse`, `Stock`, `Movement`, `MovementItem`
 
 ---
 
@@ -423,5 +425,77 @@ Obtiene la informacion completa de la factura, proveedor emisor, renglones compr
     }
   ],
   "documents": []
+}
+```
+
+---
+
+### 3.4 Cuadro Comparativo de Precios Historicos por Insumo
+Retorna la comparativa exhaustiva de precios de compras historicas para un insumo, calculando el precio menor historico, costo promedio ponderado en stock y precio maximo, ordenando las compras de menor a mayor costo unitario base en Soles (`unitCostBasePEN ASC`).
+
+- **Metodo:** `GET`
+- **Ruta:** `/api/v1/purchases/price-comparison`
+- **Acceso:** Protegido (`ADMIN`)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken_admin>`
+
+#### Parametros Query (`PriceComparisonQueryDto`)
+| Parametro | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `itemId` | string (UUID) | Condicional | UUID del insumo a consultar. |
+| `search` | string | Condicional | Nombre o SKU del insumo (requerido si no se envia `itemId`). |
+| `warehouseId` | string (UUID) | No | Filtrar compras o stock de un almacen/obra especifico. |
+
+**Ejemplo de Peticion:**
+```http
+GET /api/v1/purchases/price-comparison?itemId=e0000000-0000-4000-8000-000000000001
+```
+
+#### Respuesta 200 OK:
+```json
+{
+  "item": {
+    "id": "e0000000-0000-4000-8000-000000000001",
+    "sku": "MAT-CEM-001",
+    "name": "Cemento Portland Sol Tipo I 42.5kg",
+    "baseUnit": "BOLSA",
+    "type": "CONSUMABLE",
+    "isPerishable": true,
+    "category": null
+  },
+  "summary": {
+    "totalPurchasesCount": 2,
+    "minUnitCostPEN": 26.5,
+    "maxUnitCostPEN": 28.5,
+    "currentWeightedAverageCostPEN": 27.2,
+    "bestSupplierName": "CEMENTOS PACASMAYO S.A.A.",
+    "bestSupplierTaxId": "20100010744"
+  },
+  "entries": [
+    {
+      "purchaseDetailId": "pd-uuid-1",
+      "purchaseId": "purch-uuid-1",
+      "issueDate": "2026-09-03T10:15:00.000Z",
+      "invoiceSeries": "F010-0084321",
+      "voucherType": "FACTURA",
+      "hasIgv": true,
+      "supplierId": "d0000000-0000-4000-8000-000000000002",
+      "supplierName": "CEMENTOS PACASMAYO S.A.A.",
+      "supplierTaxId": "20100010744",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "warehouseName": "Almacen Central Principal (Lurin)",
+      "warehouseType": "CENTRAL",
+      "purchaseQty": 500,
+      "purchaseUnit": "BOLSA",
+      "conversionFactor": 1,
+      "baseQty": 500,
+      "unitPriceOriginal": 26.5,
+      "currency": "PEN",
+      "exchangeRate": 1,
+      "unitCostBasePEN": 26.5,
+      "subtotalPEN": 13250,
+      "notes": "Lote cemento vence: 15/12/2026"
+    }
+  ]
 }
 ```

@@ -90,22 +90,22 @@ Para garantizar que ningun agente quede bloqueado por falta de endpoints o model
 
 ### Fase 2: Condicion Inicial de Herramientas y Gestor de Clasificaciones
 
-- [ ] **Tres niveles de Condicion Inicial en Prestamos de Herramientas (`NEW`, `OPERATIVE`, `DAMAGED_USABLE`)**:
-  - [ ] En `src/app/core/models/tool-custody.models.ts`:
+- [x] **Tres niveles de Condicion Inicial en Prestamos de Herramientas (`NEW`, `OPERATIVE`, `DAMAGED_USABLE`)**:
+  - [x] En `src/app/core/models/tool-custody.models.ts`:
     - Extender el tipo `ToolCondition` a `'NEW' | 'OPERATIVE' | 'DAMAGED_USABLE' | 'DAMAGED_UNUSABLE' | 'MAINTENANCE_REQUIRED' | 'LOST'`.
-  - [ ] En `src/app/features/herramientas/components/custody-dispatch-modal/custody-dispatch-modal.component.ts` y `src/app/features/movil/movil-herramientas.component.html`:
+  - [x] En `src/app/features/herramientas/components/custody-dispatch-modal/custody-dispatch-modal.component.ts` y `src/app/features/movil/movil-herramientas.component.html`:
     - Actualizar el selector de Condicion Inicial para ofrecer las 3 opciones acordadas:
       - `NEW` -> `NUEVO`
       - `OPERATIVE` -> `OPERATIVO`
       - `DAMAGED_USABLE` -> `DESGASTE NORMAL`
-  - [ ] En `herramientas-custodia.component.ts`, `custody-detail-modal.component.ts` y `tool-custody-pdf.service.ts`:
+  - [x] En `herramientas-custodia.component.ts`, `custody-detail-modal.component.ts` y `tool-custody-pdf.service.ts`:
     - Agregar la traduccion `'NEW' -> 'NUEVO'` en `translateCondition()`.
 
-- [ ] **Gestor de Clasificaciones Personalizadas en Catalogo (`ItemCategory`)**:
-  - [ ] En `src/app/core/models/item.models.ts`:
+- [x] **Gestor de Clasificaciones Personalizadas en Catalogo (`ItemCategory`)**:
+  - [x] En `src/app/core/models/item.models.ts`:
     - Definir la interfaz `ItemCategory` (`id`, `name`, `code`, `description`, `isActive`) y agregar `categoryId?: string | null` y `category?: ItemCategory | null` al modelo `Item`, `CreateItemDto`, `UpdateItemDto` e `ItemFilterDto`.
-  - [ ] Crear servicio o metodos en `ItemService` para consumir el CRUD `/api/v1/item-categories`.
-  - [ ] En `src/app/features/catalogo/catalogo.component.ts` y `.html`:
+  - [x] Crear servicio o metodos en `ItemService` para consumir el CRUD `/api/v1/item-categories`.
+  - [x] En `src/app/features/catalogo/catalogo.component.ts` y `.html`:
     - Agregar boton **"Clasificaciones"** en la barra de herramientas del Catalogo que abra un modal gestor para listar, crear, editar y eliminar clasificaciones personalizadas (ej. "Arrendamiento", "Agregados", "Electricos", "Pinturas").
     - En el modal de creacion/edicion de insumo, permitir seleccionar la clasificacion personalizada (`categoryId`) ademas del tipo operativo base (`CONSUMABLE`, `TOOL`, `EQUIPMENT`, `MACHINERY`).
     - Agregar filtro por columna y visualizacion de la clasificacion en la tabla del catalogo.
@@ -189,17 +189,17 @@ Para garantizar que ningun agente quede bloqueado por falta de endpoints o model
 
 ### Fase 3: Compras Multi-Almacen, Observaciones y Cuadro Comparativo
 
-- [ ] **Evolucion del Modulo de Compras (`/api/v1/purchases`)**:
-  - [ ] **Compras directas a Almacenes de Obra**:
+- [x] **Evolucion del Modulo de Compras (`/api/v1/purchases`)**:
+  - [x] **Compras directas a Almacenes de Obra**:
     - En `PurchaseService.createPurchase()`: permitir que `centralWarehouseId` (o alias `warehouseId`) acepte tanto el Almacen Central (`CENTRAL`) como cualquier Almacen de Obra (`PROJECT_SITE`) activo, incrementando el stock fisico y recalculando el CPP en ese almacen de destino.
     - Incluir los datos de `warehouse` (`id`, `name`, `type`) en las respuestas de listado y detalle de compras.
-  - [ ] **Persistencia de Observaciones (`notes`)**:
+  - [x] **Persistencia de Observaciones (`notes`)**:
     - En `CreatePurchaseDto` y `CreatePurchaseItemDto`: agregar `@IsOptional() @IsString() @MaxLength(1000) notes?: string`.
     - Guardar `notes` en la cabecera `Purchase` y en el detalle `PurchaseItem`.
-  - [ ] **Filtros por Almacen y por Producto en `GET /api/v1/purchases`**:
+  - [x] **Filtros por Almacen y por Producto en `GET /api/v1/purchases`**:
     - En `PurchaseFilterDto`: agregar `warehouseId?: string`, `itemId?: string` e `itemSearch?: string`.
     - Filtrar las compras por `centralWarehouseId = warehouseId` cuando se indique, y por coincidencia en `details.some(d => d.itemId === itemId || d.item.name.contains(itemSearch) || d.item.sku.contains(itemSearch))`.
-  - [ ] **Endpoint de Cuadro Comparativo de Precios (`GET /api/v1/purchases/price-comparison`)**:
+  - [x] **Endpoint de Cuadro Comparativo de Precios (`GET /api/v1/purchases/price-comparison`)**:
     - Recibir query params `itemId` (o `search` / `warehouseId`).
     - Retornar para el insumo consultado:
       - Datos del insumo (`id`, `sku`, `name`, `baseUnit`, `type`).
@@ -259,3 +259,13 @@ Utiliza este espacio para registrar decisiones de diseno, hashes de commits rele
       - Agregados metodos de servicio `findAllCategories()`, `createCategory()`, `updateCategory()` y `removeCategory()` en `ItemsService`.
       - Enriquecidos `CreateItemDto`, `UpdateItemDto` e `ItemFilterDto` con `categoryId` opcional, e incorporada la relacion `category` en respuestas de `findAll()`, `findOne()`, `create()` y `update()`.
     - Agregadas pruebas unitarias y ejecutada suite completa: 216 pruebas unitarias exitosas y compilacion limpia.
+  * **2026-10-18 (Fase 3 - Compras Multi-Almacen, Observaciones y Cuadro Comparativo)**:
+    - En modulo `purchases`:
+      - Actualizado `CreatePurchaseDto` permitiendo `warehouseId` (o `centralWarehouseId`) para compras directas a almacenes de obra `PROJECT_SITE` o `CENTRAL`, y anadido campo `notes` (max 1000).
+      - Actualizado `PurchaseItemDto` anadiendo campo `notes` por linea para lotes o vencimiento de perecibles.
+      - Actualizado `PurchaseFilterDto` con `warehouseId`, `itemId` e `itemSearch`.
+      - Implementado endpoint `GET /api/v1/purchases/price-comparison` con `PriceComparisonQueryDto` que calcula metricas estadisticas y tabla comparativa de compras ordenadas por menor precio unitario (`unitCostBasePEN ASC`).
+      - Actualizado `PurchasesService`: persistencia de `warehouseId` y `notes` en `Purchase` y `PurchaseDetail`, recalculo de CPP en almacen de destino y filtros avanzados en `findAll()`.
+    - Actualizado `CostMaskingInterceptor` protegiendo `minUnitCostPEN`, `maxUnitCostPEN`, `currentWeightedAverageCostPEN` y `newWarehouseAverageCost`.
+    - Actualizado `seed.ts` y `seed-data.json` con `warehouseId` en todas las compras y ejecutado `prisma db seed`.
+    - 220 pruebas unitarias pasando al 100% y compilacion limpia.

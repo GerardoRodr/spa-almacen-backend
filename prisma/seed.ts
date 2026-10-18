@@ -165,6 +165,7 @@ async function main() {
       data: {
         id: purchase.id,
         supplierId: purchase.supplierId,
+        warehouseId: purchase.warehouseId ?? 'b0000000-0000-4000-8000-000000000001',
         invoiceSeries: purchase.invoiceSeries,
         voucherType: purchase.voucherType ?? 'FACTURA',
         hasIgv: purchase.hasIgv ?? true,
@@ -174,6 +175,7 @@ async function main() {
         subtotalPEN: purchase.subtotalPEN,
         igvAmountPEN: purchase.igvAmountPEN,
         totalAmountPEN: purchase.totalAmountPEN,
+        notes: purchase.notes ?? null,
       },
     });
   }

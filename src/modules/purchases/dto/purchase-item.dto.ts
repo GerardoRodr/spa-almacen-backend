@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -49,4 +50,15 @@ export class PurchaseItemDto {
   @IsNumber({}, { message: 'El precio unitario original debe ser un numero' })
   @Min(0, { message: 'El precio unitario original no puede ser negativo' })
   unitPriceOriginal: number;
+
+  @ApiPropertyOptional({
+    example: 'Lote CEM-2026-X vence: 20/12/2026',
+    description: 'Observaciones especificas por linea (ej. lote o caducidad de perecible)',
+  })
+  @IsOptional()
+  @IsString({ message: 'Las observaciones deben ser una cadena de texto' })
+  @MaxLength(1000, {
+    message: 'Las observaciones de linea no pueden exceder 1000 caracteres',
+  })
+  notes?: string;
 }

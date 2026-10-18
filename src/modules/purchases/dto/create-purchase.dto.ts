@@ -11,6 +11,8 @@ import {
   ValidateNested,
   ArrayMinSize,
   IsDateString,
+  MaxLength,
+  ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -25,12 +27,26 @@ export class CreatePurchaseDto {
   @IsUUID('4', { message: 'El supplierId debe ser un UUID valido' })
   supplierId: string;
 
-  @ApiProperty({
-    example: '22222222-2222-2222-2222-222222222222',
-    description: 'Identificador UUID del Almacen Central receptor de los materiales',
+  @ApiPropertyOptional({
+    example: 'b0000000-0000-4000-8000-000000000001',
+    description:
+      'Identificador UUID del almacen de destino (Central o caseta de obra). Alias retrocompatible con centralWarehouseId',
   })
-  @IsUUID('4', { message: 'El centralWarehouseId debe ser un UUID valido' })
-  centralWarehouseId: string;
+  @IsOptional()
+  @IsUUID('4', { message: 'El warehouseId debe ser un UUID valido' })
+  warehouseId?: string;
+
+  @ApiPropertyOptional({
+    example: 'b0000000-0000-4000-8000-000000000001',
+    description:
+      'Identificador UUID del almacen receptor de los materiales (campo retrocompatible)',
+  })
+  @ValidateIf((o) => !o.warehouseId)
+  @IsUUID('4', {
+    message:
+      'Debe especificar un almacen de destino valido (warehouseId o centralWarehouseId)',
+  })
+  centralWarehouseId?: string;
 
   @ApiProperty({
     example: 'F001-0004523',
@@ -109,6 +125,18 @@ export class CreatePurchaseDto {
   @IsNumber({}, { message: 'El monto total en PEN debe ser un numero' })
   @Min(0, { message: 'El monto total en PEN no puede ser negativo' })
   totalAmountPEN: number;
+
+  @ApiPropertyOptional({
+    example: 'Lote cemento vence: 15/12/2026. Entrega directa en caseta de obra',
+    description:
+      'Observaciones generales de la compra, lotes perecibles o acuerdos con proveedor',
+  })
+  @IsOptional()
+  @IsString({ message: 'Las observaciones deben ser una cadena de texto' })
+  @MaxLength(1000, {
+    message: 'Las observaciones no pueden exceder 1000 caracteres',
+  })
+  notes?: string;
 
   @ApiProperty({
     type: [PurchaseItemDto],

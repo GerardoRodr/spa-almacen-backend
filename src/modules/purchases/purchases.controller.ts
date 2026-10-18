@@ -17,6 +17,7 @@ import { Role } from '@prisma/client';
 import { PurchasesService } from './purchases.service.js';
 import { CreatePurchaseDto } from './dto/create-purchase.dto.js';
 import { PurchaseFilterDto } from './dto/purchase-filter.dto.js';
+import { PriceComparisonQueryDto } from './dto/price-comparison-query.dto.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
@@ -32,7 +33,8 @@ export class PurchasesController {
 
   @Get()
   @ApiOperation({
-    summary: 'Listar comprobantes de compra paginados con filtros',
+    summary:
+      'Listar comprobantes de compra paginados con filtros por proveedor, serie, fechas, almacen y producto',
   })
   @ApiResponse({
     status: 200,
@@ -42,10 +44,31 @@ export class PurchasesController {
     return this.purchasesService.findAll(filter);
   }
 
+  @Get('price-comparison')
+  @ApiOperation({
+    summary:
+      'Obtener cuadro comparativo de precios historicos de compras y proveedores por insumo',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Cuadro comparativo obtenido exitosamente',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Debe especificar itemId o termino search',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Insumo no encontrado en el catalogo',
+  })
+  getPriceComparison(@Query() query: PriceComparisonQueryDto) {
+    return this.purchasesService.getPriceComparison(query);
+  }
+
   @Post()
   @ApiOperation({
     summary:
-      'Registrar factura de compra e ingreso a Almacen Central con recalculo atomico de CPP',
+      'Registrar factura de compra e ingreso a Almacen Central o de Obra con recalculo atomico de CPP',
   })
   @ApiResponse({
     status: 201,
@@ -53,7 +76,7 @@ export class PurchasesController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Datos de compra invalidos o almacen no es de tipo CENTRAL',
+    description: 'Datos de compra invalidos o almacen inactivo',
   })
   @ApiResponse({
     status: 404,

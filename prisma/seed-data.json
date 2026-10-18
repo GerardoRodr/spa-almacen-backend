@@ -513,28 +513,33 @@
     {
       "id": "f0000000-0000-4000-8000-000000000001",
       "supplierId": "d0000000-0000-4000-8000-000000000001",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
       "invoiceSeries": "F001-0012890",
       "currency": "PEN",
       "exchangeRate": 1,
       "issueDate": "2026-09-01T08:30:00.000Z",
       "subtotalPEN": 28450,
       "igvAmountPEN": 5121,
-      "totalAmountPEN": 33571
+      "totalAmountPEN": 33571,
+      "notes": "Compra inicial de fierro estructural"
     },
     {
       "id": "f0000000-0000-4000-8000-000000000002",
       "supplierId": "d0000000-0000-4000-8000-000000000002",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
       "invoiceSeries": "F010-0084321",
       "currency": "PEN",
       "exchangeRate": 1,
       "issueDate": "2026-09-03T10:15:00.000Z",
       "subtotalPEN": 31500,
       "igvAmountPEN": 5670,
-      "totalAmountPEN": 37170
+      "totalAmountPEN": 37170,
+      "notes": "Lote cemento Pacasmayo vence: 15/12/2026"
     },
     {
       "id": "f0000000-0000-4000-8000-000000000003",
       "supplierId": "d0000000-0000-4000-8000-000000000004",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
       "invoiceSeries": "F005-0004921",
       "currency": "PEN",
       "exchangeRate": 1,
@@ -546,17 +551,20 @@
     {
       "id": "f0000000-0000-4000-8000-000000000004",
       "supplierId": "d0000000-0000-4000-8000-000000000003",
+      "warehouseId": "b0000000-0000-4000-8000-000000000002",
       "invoiceSeries": "F102-0034110",
       "currency": "PEN",
       "exchangeRate": 1,
       "issueDate": "2026-09-08T11:45:00.000Z",
       "subtotalPEN": 9500,
       "igvAmountPEN": 1710,
-      "totalAmountPEN": 11210
+      "totalAmountPEN": 11210,
+      "notes": "Compra directa a caseta de Obra Torre Central"
     },
     {
       "id": "f0000000-0000-4000-8000-000000000005",
       "supplierId": "d0000000-0000-4000-8000-000000000003",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
       "invoiceSeries": "F003-0008922",
       "voucherType": "FACTURA",
       "hasIgv": true,
@@ -570,6 +578,7 @@
     {
       "id": "f0000000-0000-4000-8000-000000000006",
       "supplierId": "d0000000-0000-4000-8000-000000000006",
+      "warehouseId": "b0000000-0000-4000-8000-000000000003",
       "invoiceSeries": "B001-0001245",
       "voucherType": "BOLETA",
       "hasIgv": false,
@@ -578,7 +587,8 @@
       "issueDate": "2026-09-18T15:30:00.000Z",
       "subtotalPEN": 1200,
       "igvAmountPEN": 0,
-      "totalAmountPEN": 1200
+      "totalAmountPEN": 1200,
+      "notes": "Adquisicion menor de caseta Las Villas"
     }
   ],
   "purchaseDetails": [

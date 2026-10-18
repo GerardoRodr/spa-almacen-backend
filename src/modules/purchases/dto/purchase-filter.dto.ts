@@ -39,12 +39,36 @@ export class PurchaseFilterDto {
   supplierId?: string;
 
   @ApiPropertyOptional({
+    example: 'b0000000-0000-4000-8000-000000000001',
+    description: 'Filtrar por almacen o caseta de obra de destino (o "ALL")',
+  })
+  @IsOptional()
+  @IsString({ message: 'El warehouseId debe ser una cadena' })
+  warehouseId?: string;
+
+  @ApiPropertyOptional({
     example: 'F001',
     description: 'Filtrar por serie o numero de comprobante',
   })
   @IsOptional()
   @IsString({ message: 'La serie de factura debe ser una cadena' })
   invoiceSeries?: string;
+
+  @ApiPropertyOptional({
+    example: 'item-uuid-cemento',
+    description: 'Filtrar compras que incluyan un insumo o producto especifico por ID',
+  })
+  @IsOptional()
+  @IsUUID('4', { message: 'El itemId debe ser un UUID valido' })
+  itemId?: string;
+
+  @ApiPropertyOptional({
+    example: 'cemento',
+    description: 'Filtrar compras por nombre o SKU del insumo adquirido',
+  })
+  @IsOptional()
+  @IsString({ message: 'El termino de busqueda de producto debe ser una cadena' })
+  itemSearch?: string;
 
   @ApiPropertyOptional({
     example: '2026-09-01T00:00:00.000Z',
