@@ -8,6 +8,7 @@ import {
   Matches,
   Min,
   IsDateString,
+  IsIn,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ToolCondition } from '@prisma/client';
@@ -72,12 +73,23 @@ export class DispatchToolCustodyDto {
   expectedReturnDate?: string;
 
   @ApiPropertyOptional({
-    enum: ToolCondition,
+    enum: [
+      ToolCondition.NEW,
+      ToolCondition.OPERATIVE,
+      ToolCondition.DAMAGED_USABLE,
+    ],
     default: ToolCondition.OPERATIVE,
-    description: 'Estado fisico y operativo al momento del despacho',
+    description:
+      'Estado fisico inicial al momento del despacho (NEW, OPERATIVE, DAMAGED_USABLE)',
   })
   @IsOptional()
-  @IsEnum(ToolCondition, { message: 'La condicion de entrega no es valida' })
+  @IsIn(
+    [ToolCondition.NEW, ToolCondition.OPERATIVE, ToolCondition.DAMAGED_USABLE],
+    {
+      message:
+        'La condicion de entrega debe ser NEW, OPERATIVE o DAMAGED_USABLE',
+    },
+  )
   conditionOnDispatch?: ToolCondition = ToolCondition.OPERATIVE;
 
   @ApiPropertyOptional({

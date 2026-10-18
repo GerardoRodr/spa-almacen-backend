@@ -22,6 +22,13 @@ describe('ItemsService', () => {
         create: vi.fn(),
         delete: vi.fn(),
       },
+      itemCategory: {
+        findMany: vi.fn(),
+        findUnique: vi.fn(),
+        create: vi.fn(),
+        update: vi.fn(),
+        delete: vi.fn(),
+      },
     } as unknown as PrismaService;
 
     service = new ItemsService(prisma);
@@ -113,6 +120,9 @@ describe('ItemsService', () => {
         type: ItemType.TOOL,
         isPerishable: false,
       }),
+      include: {
+        category: true,
+      },
     });
   });
 
@@ -186,5 +196,124 @@ describe('ItemsService', () => {
     expect(alerts[0].daysInStorage).toBeGreaterThan(0);
     expect(alerts[0].stocks.length).toBe(1);
     expect(alerts[0].stocks[0].physicalQty).toBe(25);
+  });
+
+  describe('ItemCategory CRUD y vinculo con Items', () => {
+    it('debe filtrar items por categoryId en findAll', async () => {
+      vi.spyOn(prisma.item, 'count').mockResolvedValue(2);
+      vi.spyOn(prisma.item, 'findMany').mockResolvedValue([
+        { id: '1', sku: 'CEM-01', categoryId: 'cat-1' },
+      ] as any);
+
+      await service.findAll({ categoryId: 'cat-1' });
+
+      expect(prisma.item.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            categoryId: 'cat-1',
+          }),
+        }),
+      );
+    });
+
+    it('debe listar clasificaciones activas por defecto', async () => {
+      const mockCategories = [
+        { id: 'cat-1', name: 'Agregados', isActive: true, _count: { items: 5 } },
+      ];
+      vi.spyOn(prisma.itemCategory, 'findMany').mockResolvedValue(mockCategories as any);
+
+      const result = await service.findAllCategories();
+
+      expect(result).toEqual(mockCategories);
+      expect(prisma.itemCategory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { isActive: true },
+        }),
+      );
+    });
+
+    it('debe listar todas las clasificaciones cuando includeInactive es true', async () => {
+      vi.spyOn(prisma.itemCategory, 'findMany').mockResolvedValue([] as any);
+
+      await service.findAllCategories(true);
+
+      expect(prisma.itemCategory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {},
+        }),
+      );
+    });
+
+    it('debe crear una clasificacion exitosamente', async () => {
+      vi.spyOn(prisma.itemCategory, 'findUnique').mockResolvedValue(null);
+      vi.spyOn(prisma.itemCategory, 'create').mockResolvedValue({
+        id: 'cat-1',
+        name: 'Arrendamiento',
+        code: 'CAT-ARREND',
+        description: 'Servicios de maquinaria',
+        isActive: true,
+      } as any);
+
+      const result = await service.createCategory({
+        name: 'Arrendamiento',
+        code: 'cat-arrend',
+        description: 'Servicios de maquinaria',
+      });
+
+      expect(result.id).toBe('cat-1');
+      expect(prisma.itemCategory.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          name: 'Arrendamiento',
+          code: 'CAT-ARREND',
+        }),
+      });
+    });
+
+    it('debe lanzar ConflictException al crear clasificacion con nombre duplicado', async () => {
+      vi.spyOn(prisma.itemCategory, 'findUnique').mockResolvedValue({
+        id: 'cat-existente',
+        name: 'Arrendamiento',
+      } as any);
+
+      await expect(
+        service.createCategory({
+          name: 'Arrendamiento',
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('debe eliminar fisicamente clasificacion si no tiene items asociados', async () => {
+      vi.spyOn(prisma.itemCategory, 'findUnique').mockResolvedValue({
+        id: 'cat-1',
+        _count: { items: 0 },
+      } as any);
+      vi.spyOn(prisma.itemCategory, 'delete').mockResolvedValue({ id: 'cat-1' } as any);
+
+      const result = await service.removeCategory('cat-1');
+
+      expect(result.action).toBe('DELETED');
+      expect(prisma.itemCategory.delete).toHaveBeenCalledWith({
+        where: { id: 'cat-1' },
+      });
+    });
+
+    it('debe desactivar logicamente clasificacion si tiene items asociados', async () => {
+      vi.spyOn(prisma.itemCategory, 'findUnique').mockResolvedValue({
+        id: 'cat-1',
+        _count: { items: 3 },
+      } as any);
+      vi.spyOn(prisma.itemCategory, 'update').mockResolvedValue({
+        id: 'cat-1',
+        isActive: false,
+      } as any);
+
+      const result = await service.removeCategory('cat-1');
+
+      expect(result.action).toBe('DEACTIVATED');
+      expect(prisma.itemCategory.update).toHaveBeenCalledWith({
+        where: { id: 'cat-1' },
+        data: { isActive: false },
+      });
+    });
   });
 });

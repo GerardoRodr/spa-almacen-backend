@@ -105,12 +105,32 @@ export class ToolCustodyService {
               fullName: true,
             },
           },
+          documents: {
+            orderBy: { createdAt: 'asc' },
+          },
         },
       }),
     ]);
 
+    const enrichedData = data.map((custody) => {
+      const documents = custody.documents || [];
+      const dispatchDocuments = documents.filter(
+        (doc) => doc.proofType === 'DISPATCH',
+      );
+      const returnDocuments = documents.filter(
+        (doc) => doc.proofType === 'RETURN',
+      );
+
+      return {
+        ...custody,
+        documents,
+        dispatchDocuments,
+        returnDocuments,
+      };
+    });
+
     return {
-      data,
+      data: enrichedData,
       meta: {
         total,
         page,
@@ -367,6 +387,7 @@ export class ToolCustodyService {
       const unitCost = Number(stock.averageCost);
 
       const isConformingReturn =
+        dto.conditionOnReturn === ToolCondition.NEW ||
         dto.conditionOnReturn === ToolCondition.OPERATIVE ||
         dto.conditionOnReturn === ToolCondition.DAMAGED_USABLE ||
         dto.conditionOnReturn === ToolCondition.MAINTENANCE_REQUIRED;

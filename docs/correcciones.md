@@ -175,17 +175,17 @@ Para garantizar que ningun agente quede bloqueado por falta de endpoints o model
 
 ### Fase 2: Custodias y Endpoints de Clasificaciones
 
-- [ ] **Modulo de Custodia de Herramientas (`/api/v1/tools/custody`)**:
-  - [ ] En `DispatchToolCustodyDto`: permitir `ToolCondition.NEW` en `conditionOnDispatch`.
-  - [ ] En `GET /api/v1/tools/custody` (listado paginado) y `GET /api/v1/tools/custody/:id`: asegurar que la relacion `documents` sea devuelta con `proofType` (`DISPATCH` y `RETURN`) para que el historial de devoluciones muestre inmediatamente todas las fotografias adjuntas.
+- [x] **Modulo de Custodia de Herramientas (`/api/v1/tools/custody`)**:
+  - [x] En `DispatchToolCustodyDto`: permitir `ToolCondition.NEW` en `conditionOnDispatch`.
+  - [x] En `GET /api/v1/tools/custody` (listado paginado) y `GET /api/v1/tools/custody/:id`: asegurar que la relacion `documents` sea devuelta con `proofType` (`DISPATCH` y `RETURN`) para que el historial de devoluciones muestre inmediatamente todas las fotografias adjuntas.
 
-- [ ] **Modulo de Clasificaciones de Insumos (`/api/v1/item-categories` e `/api/v1/items`)**:
-  - [ ] Crear controlador y servicio (o subruta en `ItemsModule`) con endpoints:
+- [x] **Modulo de Clasificaciones de Insumos (`/api/v1/item-categories` e `/api/v1/items`)**:
+  - [x] Crear controlador y servicio (o subruta en `ItemsModule`) con endpoints:
     - `GET /api/v1/item-categories`: listar clasificaciones activas.
     - `POST /api/v1/item-categories`: crear nueva clasificacion (solo `ADMIN`).
     - `PATCH /api/v1/item-categories/:id`: actualizar nombre/descripcion/estado (solo `ADMIN`).
     - `DELETE /api/v1/item-categories/:id`: eliminar o desactivar si no tiene items asociados (solo `ADMIN`).
-  - [ ] En `CreateItemDto`, `UpdateItemDto` e `ItemFilterDto`: aceptar `categoryId` opcional e incluir `category` en las respuestas de `ItemsService`.
+  - [x] En `CreateItemDto`, `UpdateItemDto` e `ItemFilterDto`: aceptar `categoryId` opcional e incluir `category` en las respuestas de `ItemsService`.
 
 ### Fase 3: Compras Multi-Almacen, Observaciones y Cuadro Comparativo
 
@@ -248,3 +248,14 @@ Utiliza este espacio para registrar decisiones de diseno, hashes de commits rele
     - Actualizado `seed.ts` para limpiar `itemCategory` conservando la idempotencia.
     - Generada y aplicada migracion en PostgreSQL: `20261018061033_add_meeting_corrections_v2`.
     - Cliente de Prisma regenerado, compilacion NestJS (`npm run build`) y 208 pruebas unitarias (`vitest run`) ejecutadas exitosamente.
+  * **2026-10-18 (Fase 2 - Custodias y Endpoints de Clasificaciones)**:
+    - En modulo `tool-custody`:
+      - `DispatchToolCustodyDto`: Validado `conditionOnDispatch` para aceptar `ToolCondition.NEW`, `OPERATIVE` y `DAMAGED_USABLE`.
+      - `ToolCustodyService.findAll()`: Incluida coleccion `documents` clasificada en `dispatchDocuments` y `returnDocuments` en el listado paginado.
+      - `ToolCustodyService.processReturn()`: Incluido `ToolCondition.NEW` dentro de las calificaciones de retorno conforme (`CONFORMING_RETURN`).
+    - En modulo `items`:
+      - Creados `CreateItemCategoryDto` y `UpdateItemCategoryDto`.
+      - Implementado `ItemCategoriesController` (`/api/v1/item-categories`) con endpoints de listado (`GET`), creacion (`POST`), edicion (`PATCH`) y eliminacion/desactivacion (`DELETE`) protegido por roles `ADMIN`.
+      - Agregados metodos de servicio `findAllCategories()`, `createCategory()`, `updateCategory()` y `removeCategory()` en `ItemsService`.
+      - Enriquecidos `CreateItemDto`, `UpdateItemDto` e `ItemFilterDto` con `categoryId` opcional, e incorporada la relacion `category` en respuestas de `findAll()`, `findOne()`, `create()` y `update()`.
+    - Agregadas pruebas unitarias y ejecutada suite completa: 216 pruebas unitarias exitosas y compilacion limpia.

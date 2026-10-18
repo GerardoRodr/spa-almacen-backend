@@ -5,6 +5,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -70,4 +71,12 @@ export class CreateItemDto {
   @IsNumber({}, { message: 'minStockAlert debe ser un numero' })
   @Min(0, { message: 'minStockAlert no puede ser negativo' })
   minStockAlert?: number;
+
+  @ApiPropertyOptional({
+    example: 'd9b2d63d-a233-4f9e-8c33-875f56b060d1',
+    description: 'Identificador UUID de la clasificacion personalizada asignada',
+  })
+  @IsOptional()
+  @IsUUID('4', { message: 'El categoryId debe ser un UUID valido' })
+  categoryId?: string | null;
 }

@@ -99,13 +99,17 @@ describe('ToolCustodyService', () => {
   });
 
   describe('findAll', () => {
-    it('debe retornar vales para usuario ADMIN sin restriccion de almacen', async () => {
+    it('debe retornar vales para usuario ADMIN sin restriccion de almacen y clasificar documentos', async () => {
       const mockLoans = [
         {
           id: 'vale-1',
           custodyNumber: 'VALE-2026-00001',
           assignedToName: 'Pedro Quispe',
           assignedToDni: '70123456',
+          documents: [
+            { id: 'doc-1', proofType: 'DISPATCH' },
+            { id: 'doc-2', proofType: 'RETURN' },
+          ],
         },
       ];
 
@@ -117,7 +121,11 @@ describe('ToolCustodyService', () => {
         { id: 'admin-1', role: Role.ADMIN },
       );
 
-      expect(result.data).toEqual(mockLoans);
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].id).toBe('vale-1');
+      expect(result.data[0].documents).toHaveLength(2);
+      expect(result.data[0].dispatchDocuments).toHaveLength(1);
+      expect(result.data[0].returnDocuments).toHaveLength(1);
       expect(result.meta.total).toBe(1);
     });
 
@@ -332,6 +340,63 @@ describe('ToolCustodyService', () => {
           }),
         }),
       );
+    });
+
+    it('debe registrar exitosamente un prestamo con condicion inicial NEW', async () => {
+      const dto = {
+        warehouseId: 'wh-obra-1',
+        itemId: 'item-roto-1',
+        quantity: 1,
+        assignedToName: 'Pedro Quispe',
+        assignedToDni: '70123456',
+        conditionOnDispatch: ToolCondition.NEW,
+      };
+
+      prisma.warehouse.findUnique.mockResolvedValue({
+        id: 'wh-obra-1',
+        isActive: true,
+      });
+      prisma.item.findUnique.mockResolvedValue({
+        id: 'item-roto-1',
+        type: ItemType.TOOL,
+      });
+      prisma.stock.findUnique.mockResolvedValue({
+        id: 'stock-1',
+        warehouseId: 'wh-obra-1',
+        itemId: 'item-roto-1',
+        physicalQty: 5,
+        loanedQty: 0,
+        averageCost: 350,
+      });
+
+      const mockTx = {
+        toolCustody: {
+          create: vi.fn().mockImplementation((args) => ({
+            id: 'vale-new',
+            ...args.data,
+            item: { sku: 'HERR-ROTO-01', name: 'Rotomartillo' },
+            warehouse: { name: 'Almacen Obra 1' },
+          })),
+        },
+        movement: {
+          create: vi.fn().mockImplementation((args) => ({
+            id: 'mov-new',
+            ...args.data,
+          })),
+        },
+        stock: {
+          update: vi.fn().mockResolvedValue({}),
+        },
+      };
+
+      prisma.$transaction.mockImplementation(async (callback) => {
+        return callback(mockTx);
+      });
+
+      const result = await service.dispatch(dto, 'user-keeper-1');
+
+      expect(result.id).toBe('vale-new');
+      expect(result.conditionOnDispatch).toBe(ToolCondition.NEW);
     });
   });
 

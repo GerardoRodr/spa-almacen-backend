@@ -8,6 +8,8 @@ import { CreateItemDto } from './dto/create-item.dto.js';
 import { UpdateItemDto } from './dto/update-item.dto.js';
 import { ItemFilterDto } from './dto/item-filter.dto.js';
 import { CreateItemAliasDto } from './dto/create-item-alias.dto.js';
+import { CreateItemCategoryDto } from './dto/create-item-category.dto.js';
+import { UpdateItemCategoryDto } from './dto/update-item-category.dto.js';
 
 @Injectable()
 export class ItemsService {
@@ -32,6 +34,10 @@ export class ItemsService {
       where.type = filter.type;
     }
 
+    if (filter.categoryId) {
+      where.categoryId = filter.categoryId;
+    }
+
     if (filter.isPerishable !== undefined) {
       where.isPerishable = filter.isPerishable;
     }
@@ -44,6 +50,14 @@ export class ItemsService {
         take: limit,
         orderBy: { name: 'asc' },
         include: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+              isActive: true,
+            },
+          },
           _count: {
             select: { stocks: true, aliases: true },
           },
@@ -76,6 +90,15 @@ export class ItemsService {
       );
     }
 
+    if (dto.categoryId) {
+      const category = await this.prisma.itemCategory.findUnique({
+        where: { id: dto.categoryId },
+      });
+      if (!category) {
+        throw new NotFoundException('La clasificacion especificada no existe');
+      }
+    }
+
     return this.prisma.item.create({
       data: {
         sku: formattedSku,
@@ -85,6 +108,10 @@ export class ItemsService {
         type: dto.type,
         minStockAlert: dto.minStockAlert ?? 0,
         isPerishable: dto.isPerishable ?? false,
+        categoryId: dto.categoryId ?? null,
+      },
+      include: {
+        category: true,
       },
     });
   }
@@ -94,6 +121,7 @@ export class ItemsService {
     const item = await this.prisma.item.findUnique({
       where: { id },
       include: {
+        category: true,
         aliases: true,
         stocks: {
           include: {
@@ -150,6 +178,15 @@ export class ItemsService {
   async update(id: string, dto: UpdateItemDto) {
     await this.findOne(id);
 
+    if (dto.categoryId) {
+      const category = await this.prisma.itemCategory.findUnique({
+        where: { id: dto.categoryId },
+      });
+      if (!category) {
+        throw new NotFoundException('La clasificacion especificada no existe');
+      }
+    }
+
     return this.prisma.item.update({
       where: { id },
       data: {
@@ -159,6 +196,10 @@ export class ItemsService {
         type: dto.type,
         minStockAlert: dto.minStockAlert,
         isPerishable: dto.isPerishable,
+        categoryId: dto.categoryId !== undefined ? dto.categoryId : undefined,
+      },
+      include: {
+        category: true,
       },
     });
   }
@@ -304,5 +345,149 @@ export class ItemsService {
         })),
       };
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // GESTOR DE CLASIFICACIONES PERSONALIZADAS (ITEM CATEGORIES)
+  // -------------------------------------------------------------------------
+
+  // Listar clasificaciones de insumos (por defecto solo activas)
+  async findAllCategories(includeInactive = false) {
+    const where = includeInactive ? {} : { isActive: true };
+
+    return this.prisma.itemCategory.findMany({
+      where,
+      orderBy: { name: 'asc' },
+      include: {
+        _count: {
+          select: { items: true },
+        },
+      },
+    });
+  }
+
+  // Registrar nueva clasificacion personalizada
+  async createCategory(dto: CreateItemCategoryDto) {
+    const trimmedName = dto.name.trim();
+    const formattedCode = dto.code ? dto.code.trim().toUpperCase() : null;
+
+    const existingName = await this.prisma.itemCategory.findUnique({
+      where: { name: trimmedName },
+    });
+    if (existingName) {
+      throw new ConflictException(
+        `Ya existe una clasificacion registrada con el nombre: ${trimmedName}`,
+      );
+    }
+
+    if (formattedCode) {
+      const existingCode = await this.prisma.itemCategory.findUnique({
+        where: { code: formattedCode },
+      });
+      if (existingCode) {
+        throw new ConflictException(
+          `Ya existe una clasificacion registrada con el codigo: ${formattedCode}`,
+        );
+      }
+    }
+
+    return this.prisma.itemCategory.create({
+      data: {
+        name: trimmedName,
+        code: formattedCode,
+        description: dto.description ? dto.description.trim() : null,
+        isActive: dto.isActive !== undefined ? dto.isActive : true,
+      },
+    });
+  }
+
+  // Actualizar datos de una clasificacion existente
+  async updateCategory(id: string, dto: UpdateItemCategoryDto) {
+    const category = await this.prisma.itemCategory.findUnique({
+      where: { id },
+    });
+    if (!category) {
+      throw new NotFoundException('Clasificacion no encontrada');
+    }
+
+    const trimmedName = dto.name !== undefined ? dto.name.trim() : undefined;
+    const formattedCode =
+      dto.code !== undefined
+        ? dto.code ? dto.code.trim().toUpperCase() : null
+        : undefined;
+
+    if (trimmedName && trimmedName !== category.name) {
+      const existingName = await this.prisma.itemCategory.findUnique({
+        where: { name: trimmedName },
+      });
+      if (existingName) {
+        throw new ConflictException(
+          `Ya existe una clasificacion registrada con el nombre: ${trimmedName}`,
+        );
+      }
+    }
+
+    if (formattedCode && formattedCode !== category.code) {
+      const existingCode = await this.prisma.itemCategory.findUnique({
+        where: { code: formattedCode },
+      });
+      if (existingCode) {
+        throw new ConflictException(
+          `Ya existe una clasificacion registrada con el codigo: ${formattedCode}`,
+        );
+      }
+    }
+
+    return this.prisma.itemCategory.update({
+      where: { id },
+      data: {
+        name: trimmedName,
+        code: formattedCode,
+        description:
+          dto.description !== undefined
+            ? dto.description ? dto.description.trim() : null
+            : undefined,
+        isActive: dto.isActive,
+      },
+    });
+  }
+
+  // Eliminar clasificacion (fisica si no tiene items, o desactivar si tiene dependencias)
+  async removeCategory(id: string) {
+    const category = await this.prisma.itemCategory.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: { items: true },
+        },
+      },
+    });
+
+    if (!category) {
+      throw new NotFoundException('Clasificacion no encontrada');
+    }
+
+    if (category._count.items > 0) {
+      // Tiene items vinculados: desactivar logicamente para preservar integridad
+      await this.prisma.itemCategory.update({
+        where: { id },
+        data: { isActive: false },
+      });
+
+      return {
+        action: 'DEACTIVATED',
+        message: `La clasificacion tiene ${category._count.items} insumo(s) asociado(s). Se ha desactivado logicamente para preservar la integridad del catalogo.`,
+      };
+    }
+
+    // No tiene items asociados: eliminar fisicamente
+    await this.prisma.itemCategory.delete({
+      where: { id },
+    });
+
+    return {
+      action: 'DELETED',
+      message: 'Clasificacion eliminada exitosamente',
+    };
   }
 }

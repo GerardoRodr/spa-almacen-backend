@@ -1,4 +1,4 @@
-import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { ItemType } from '@prisma/client';
@@ -53,4 +53,12 @@ export class ItemFilterDto {
   })
   @IsBoolean({ message: 'isPerishable debe ser un valor booleano' })
   isPerishable?: boolean;
+
+  @ApiPropertyOptional({
+    example: 'd9b2d63d-a233-4f9e-8c33-875f56b060d1',
+    description: 'Filtrar por identificador de clasificacion personalizada',
+  })
+  @IsOptional()
+  @IsUUID('4', { message: 'El categoryId debe ser un UUID valido' })
+  categoryId?: string;
 }

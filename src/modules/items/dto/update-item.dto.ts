@@ -4,7 +4,9 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { ItemType } from '@prisma/client';
@@ -57,4 +59,13 @@ export class UpdateItemDto {
   @IsNumber({}, { message: 'minStockAlert debe ser un numero' })
   @Min(0, { message: 'minStockAlert no puede ser negativo' })
   minStockAlert?: number;
+
+  @ApiPropertyOptional({
+    example: 'd9b2d63d-a233-4f9e-8c33-875f56b060d1',
+    description: 'Identificador UUID de la clasificacion personalizada asignada, o null para desvincular',
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null && value !== undefined)
+  @IsUUID('4', { message: 'El categoryId debe ser un UUID valido o null' })
+  categoryId?: string | null;
 }
