@@ -429,11 +429,14 @@ export class ProjectsService {
     const parseResult = this.s10ParserService.parseS10Buffer(file.buffer);
 
     const ingestResult = await this.ingestS10(id, {
+      budgetCode: parseResult.s10ProjectCode,
       resources: parseResult.resources,
     });
 
     return {
       projectId: id,
+      s10ProjectCode: parseResult.s10ProjectCode,
+      s10ProjectName: parseResult.s10ProjectName,
       totalRowsParsed: parseResult.totalRowsParsed,
       materialsAndEquipmentRows: parseResult.materialsAndEquipmentRows,
       mappedItems: ingestResult.mappedCount,

@@ -332,6 +332,38 @@ describe('ProjectsService', () => {
     });
   });
 
+  describe('importS10File', () => {
+    it('debe rechazar si el archivo o buffer no esta presente', async () => {
+      await expect(
+        service.importS10File('p1', {} as { buffer?: Buffer }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('debe parsear el archivo y propagar budgetCode de la obra a ingestS10', async () => {
+      prisma.project.findUnique.mockResolvedValue({
+        id: 'p1',
+        budgetCode: null,
+        status: ProjectStatus.ACTIVE,
+      });
+      prisma.itemAlias.findMany.mockResolvedValue([]);
+      prisma.item.findMany.mockResolvedValue([]);
+
+      const csvContent = [
+        'Obra;0102003;MEJORAMIENTO DE TRANSITABILIDAD VIAL;0204010001;CEMENTO PORTLAND TIPO I;BOL;2500;26.50;66250.00',
+      ].join('\n');
+      const buffer = Buffer.from(csvContent, 'utf-8');
+
+      const result = await service.importS10File('p1', { buffer, originalname: 'presupuesto.csv' });
+
+      expect(result.s10ProjectCode).toBe('0102003');
+      expect(result.s10ProjectName).toBe('MEJORAMIENTO DE TRANSITABILIDAD VIAL');
+      expect(prisma.project.update).toHaveBeenCalledWith({
+        where: { id: 'p1' },
+        data: { budgetCode: '0102003' },
+      });
+    });
+  });
+
   describe('getGapAnalysis', () => {
     it('debe calcular correctamente porcentajes de cumplimiento, deficit de compra e indicadores de precios', async () => {
       prisma.project.findUnique.mockResolvedValue({

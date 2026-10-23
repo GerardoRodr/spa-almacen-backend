@@ -167,6 +167,34 @@ export class WarehousesService {
             baseUnit: true,
             type: true,
             minStockAlert: true,
+            isPerishable: true,
+            categoryId: true,
+            category: true,
+            purchaseDetails: {
+              where: {
+                OR: [
+                  { notes: { not: null } },
+                  { purchase: { notes: { not: null } } },
+                ],
+              },
+              orderBy: {
+                purchase: {
+                  issueDate: 'desc',
+                },
+              },
+              take: 3,
+              select: {
+                id: true,
+                notes: true,
+                purchase: {
+                  select: {
+                    invoiceSeries: true,
+                    issueDate: true,
+                    notes: true,
+                  },
+                },
+              },
+            },
           },
         },
       },

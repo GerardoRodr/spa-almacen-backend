@@ -376,10 +376,15 @@ Permite liberar de forma manual o correctiva existencias que fueron reservadas p
 ---
 
 ### 2.9 Importacion de Archivo S10 por Streaming (CSV / TXT)
-Sube y procesa por streaming un archivo exportado de presupuesto S10 utilizando `papaparse` e `iconv-lite`:
-- Deteccion automatica de delimitador (`;` o `,`).
-- Deteccion de codificacion (`Windows-1252` vs `UTF-8`).
-- Filtrado de recursos: se descartan `01 MANO DE OBRA` y `04 SUBCONTRATOS`; se procesan unicamente `02 MATERIALES` y `03 EQUIPOS`.
+Sube y procesa un archivo exportado de presupuesto S10 utilizando `papaparse` e `iconv-lite`:
+- Decodificacion de buffer con deteccion automatica entre `Windows-1252` y `UTF-8`.
+- Deteccion automatica de delimitador predominante (`;` o `,`).
+- Lectura en matriz cruda bidimensional sin asumir encabezados (`header: false`), tolerando reportes de Crystal Reports donde las etiquetas se repiten en cada fila.
+- Extraccion automatica de metadatos de obra buscando la celda `"Obra"` en las primeras columnas (`s10ProjectCode` y `s10ProjectName`), asociando automaticamente el `budgetCode` del proyecto.
+- Deteccion heuristica por firma de codigo de insumo S10 (cadena puramente numerica de 10 a 14 digitos que inicia en `01`, `02`, `03` o `04`).
+- Filtrado de recursos por prefijo numerico: descarte inmediato de `01` (Mano de Obra) y `04` (Subcontratos); admision exclusiva de `02` (Materiales) y `03` (Equipos).
+- Extraccion por adyacencia relativa: la celda +1 es la descripcion, +2 la unidad y +3 la cantidad metrada.
+- Calculo resiliente de precio unitario: si las celdas +4 y +5 son numericas positivas, toma +4 como precio y +5 como parcial; si la celda +5 contiene un porcentaje (`%`) o esta vacia, calcula `unitPrice = parcial / cantidad`.
 - Mapeo automatico con `ItemAlias` y conversion a unidad base.
 
 - **Metodo:** `POST`
@@ -397,6 +402,8 @@ Sube y procesa por streaming un archivo exportado de presupuesto S10 utilizando 
 ```json
 {
   "projectId": "77777777-7777-7777-7777-777777777777",
+  "s10ProjectCode": "0102003",
+  "s10ProjectName": "MEJORAMIENTO DE TRANSITABILIDAD VIAL",
   "totalRowsParsed": 120,
   "materialsAndEquipmentRows": 85,
   "mappedItems": 80,

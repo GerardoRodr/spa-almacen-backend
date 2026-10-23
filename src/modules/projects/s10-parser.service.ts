@@ -8,10 +8,15 @@ export interface ParsedS10Result {
   totalRowsParsed: number;
   materialsAndEquipmentRows: number;
   discardedRows: number;
+  s10ProjectCode?: string;
+  s10ProjectName?: string;
 }
 
 @Injectable()
 export class S10ParserService {
+  // Expresion regular para firma unica de codigo S10 de 10 a 14 digitos iniciando en 01, 02, 03 o 04
+  private static readonly S10_CODE_REGEX = /^(01|02|03|04)\d{8,12}$/;
+
   // Decodificar buffer detectando si es Windows-1252 o UTF-8
   decodeBuffer(buffer: Buffer): string {
     const utf8Str = buffer.toString('utf-8');
@@ -55,7 +60,7 @@ export class S10ParserService {
     return semicolonCount > commaCount ? ';' : ',';
   }
 
-  // Normalizar valor numerico de cantidad
+  // Normalizar valor numerico de cantidad o precio
   parseQuantity(rawVal: unknown): number {
     if (typeof rawVal === 'number') return rawVal;
     if (typeof rawVal !== 'string') return 0;
@@ -81,18 +86,30 @@ export class S10ParserService {
     return isNaN(num) ? 0 : num;
   }
 
-  // Evaluar si una partida debe ser descartada (01 Mano de Obra o 04 Subcontratos)
+  // Evaluar si una celda contiene un porcentaje textual
+  isPercentageValue(rawVal: unknown): boolean {
+    return typeof rawVal === 'string' && rawVal.includes('%');
+  }
+
+  // Evaluar si una partida debe ser descartada basandose en los dos primeros digitos del codigo
   isDiscardedResource(code?: string, rawName?: string, groupOrType?: string): boolean {
     const cleanCode = (code ?? '').trim();
-    const cleanName = (rawName ?? '').trim().toUpperCase();
-    const cleanType = (groupOrType ?? '').trim().toUpperCase();
-
-    // Descarte por codigo S10 de dos digitos iniciales
-    if (cleanCode.startsWith('01') || cleanCode.startsWith('04')) {
+    if (cleanCode) {
+      // Descarte estricto de Mano de Obra (01) y Subcontratos (04)
+      if (cleanCode.startsWith('01') || cleanCode.startsWith('04')) {
+        return true;
+      }
+      // Admision exclusiva de Materiales (02) y Equipos/Herramientas (03)
+      if (cleanCode.startsWith('02') || cleanCode.startsWith('03')) {
+        return false;
+      }
       return true;
     }
 
-    // Descarte por grupo o descripcion
+    // Compatibilidad en caso de ausencia de codigo numerico en payload directo
+    const cleanName = (rawName ?? '').trim().toUpperCase();
+    const cleanType = (groupOrType ?? '').trim().toUpperCase();
+
     if (
       cleanType.includes('MANO DE OBRA') ||
       cleanType.includes('SUBCONTRATO') ||
@@ -105,7 +122,35 @@ export class S10ParserService {
     return false;
   }
 
-  // Parsear contenido de archivo exportado de S10
+  // Calculo resiliente del precio unitario segun estructura de celdas adyacentes (+4 y +5)
+  resolveUnitPrice(
+    quantity: number,
+    rawCellAfter1: unknown,
+    rawCellAfter2: unknown,
+  ): number | undefined {
+    if (quantity <= 0) return undefined;
+
+    const val1 = this.parseQuantity(rawCellAfter1);
+    if (val1 <= 0) return undefined;
+
+    const isCell2Percentage = this.isPercentageValue(rawCellAfter2);
+    const isCell2Empty =
+      rawCellAfter2 === undefined ||
+      rawCellAfter2 === null ||
+      (typeof rawCellAfter2 === 'string' && rawCellAfter2.trim() === '');
+    const val2 = !isCell2Percentage && !isCell2Empty ? this.parseQuantity(rawCellAfter2) : 0;
+
+    // Caso 1: Ambas celdas posteriores contienen valores numericos positivos -> +4 es P.U. y +5 es Parcial
+    if (val2 > 0) {
+      return Number(val1.toFixed(4));
+    }
+
+    // Caso 2: Solo la primera celda contiene valor positivo y la siguiente es % o vacia -> +4 es Parcial
+    const calculatedPrice = Number((val1 / quantity).toFixed(4));
+    return calculatedPrice > 0 ? calculatedPrice : undefined;
+  }
+
+  // Parsear contenido de archivo exportado de S10 mediante matriz cruda y deteccion heuristica
   parseS10Buffer(buffer: Buffer): ParsedS10Result {
     if (!buffer || buffer.length === 0) {
       throw new BadRequestException('El archivo de presupuesto S10 esta vacio');
@@ -114,9 +159,10 @@ export class S10ParserService {
     const decodedText = this.decodeBuffer(buffer);
     const delimiter = this.detectDelimiter(decodedText);
 
-    const parseResult = Papa.parse<Record<string, string>>(decodedText, {
+    // Lectura en matriz cruda bidimensional sin asumir encabezados
+    const parseResult = Papa.parse<string[]>(decodedText, {
       delimiter,
-      header: true,
+      header: false,
       skipEmptyLines: 'greedy',
     });
 
@@ -131,86 +177,79 @@ export class S10ParserService {
     let totalRowsParsed = 0;
     let materialsAndEquipmentRows = 0;
     let discardedRows = 0;
+    let s10ProjectCode: string | undefined;
+    let s10ProjectName: string | undefined;
 
     for (const row of rows) {
-      totalRowsParsed++;
-
-      // Extraer campos buscando nombres de columnas comunes en exportaciones S10
-      let s10Code: string | undefined;
-      let s10RawName: string | undefined;
-      let s10Unit: string | undefined;
-      let rawQuantity: unknown;
-      let rawUnitPrice: unknown;
-      let groupOrType: string | undefined;
-
-      for (const [key, val] of Object.entries(row)) {
-        const k = key.trim().toLowerCase();
-        if (
-          k === 'codigo' ||
-          k === 'código' ||
-          k === 's10code' ||
-          k === 'cod_insumo' ||
-          k === 'cod_recurso' ||
-          k === 'recurso_cod'
-        ) {
-          s10Code = val?.trim();
-        } else if (
-          k === 'descripcion' ||
-          k === 'descripción' ||
-          k === 's10rawname' ||
-          k === 'recurso' ||
-          k === 'insumo' ||
-          k === 'nombre' ||
-          k === 'descripcion_recurso'
-        ) {
-          s10RawName = val?.trim();
-        } else if (
-          k === 'unidad' ||
-          k === 'und' ||
-          k === 's10unit' ||
-          k === 'unidad_medida' ||
-          k === 'unid'
-        ) {
-          s10Unit = val?.trim();
-        } else if (
-          k === 'cantidad' ||
-          k === 'metrado' ||
-          k === 'quantity' ||
-          k === 'cant' ||
-          k === 'total'
-        ) {
-          rawQuantity = val;
-        } else if (
-          k === 'precio' ||
-          k === 'precio_unitario' ||
-          k === 'preciounitario' ||
-          k === 'pu' ||
-          k === 'p.u.' ||
-          k === 'price' ||
-          k === 'unitprice' ||
-          k === 'unit_price' ||
-          k === 's10unitprice' ||
-          k === 'costo_unitario'
-        ) {
-          rawUnitPrice = val;
-        } else if (
-          k === 'tipo' ||
-          k === 'grupo' ||
-          k === 'clase' ||
-          k === 'tipo_recurso'
-        ) {
-          groupOrType = val?.trim();
-        }
-      }
-
-      // Si no hay descripcion del insumo, ignorar fila
-      if (!s10RawName) {
+      if (!Array.isArray(row) || row.length === 0) {
         continue;
       }
 
-      // Filtrar recursos descartados (Mano de Obra y Subcontratos)
-      if (this.isDiscardedResource(s10Code, s10RawName, groupOrType)) {
+      // 1. Escaneo de metadatos de Obra en las primeras posiciones de la fila
+      let obraIndex = -1;
+      const searchLimit = Math.min(row.length, 15);
+      for (let i = 0; i < searchLimit; i++) {
+        const cellText = (row[i] ?? '').trim().toLowerCase().replace(/:$/, '');
+        if (cellText === 'obra') {
+          obraIndex = i;
+          if (!s10ProjectCode) {
+            // Extraer las dos celdas no vacias contiguas como codigo y nombre de proyecto S10
+            const adjacent: string[] = [];
+            for (let j = i + 1; j < Math.min(row.length, i + 6); j++) {
+              const val = (row[j] ?? '').trim();
+              if (val) {
+                adjacent.push(val);
+                if (adjacent.length === 2) break;
+              }
+            }
+            if (adjacent.length > 0) {
+              s10ProjectCode = adjacent[0];
+            }
+            if (adjacent.length > 1) {
+              s10ProjectName = adjacent[1];
+            }
+          }
+          break;
+        }
+      }
+
+      // 2. Busqueda heuristica del codigo de insumo S10 (10 a 14 digitos iniciando en 01, 02, 03 o 04)
+      let codeIdx = -1;
+      let s10Code: string | undefined;
+
+      for (let colIdx = 0; colIdx < row.length; colIdx++) {
+        // Evitar colisionar con la celda del codigo de obra
+        if (obraIndex !== -1 && colIdx > obraIndex && colIdx <= obraIndex + 2) {
+          continue;
+        }
+
+        const cellVal = (row[colIdx] ?? '').trim();
+        if (S10ParserService.S10_CODE_REGEX.test(cellVal)) {
+          codeIdx = colIdx;
+          s10Code = cellVal;
+          break;
+        }
+      }
+
+      // Si la fila no contiene una celda con firma de codigo S10, omitirla
+      if (codeIdx === -1 || !s10Code) {
+        continue;
+      }
+
+      totalRowsParsed++;
+
+      // 3. Filtrar recursos descartados (Mano de Obra 01 y Subcontratos 04)
+      if (this.isDiscardedResource(s10Code)) {
         discardedRows++;
+        continue;
+      }
+
+      // 4. Extraccion por adyacencia relativa (+1 descripcion, +2 unidad, +3 cantidad)
+      const s10RawName = (row[codeIdx + 1] ?? '').trim();
+      const s10Unit = (row[codeIdx + 2] ?? '').trim();
+      const rawQuantity = row[codeIdx + 3];
+
+      if (!s10RawName) {
         continue;
       }
 
@@ -219,14 +258,14 @@ export class S10ParserService {
         continue;
       }
 
-      const parsedUnitPrice =
-        rawUnitPrice !== undefined ? this.parseQuantity(rawUnitPrice) : undefined;
-      const unitPrice =
-        parsedUnitPrice && parsedUnitPrice > 0 ? parsedUnitPrice : undefined;
+      // 5. Calculo resiliente del precio unitario (+4 y +5)
+      const rawCellAfter1 = row[codeIdx + 4];
+      const rawCellAfter2 = row[codeIdx + 5];
+      const unitPrice = this.resolveUnitPrice(quantity, rawCellAfter1, rawCellAfter2);
 
       materialsAndEquipmentRows++;
       resources.push({
-        s10Code: s10Code || undefined,
+        s10Code,
         s10RawName,
         s10Unit: s10Unit || undefined,
         quantity,
@@ -239,6 +278,8 @@ export class S10ParserService {
       totalRowsParsed,
       materialsAndEquipmentRows,
       discardedRows,
+      s10ProjectCode,
+      s10ProjectName,
     };
   }
 }
