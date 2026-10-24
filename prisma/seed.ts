@@ -122,6 +122,9 @@ async function main() {
         description: item.description,
         baseUnit: item.baseUnit,
         type: item.type,
+        meterType:
+          item.meterType ??
+          (item.type === 'MACHINERY' ? 'HOUR_METER' : null),
         minStockAlert: item.minStockAlert,
         isPerishable: item.isPerishable ?? false,
       },
@@ -336,7 +339,7 @@ async function main() {
     });
   }
 
-  // 18. Jornadas de Maquinaria Pesada y Horometros
+  // 18. Jornadas de Maquinaria Pesada, Horometros y Kilometrajes
   console.log('Sembrando jornadas de maquinaria...');
   for (const shift of data.machineryShiftLogs) {
     await prisma.machineryShiftLog.create({
@@ -346,9 +349,10 @@ async function main() {
         warehouseId: shift.warehouseId,
         operatorName: shift.operatorName,
         operatorDni: shift.operatorDni,
-        startHourMeter: shift.startHourMeter,
-        endHourMeter: shift.endHourMeter !== undefined && shift.endHourMeter !== null ? shift.endHourMeter : null,
-        totalHours: shift.totalHours !== undefined && shift.totalHours !== null ? shift.totalHours : null,
+        meterType: shift.meterType ?? 'HOUR_METER',
+        startMeter: shift.startMeter,
+        endMeter: shift.endMeter !== undefined && shift.endMeter !== null ? shift.endMeter : null,
+        totalUsage: shift.totalUsage !== undefined && shift.totalUsage !== null ? shift.totalUsage : null,
         startDateTime: new Date(shift.startDateTime),
         endDateTime: shift.endDateTime ? new Date(shift.endDateTime) : null,
         startPhotoId: shift.startPhotoId ?? null,

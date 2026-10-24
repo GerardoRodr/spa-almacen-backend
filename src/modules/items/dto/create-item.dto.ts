@@ -7,9 +7,10 @@ import {
   IsString,
   IsUUID,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ItemType } from '@prisma/client';
+import { ItemType, MeterType } from '@prisma/client';
 
 export class CreateItemDto {
   @ApiProperty({
@@ -52,6 +53,17 @@ export class CreateItemDto {
   })
   @IsEnum(ItemType, { message: 'El tipo de item no es valido' })
   type: ItemType;
+
+  @ApiPropertyOptional({
+    enum: MeterType,
+    example: MeterType.HOUR_METER,
+    description:
+      'Tipo de medidor para maquinaria (HOUR_METER: horometro en horas, KILOMETER: odometro en kilometros). Solo aplica cuando type es MACHINERY.',
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null && value !== undefined)
+  @IsEnum(MeterType, { message: 'El tipo de medidor (meterType) no es valido' })
+  meterType?: MeterType | null;
 
   @ApiPropertyOptional({
     example: false,

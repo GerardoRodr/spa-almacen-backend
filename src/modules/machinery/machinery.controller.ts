@@ -22,7 +22,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { WarehouseAccessGuard } from '../../common/guards/warehouse-access.guard.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 
-@ApiTags('Maquinaria y Horometros')
+@ApiTags('Maquinaria, Horometros y Kilometrajes')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('machinery')
@@ -33,7 +33,7 @@ export class MachineryController {
   @UseGuards(WarehouseAccessGuard)
   @ApiOperation({
     summary:
-      'Registrar inicio de jornada de maquinaria con captura de horometro inicial y foto',
+      'Registrar inicio de jornada de maquinaria con captura de horometro o kilometraje inicial y foto',
   })
   @ApiResponse({
     status: 201,
@@ -42,7 +42,7 @@ export class MachineryController {
   @ApiResponse({
     status: 400,
     description:
-      'Item no es maquinaria, ya tiene turno activo o horometro es invalido',
+      'Item no es maquinaria, ya tiene turno activo o lectura inicial es invalida',
   })
   @ApiResponse({
     status: 403,
@@ -62,16 +62,16 @@ export class MachineryController {
   @Post('shift/:id/end')
   @ApiOperation({
     summary:
-      'Registrar cierre de jornada de maquinaria con horometro final, calculo de horas y foto',
+      'Registrar cierre de jornada de maquinaria con horometro o kilometraje final, calculo de consumo y foto',
   })
   @ApiResponse({
     status: 200,
-    description: 'Jornada cerrada y horas consumidas calculadas exitosamente',
+    description: 'Jornada cerrada y uso consumido (horas o kilometros) calculado exitosamente',
   })
   @ApiResponse({
     status: 400,
     description:
-      'Turno ya cerrado anteriormente o horometro final menor al inicial',
+      'Turno ya cerrado anteriormente o lectura final menor a la inicial',
   })
   @ApiResponse({
     status: 403,
@@ -128,7 +128,7 @@ export class MachineryController {
   @Get('item/:itemId/status')
   @ApiOperation({
     summary:
-      'Consultar estado de jornada activa y ultimo horometro registrado de una maquinaria',
+      'Consultar estado de jornada activa, tipo de medidor y ultima lectura registrada de una maquinaria',
   })
   @ApiResponse({
     status: 200,

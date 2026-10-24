@@ -4,7 +4,7 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
-import { ItemType, Role } from '@prisma/client';
+import { ItemType, MeterType, Role } from '@prisma/client';
 import { MachineryService } from './machinery.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 
@@ -77,7 +77,7 @@ describe('MachineryService', () => {
       warehouseId: 'wh-1',
       operatorName: 'Carlos Huaman',
       operatorDni: '45678912',
-      startHourMeter: 1250.5,
+      startMeter: 1250.5,
       startPhotoId: 'photo-1',
       notes: 'Inicio de turno',
     };
@@ -105,6 +105,7 @@ describe('MachineryService', () => {
       prisma.item.findUnique.mockResolvedValue({
         id: 'maq-1',
         type: ItemType.MACHINERY,
+        meterType: MeterType.HOUR_METER,
       });
       prisma.warehouse.findUnique.mockResolvedValue(null);
 
@@ -117,6 +118,7 @@ describe('MachineryService', () => {
       prisma.item.findUnique.mockResolvedValue({
         id: 'maq-1',
         type: ItemType.MACHINERY,
+        meterType: MeterType.HOUR_METER,
       });
       prisma.warehouse.findUnique.mockResolvedValue({
         id: 'wh-1',
@@ -132,6 +134,7 @@ describe('MachineryService', () => {
       prisma.item.findUnique.mockResolvedValue({
         id: 'maq-1',
         type: ItemType.MACHINERY,
+        meterType: MeterType.HOUR_METER,
       });
       prisma.warehouse.findUnique.mockResolvedValue({
         id: 'wh-1',
@@ -148,6 +151,7 @@ describe('MachineryService', () => {
       prisma.item.findUnique.mockResolvedValue({
         id: 'maq-1',
         type: ItemType.MACHINERY,
+        meterType: MeterType.HOUR_METER,
       });
       prisma.warehouse.findUnique.mockResolvedValue({
         id: 'wh-1',
@@ -163,10 +167,11 @@ describe('MachineryService', () => {
       );
     });
 
-    it('debe lanzar BadRequestException si el horometro inicial es menor que el ultimo horometro final cerrado', async () => {
+    it('debe lanzar BadRequestException si la lectura inicial es menor que la ultima lectura final cerrada', async () => {
       prisma.item.findUnique.mockResolvedValue({
         id: 'maq-1',
         type: ItemType.MACHINERY,
+        meterType: MeterType.HOUR_METER,
       });
       prisma.warehouse.findUnique.mockResolvedValue({
         id: 'wh-1',
@@ -176,7 +181,7 @@ describe('MachineryService', () => {
         .mockResolvedValueOnce(null) // no hay turno abierto
         .mockResolvedValueOnce({
           id: 'shift-prev',
-          endHourMeter: 1260.0,
+          endMeter: 1260.0,
         });
 
       await expect(service.startShift(baseDto, adminUser)).rejects.toThrow(
@@ -184,10 +189,33 @@ describe('MachineryService', () => {
       );
     });
 
-    it('debe lanzar NotFoundException si la foto del horometro inicial no existe en adjuntos', async () => {
+    it('debe adaptar mensaje de error a kilometraje cuando la maquina usa KILOMETER', async () => {
+      prisma.item.findUnique.mockResolvedValue({
+        id: 'maq-vol-1',
+        type: ItemType.MACHINERY,
+        meterType: MeterType.KILOMETER,
+      });
+      prisma.warehouse.findUnique.mockResolvedValue({
+        id: 'wh-1',
+        isActive: true,
+      });
+      prisma.machineryShiftLog.findFirst
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: 'shift-prev-km',
+          endMeter: 45500.0,
+        });
+
+      await expect(
+        service.startShift({ ...baseDto, startMeter: 45400.0 }, adminUser),
+      ).rejects.toThrow(/kilometraje inicial/);
+    });
+
+    it('debe lanzar NotFoundException si la foto inicial no existe en adjuntos', async () => {
       prisma.item.findUnique.mockResolvedValue({
         id: 'maq-1',
         type: ItemType.MACHINERY,
+        meterType: MeterType.HOUR_METER,
       });
       prisma.warehouse.findUnique.mockResolvedValue({
         id: 'wh-1',
@@ -207,6 +235,7 @@ describe('MachineryService', () => {
       prisma.item.findUnique.mockResolvedValue({
         id: 'maq-1',
         type: ItemType.MACHINERY,
+        meterType: MeterType.HOUR_METER,
       });
       prisma.warehouse.findUnique.mockResolvedValue({
         id: 'wh-1',
@@ -216,7 +245,7 @@ describe('MachineryService', () => {
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce({
           id: 'shift-prev',
-          endHourMeter: 1240.0,
+          endMeter: 1240.0,
         });
       prisma.documentAttachment.findUnique.mockResolvedValue({
         id: 'photo-1',
@@ -229,13 +258,19 @@ describe('MachineryService', () => {
         warehouseId: 'wh-1',
         operatorName: 'Carlos Huaman',
         operatorDni: '45678912',
-        startHourMeter: 1250.5,
+        meterType: MeterType.HOUR_METER,
+        startMeter: 1250.5,
         startPhotoId: 'photo-1',
         endPhotoId: null,
         fuelPhotoId: null,
         startDateTime: new Date(),
         endDateTime: null,
-        item: { id: 'maq-1', sku: 'MAQ-RET-001', name: 'Retroexcavadora' },
+        item: {
+          id: 'maq-1',
+          sku: 'MAQ-RET-001',
+          name: 'Retroexcavadora',
+          meterType: MeterType.HOUR_METER,
+        },
         warehouse: { id: 'wh-1', name: 'Almacen Obra' },
       };
 
@@ -252,7 +287,14 @@ describe('MachineryService', () => {
 
       const result = await service.startShift(baseDto, adminUser);
 
-      expect(prisma.machineryShiftLog.create).toHaveBeenCalled();
+      expect(prisma.machineryShiftLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            meterType: MeterType.HOUR_METER,
+            startMeter: 1250.5,
+          }),
+        }),
+      );
       expect(result.id).toBe('shift-1');
       expect(result.startPhoto?.originalName).toBe('horometro_inicio.webp');
     });
@@ -260,7 +302,7 @@ describe('MachineryService', () => {
 
   describe('endShift', () => {
     const endDto = {
-      endHourMeter: 1258.5,
+      endMeter: 1258.5,
       endPhotoId: 'photo-end',
       fuelPhotoId: 'photo-fuel',
       notes: 'Jornada concluida sin novedad',
@@ -292,7 +334,7 @@ describe('MachineryService', () => {
         id: 's-1',
         warehouseId: 'wh-1',
         endDateTime: new Date(),
-        endHourMeter: 1260.0,
+        endMeter: 1260.0,
       });
 
       await expect(service.endShift('s-1', endDto, adminUser)).rejects.toThrow(
@@ -300,17 +342,18 @@ describe('MachineryService', () => {
       );
     });
 
-    it('debe lanzar BadRequestException si el horometro final es menor al horometro inicial', async () => {
+    it('debe lanzar BadRequestException si la lectura final es menor a la lectura inicial', async () => {
       prisma.machineryShiftLog.findUnique.mockResolvedValue({
         id: 's-1',
         warehouseId: 'wh-1',
-        startHourMeter: 1250.0,
+        meterType: MeterType.HOUR_METER,
+        startMeter: 1250.0,
         endDateTime: null,
-        endHourMeter: null,
+        endMeter: null,
       });
 
       await expect(
-        service.endShift('s-1', { ...endDto, endHourMeter: 1240.0 }, adminUser),
+        service.endShift('s-1', { ...endDto, endMeter: 1240.0 }, adminUser),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -318,9 +361,10 @@ describe('MachineryService', () => {
       prisma.machineryShiftLog.findUnique.mockResolvedValue({
         id: 's-1',
         warehouseId: 'wh-1',
-        startHourMeter: 1250.0,
+        meterType: MeterType.HOUR_METER,
+        startMeter: 1250.0,
         endDateTime: null,
-        endHourMeter: null,
+        endMeter: null,
       });
       prisma.documentAttachment.findUnique.mockResolvedValue(null);
 
@@ -329,14 +373,15 @@ describe('MachineryService', () => {
       );
     });
 
-    it('debe cerrar la jornada, calcular totalHours correctamente y enriquecer fotos', async () => {
+    it('debe cerrar la jornada, calcular totalUsage correctamente y enriquecer fotos', async () => {
       prisma.machineryShiftLog.findUnique.mockResolvedValue({
         id: 's-1',
         warehouseId: 'wh-1',
-        startHourMeter: 1250.0,
+        meterType: MeterType.HOUR_METER,
+        startMeter: 1250.0,
         notes: 'Inicio normal',
         endDateTime: null,
-        endHourMeter: null,
+        endMeter: null,
         startPhotoId: 'photo-start',
       });
 
@@ -348,15 +393,16 @@ describe('MachineryService', () => {
         id: 's-1',
         itemId: 'maq-1',
         warehouseId: 'wh-1',
-        startHourMeter: 1250.0,
-        endHourMeter: 1258.5,
-        totalHours: 8.5,
+        meterType: MeterType.HOUR_METER,
+        startMeter: 1250.0,
+        endMeter: 1258.5,
+        totalUsage: 8.5,
         startPhotoId: 'photo-start',
         endPhotoId: 'photo-end',
         fuelPhotoId: 'photo-fuel',
         notes: 'Inicio normal | Cierre: Jornada concluida sin novedad',
         endDateTime: new Date(),
-        item: { sku: 'MAQ-RET-001' },
+        item: { sku: 'MAQ-RET-001', meterType: MeterType.HOUR_METER },
         warehouse: { name: 'Almacen Obra' },
       };
 
@@ -372,14 +418,14 @@ describe('MachineryService', () => {
       expect(prisma.machineryShiftLog.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            endHourMeter: 1258.5,
-            totalHours: 8.5,
+            endMeter: 1258.5,
+            totalUsage: 8.5,
             endPhotoId: 'photo-end',
             fuelPhotoId: 'photo-fuel',
           }),
         }),
       );
-      expect(result.totalHours).toBe(8.5);
+      expect(result.totalUsage).toBe(8.5);
       expect(result.endPhoto?.originalName).toBe('end.webp');
     });
   });
@@ -457,18 +503,20 @@ describe('MachineryService', () => {
   });
 
   describe('getStatus', () => {
-    it('debe retornar estado operativo, turno activo y ultimo horometro de la maquinaria', async () => {
+    it('debe retornar estado operativo, tipo de medidor, turno activo y ultima lectura de la maquinaria', async () => {
       prisma.item.findUnique.mockResolvedValue({
         id: 'maq-1',
-        sku: 'MAQ-RET-001',
-        name: 'Retroexcavadora',
+        sku: 'MAQ-VOL-001',
+        name: 'Camion Volquete',
         type: ItemType.MACHINERY,
+        meterType: MeterType.KILOMETER,
       });
 
       prisma.machineryShiftLog.findFirst
         .mockResolvedValueOnce({
           id: 'shift-active-1',
-          startHourMeter: 1500.0,
+          meterType: MeterType.KILOMETER,
+          startMeter: 45345.5,
           endDateTime: null,
           startPhotoId: null,
           endPhotoId: null,
@@ -476,16 +524,18 @@ describe('MachineryService', () => {
         })
         .mockResolvedValueOnce({
           id: 'shift-prev-1',
-          endHourMeter: 1500.0,
+          meterType: MeterType.KILOMETER,
+          endMeter: 45345.5,
           endDateTime: new Date('2026-10-10'),
         });
 
       const status = await service.getStatus('maq-1', adminUser);
 
       expect(status.itemId).toBe('maq-1');
+      expect(status.meterType).toBe(MeterType.KILOMETER);
       expect(status.hasActiveShift).toBe(true);
       expect(status.activeShift?.id).toBe('shift-active-1');
-      expect(status.lastHourMeter).toBe(1500.0);
+      expect(status.lastMeter).toBe(45345.5);
     });
 
     it('debe lanzar BadRequestException si el item no es maquinaria', async () => {

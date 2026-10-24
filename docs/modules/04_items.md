@@ -5,7 +5,7 @@ El modulo de catalogo maestro centraliza el inventario corporativo de insumos y 
 - **Consumibles (`CONSUMABLE`):** Materiales directos que se consumen y extinguen fisicamente en la ejecucion de las partidas de obra (cemento, acero corrugado, arena, tuberias, aditivos).
 - **Herramientas Menores (`TOOL`):** Herramientas manuales no consumibles sujetas a custodia y prestamo diario a operarios (palas, carretillas buggies, picos, combos).
 - **Equipos y Herramientas de Poder (`EQUIPMENT`):** Bienes patrimoniales sujetos a custodia, serial y retorno calificado a caseta (rotomartillos, teodolitos, amoladoras, niveles laser).
-- **Maquinaria Pesada (`MACHINERY`):** Equipos mayores autopropulsados o de linea amarilla/blanca controlados mediante turnos de operacion y horometros (retroexcavadoras, cargadores frontales, rodillos).
+- **Maquinaria Pesada (`MACHINERY`):** Equipos mayores autopropulsados o de linea amarilla/blanca controlados mediante turnos de operacion y medidores (`meterType`: `HOUR_METER` para horometros en horas o `KILOMETER` para odometros en kilometros).
 
 Adicionalmente, este modulo implementa la capa de homologacion de nombres crudos provenientes del software de presupuestos S10 (`ItemAlias`), clasificaciones personalizadas creadas por el usuario (`ItemCategory`, ej. "Arrendamiento", "Agregados", "Electricos"), y la clasificacion de materiales perecibles (`isPerishable`).
 
@@ -90,6 +90,7 @@ Crea un nuevo SKU corporativo oficial. Restringido exclusivamente al administrad
 | `description` | string | No | Ficha o especificacion tecnica resumida. |
 | `baseUnit` | string | Si | Unidad de medida base de control (ej. `UND`, `KG`, `M3`, `BOLSA`, `VARILLA`). |
 | `type` | `CONSUMABLE` \| `TOOL` \| `EQUIPMENT` \| `MACHINERY` | Si | Clasificacion contable y operativa. |
+| `meterType` | `HOUR_METER` \| `KILOMETER` \| `null` | No | Tipo de medidor operativo (solo aplica cuando `type` es `MACHINERY`; por defecto `HOUR_METER`; `null` para otros tipos). |
 | `categoryId` | string (UUID) | No | Identificador UUID de la clasificacion personalizada asignada. |
 | `isPerishable` | boolean | No | Indica si el insumo es perecible y sujeto a caducidad (por defecto: `false`). |
 | `minStockAlert` | number | No | Cantidad minima para alerta de reposicion (por defecto: `0`). |
@@ -322,6 +323,8 @@ Modifica datos descriptivos, unidad base o limite de alerta de un SKU maestro.
 | `description` | string | No | Descripcion tecnica. |
 | `baseUnit` | string | No | Unidad base. |
 | `type` | `CONSUMABLE` \| `TOOL` \| `EQUIPMENT` \| `MACHINERY` | No | Clasificacion del item. |
+| `meterType` | `HOUR_METER` \| `KILOMETER` \| `null` | No | Tipo de medidor para maquinaria (`HOUR_METER` o `KILOMETER`). Si el item no es `MACHINERY`, el sistema lo limpia a `null`. |
+| `categoryId` | string (UUID) \| `null` | No | Clasificacion personalizada asignada o `null` para desvincular. |
 | `isPerishable` | boolean | No | Indicador de material perecible. |
 | `minStockAlert` | number | No | Cantidad minima para alerta de reposicion. |
 

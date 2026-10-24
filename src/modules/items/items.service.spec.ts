@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ConflictException } from '@nestjs/common';
-import { ItemType } from '@prisma/client';
+import { ItemType, MeterType } from '@prisma/client';
 import { ItemsService } from './items.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 
@@ -118,7 +118,77 @@ describe('ItemsService', () => {
       data: expect.objectContaining({
         sku: 'HER-PAL-01',
         type: ItemType.TOOL,
+        meterType: null,
         isPerishable: false,
+      }),
+      include: {
+        category: true,
+      },
+    });
+  });
+
+  it('debe asignar meterType HOUR_METER por defecto al crear una MACHINERY sin meterType explicito', async () => {
+    vi.spyOn(prisma.item, 'findUnique').mockResolvedValue(null);
+    vi.spyOn(prisma.item, 'create').mockResolvedValue({
+      id: 'maq-1',
+      sku: 'MAQ-RET-01',
+      name: 'Retroexcavadora',
+      baseUnit: 'UNIDAD',
+      type: ItemType.MACHINERY,
+      meterType: MeterType.HOUR_METER,
+      minStockAlert: 1,
+      isPerishable: false,
+    } as any);
+
+    const result = await service.create({
+      sku: 'maq-ret-01',
+      name: 'Retroexcavadora',
+      baseUnit: 'UNIDAD',
+      type: ItemType.MACHINERY,
+      minStockAlert: 1,
+    });
+
+    expect(result.meterType).toBe(MeterType.HOUR_METER);
+    expect(prisma.item.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        sku: 'MAQ-RET-01',
+        type: ItemType.MACHINERY,
+        meterType: MeterType.HOUR_METER,
+      }),
+      include: {
+        category: true,
+      },
+    });
+  });
+
+  it('debe permitir crear una MACHINERY con meterType KILOMETER', async () => {
+    vi.spyOn(prisma.item, 'findUnique').mockResolvedValue(null);
+    vi.spyOn(prisma.item, 'create').mockResolvedValue({
+      id: 'maq-2',
+      sku: 'MAQ-VOL-01',
+      name: 'Camion Volquete',
+      baseUnit: 'UNIDAD',
+      type: ItemType.MACHINERY,
+      meterType: MeterType.KILOMETER,
+      minStockAlert: 1,
+      isPerishable: false,
+    } as any);
+
+    const result = await service.create({
+      sku: 'maq-vol-01',
+      name: 'Camion Volquete',
+      baseUnit: 'UNIDAD',
+      type: ItemType.MACHINERY,
+      meterType: MeterType.KILOMETER,
+      minStockAlert: 1,
+    });
+
+    expect(result.meterType).toBe(MeterType.KILOMETER);
+    expect(prisma.item.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        sku: 'MAQ-VOL-01',
+        type: ItemType.MACHINERY,
+        meterType: MeterType.KILOMETER,
       }),
       include: {
         category: true,

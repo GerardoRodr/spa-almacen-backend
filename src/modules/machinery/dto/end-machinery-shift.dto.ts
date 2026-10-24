@@ -14,23 +14,23 @@ export class EndMachineryShiftDto {
   @ApiProperty({
     example: 1258.75,
     description:
-      'Lectura numerica final del horometro al finalizar la jornada (debe ser >= startHourMeter)',
+      'Lectura numerica final del medidor (horometro o kilometraje) al finalizar la jornada (debe ser >= startMeter)',
   })
-  @IsNotEmpty({ message: 'endHourMeter es requerido' })
+  @IsNotEmpty({ message: 'endMeter es requerido' })
   @Type(() => Number)
   @IsNumber(
     { maxDecimalPlaces: 2 },
-    { message: 'endHourMeter debe ser un numero con maximo 2 decimales' },
+    { message: 'endMeter debe ser un numero con maximo 2 decimales' },
   )
-  @Min(0, { message: 'endHourMeter no puede ser negativo' })
-  endHourMeter: number;
+  @Min(0, { message: 'endMeter no puede ser negativo' })
+  endMeter: number;
 
   @ApiProperty({
     example: 'f0000000-0000-4000-8000-000000000002',
     description:
-      'Identificador de la fotografia del horometro final cargada en /documents/upload',
+      'Identificador de la fotografia del medidor final cargada en /documents/upload',
   })
-  @IsNotEmpty({ message: 'endPhotoId es obligatorio para validar el horometro final' })
+  @IsNotEmpty({ message: 'endPhotoId es obligatorio para validar la lectura final' })
   @IsUUID('4', { message: 'endPhotoId debe ser un UUID valido' })
   endPhotoId: string;
 

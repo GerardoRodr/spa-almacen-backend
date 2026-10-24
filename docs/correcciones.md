@@ -148,6 +148,29 @@ Para garantizar que ningun agente quede bloqueado por falta de endpoints o model
     - Agregar las 3 nuevas columnas en la tabla de Matriz de Brechas (`Precio Menor Compra`, `Precio Ponderado (CPP)` y `Precio Expediente S10`), con soporte de ordenamiento (`ui-sort-header`), formato monetario `S/ 1.2-4` y visualizacion en tarjetas moviles.
     - Asegurar que la exportacion a Excel de la Matriz de Brechas incluya las 3 columnas de precios para facilitar la negociacion con proveedores.
 
+### Fase 5: Soporte de Horometro y Kilometraje en Maquinarias (Backend -> Frontend)
+
+- [ ] **Adaptacion de Contratos de Maquinaria y Medidores (`MeterType`: `HOUR_METER` | `KILOMETER`)**:
+  - [ ] En `src/app/core/models/item.models.ts`:
+    - Definir el tipo `MeterType = 'HOUR_METER' | 'KILOMETER'`.
+    - Agregar `meterType?: MeterType | null` a `Item`, `CreateItemDto` y `UpdateItemDto`.
+  - [ ] En el modal de creacion/edicion de Insumo en Catalogo (`catalogo.component.ts` / `.html`):
+    - Cuando el tipo seleccionado sea `MACHINERY`, mostrar un selector de **Tipo de Medidor** (`HOUR_METER` -> `Horometro (Horas)`, `KILOMETER` -> `Kilometraje (Kilometros)`), con valor por defecto `HOUR_METER`.
+  - [ ] En `src/app/core/models/machinery.models.ts` (y componentes de Maquinaria / Vista Movil):
+    - Actualizar el modelo `MachineryShiftLog` reemplazando:
+      - `startHourMeter` -> `startMeter`
+      - `endHourMeter` -> `endMeter`
+      - `totalHours` -> `totalUsage`
+      - Agregar `meterType: 'HOUR_METER' | 'KILOMETER'`
+    - Actualizar `StartMachineryShiftDto`: `startHourMeter` -> `startMeter`.
+    - Actualizar `EndMachineryShiftDto`: `endHourMeter` -> `endMeter`.
+    - Actualizar la respuesta de `GET /api/v1/machinery/item/:itemId/status` (`MachineryStatus`):
+      - `lastHourMeter` -> `lastMeter`
+      - Agregar `meterType: 'HOUR_METER' | 'KILOMETER'`
+    - En la UI de Maquinarias y Turnos (escritorio y movil), mostrar dinamicamente la etiqueta y sufijo de unidad segun `meterType`:
+      - Si `meterType === 'KILOMETER'`: mostrar `"Kilometraje Inicial"`, `"Kilometraje Final"`, `"Recorrido Total"` y sufijo `"km"`.
+      - Si `meterType === 'HOUR_METER'`: mostrar `"Horometro Inicial"`, `"Horometro Final"`, `"Horas Trabajadas"` y sufijo `"h"` (o `"hrs"`).
+
 ---
 
 ## 4. Tareas Detalladas para Backend (`spa-almacen-backend`)
@@ -280,3 +303,14 @@ Utiliza este espacio para registrar decisiones de diseno, hashes de commits rele
     - En datos de semilla: `seed.ts` y `seed-data.json` actualizados con `s10UnitPrice` en requerimientos de proyecto.
     - Documentacion sincronizada en `docs/modules/09_projects_s10.md`.
     - Pruebas unitarias incrementadas a 222 tests (100% exitosos) y compilacion limpia.
+  * **2026-10-24 (Fase 5 - Soporte de Horometro y Kilometraje en Maquinarias - Opcion B)**:
+    - En `prisma/schema.prisma`:
+      - Creado enum `MeterType` (`HOUR_METER`, `KILOMETER`).
+      - Agregado campo opcional `meterType MeterType?` en `Item` (solo aplica para `ItemType.MACHINERY`, por defecto `HOUR_METER`; `null` para otros tipos).
+      - En `MachineryShiftLog`: agregado `meterType MeterType @default(HOUR_METER)` y renombrados los campos de lectura a nombres genericos: `startMeter`, `endMeter` y `totalUsage`.
+    - En modulo `items` (`CreateItemDto`, `UpdateItemDto`, `ItemsService`):
+      - Soporte para `meterType` con asignacion automatica de `HOUR_METER` por defecto cuando `type === 'MACHINERY'` y limpieza a `null` cuando `type !== 'MACHINERY'`.
+    - En modulo `machinery` (`StartMachineryShiftDto`, `EndMachineryShiftDto`, `MachineryService`, `MachineryController`):
+      - Actualizados DTOs a `startMeter` y `endMeter`.
+      - Calculo de `totalUsage = endMeter - startMeter`, validaciones con mensajes dinamicos (`horometro` vs `kilometraje`) e inclusion de `meterType` y `lastMeter` en `GET /api/v1/machinery/item/:itemId/status`.
+    - Actualizados `seed.ts`, `seed-data.json` y documentacion en `docs/modules/04_items.md` y `docs/modules/12_machinery.md`.

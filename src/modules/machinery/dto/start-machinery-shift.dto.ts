@@ -50,23 +50,24 @@ export class StartMachineryShiftDto {
 
   @ApiProperty({
     example: 1250.5,
-    description: 'Lectura numerica inicial del horometro al iniciar jornada',
+    description:
+      'Lectura numerica inicial del medidor (horometro en horas o kilometraje en km) al iniciar jornada',
   })
-  @IsNotEmpty({ message: 'startHourMeter es requerido' })
+  @IsNotEmpty({ message: 'startMeter es requerido' })
   @Type(() => Number)
   @IsNumber(
     { maxDecimalPlaces: 2 },
-    { message: 'startHourMeter debe ser un numero con maximo 2 decimales' },
+    { message: 'startMeter debe ser un numero con maximo 2 decimales' },
   )
-  @Min(0, { message: 'startHourMeter no puede ser negativo' })
-  startHourMeter: number;
+  @Min(0, { message: 'startMeter no puede ser negativo' })
+  startMeter: number;
 
   @ApiProperty({
     example: 'f0000000-0000-4000-8000-000000000001',
     description:
-      'Identificador de la fotografia del horometro inicial cargada en /documents/upload',
+      'Identificador de la fotografia del medidor inicial cargada en /documents/upload',
   })
-  @IsNotEmpty({ message: 'startPhotoId es obligatorio para validar el horometro inicial' })
+  @IsNotEmpty({ message: 'startPhotoId es obligatorio para validar la lectura inicial' })
   @IsUUID('4', { message: 'startPhotoId debe ser un UUID valido' })
   startPhotoId: string;
 

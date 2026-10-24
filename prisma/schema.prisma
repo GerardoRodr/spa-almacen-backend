@@ -23,6 +23,11 @@ enum ItemType {
   MACHINERY
 }
 
+enum MeterType {
+  HOUR_METER
+  KILOMETER
+}
+
 enum WarehouseType {
   CENTRAL
   PROJECT_SITE
@@ -170,6 +175,7 @@ model Item {
   description     String?
   baseUnit        String               // UND, KG, M3, BOLSA, GLN, VARILLA
   type            ItemType
+  meterType       MeterType?           // Solo aplica cuando type == MACHINERY (HOUR_METER | KILOMETER)
   minStockAlert   Decimal              @default(0) @db.Decimal(12, 4)
   isPerishable    Boolean              @default(false)
   categoryId      String?
@@ -483,7 +489,7 @@ model DocumentAttachment {
 }
 
 // --------------------------------------------------------
-// JORNADAS Y HOROMETROS DE MAQUINARIA
+// JORNADAS, HOROMETROS Y KILOMETRAJES DE MAQUINARIA
 // --------------------------------------------------------
 
 model MachineryShiftLog {
@@ -492,9 +498,10 @@ model MachineryShiftLog {
   warehouseId    String
   operatorName   String
   operatorDni    String
-  startHourMeter Decimal   @db.Decimal(10, 2)
-  endHourMeter   Decimal?  @db.Decimal(10, 2)
-  totalHours     Decimal?  @db.Decimal(10, 2)
+  meterType      MeterType @default(HOUR_METER)
+  startMeter     Decimal   @db.Decimal(10, 2)
+  endMeter       Decimal?  @db.Decimal(10, 2)
+  totalUsage     Decimal?  @db.Decimal(10, 2)
   startDateTime  DateTime  @default(now())
   endDateTime    DateTime?
   startPhotoId   String?

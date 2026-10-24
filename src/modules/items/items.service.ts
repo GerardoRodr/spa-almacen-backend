@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
+import { ItemType, MeterType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { CreateItemDto } from './dto/create-item.dto.js';
 import { UpdateItemDto } from './dto/update-item.dto.js';
@@ -99,6 +100,11 @@ export class ItemsService {
       }
     }
 
+    const resolvedMeterType =
+      dto.type === ItemType.MACHINERY
+        ? (dto.meterType ?? MeterType.HOUR_METER)
+        : null;
+
     return this.prisma.item.create({
       data: {
         sku: formattedSku,
@@ -106,6 +112,7 @@ export class ItemsService {
         description: dto.description?.trim(),
         baseUnit: dto.baseUnit.trim().toUpperCase(),
         type: dto.type,
+        meterType: resolvedMeterType,
         minStockAlert: dto.minStockAlert ?? 0,
         isPerishable: dto.isPerishable ?? false,
         categoryId: dto.categoryId ?? null,
@@ -176,7 +183,7 @@ export class ItemsService {
 
   // Actualizar datos maestros del item
   async update(id: string, dto: UpdateItemDto) {
-    await this.findOne(id);
+    const currentItem = await this.findOne(id);
 
     if (dto.categoryId) {
       const category = await this.prisma.itemCategory.findUnique({
@@ -187,6 +194,16 @@ export class ItemsService {
       }
     }
 
+    const effectiveType = dto.type ?? currentItem.type;
+    let resolvedMeterType: MeterType | null | undefined = undefined;
+    if (effectiveType !== ItemType.MACHINERY) {
+      resolvedMeterType = null;
+    } else if (dto.meterType !== undefined) {
+      resolvedMeterType = dto.meterType ?? MeterType.HOUR_METER;
+    } else if (!currentItem.meterType) {
+      resolvedMeterType = MeterType.HOUR_METER;
+    }
+
     return this.prisma.item.update({
       where: { id },
       data: {
@@ -194,6 +211,7 @@ export class ItemsService {
         description: dto.description ? dto.description.trim() : undefined,
         baseUnit: dto.baseUnit ? dto.baseUnit.trim().toUpperCase() : undefined,
         type: dto.type,
+        meterType: resolvedMeterType,
         minStockAlert: dto.minStockAlert,
         isPerishable: dto.isPerishable,
         categoryId: dto.categoryId !== undefined ? dto.categoryId : undefined,

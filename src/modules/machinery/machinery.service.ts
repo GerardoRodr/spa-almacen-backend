@@ -4,7 +4,7 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
-import { ItemType, Role, Prisma } from '@prisma/client';
+import { ItemType, MeterType, Role, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { StartMachineryShiftDto } from './dto/start-machinery-shift.dto.js';
 import { EndMachineryShiftDto } from './dto/end-machinery-shift.dto.js';
@@ -126,7 +126,11 @@ export class MachineryService {
       );
     }
 
-    // 5. Validar coherencia del horometro inicial respecto al ultimo horometro cerrado
+    // 5. Validar coherencia de la lectura inicial respecto a la ultima lectura cerrada
+    const meterType = item.meterType ?? MeterType.HOUR_METER;
+    const meterLabel =
+      meterType === MeterType.KILOMETER ? 'kilometraje' : 'horometro';
+
     const lastClosedShift = await this.prisma.machineryShiftLog.findFirst({
       where: {
         itemId: dto.itemId,
@@ -137,11 +141,11 @@ export class MachineryService {
 
     if (
       lastClosedShift &&
-      lastClosedShift.endHourMeter !== null &&
-      Number(dto.startHourMeter) < Number(lastClosedShift.endHourMeter)
+      lastClosedShift.endMeter !== null &&
+      Number(dto.startMeter) < Number(lastClosedShift.endMeter)
     ) {
       throw new BadRequestException(
-        `El horometro inicial (${dto.startHourMeter}) no puede ser menor al ultimo horometro registrado (${String(lastClosedShift.endHourMeter)})`,
+        `El ${meterLabel} inicial (${dto.startMeter}) no puede ser menor al ultimo ${meterLabel} registrado (${String(lastClosedShift.endMeter)})`,
       );
     }
 
@@ -151,7 +155,7 @@ export class MachineryService {
     });
     if (!startPhoto) {
       throw new NotFoundException(
-        'La fotografia del horometro inicial no fue encontrada en el sistema',
+        `La fotografia del ${meterLabel} inicial no fue encontrada en el sistema`,
       );
     }
 
@@ -162,7 +166,8 @@ export class MachineryService {
         warehouseId: dto.warehouseId,
         operatorName: dto.operatorName.trim(),
         operatorDni: dto.operatorDni.trim(),
-        startHourMeter: dto.startHourMeter,
+        meterType,
+        startMeter: dto.startMeter,
         startPhotoId: dto.startPhotoId,
         notes: dto.notes ? dto.notes.trim() : null,
         startDateTime: new Date(),
@@ -175,6 +180,7 @@ export class MachineryService {
             name: true,
             baseUnit: true,
             type: true,
+            meterType: true,
           },
         },
         warehouse: {
@@ -190,7 +196,7 @@ export class MachineryService {
     return this.enrichShiftPhotos(shift);
   }
 
-  // Finalizar jornada de maquinaria, validar horometro final y calcular horas consumidas
+  // Finalizar jornada de maquinaria, validar lectura final y calcular uso efectivo (horas o km)
   async endShift(
     id: string,
     dto: EndMachineryShiftDto,
@@ -226,19 +232,23 @@ export class MachineryService {
     }
 
     // 2. Validar que el turno no este cerrado previamente
-    if (shift.endDateTime !== null || shift.endHourMeter !== null) {
+    if (shift.endDateTime !== null || shift.endMeter !== null) {
       throw new BadRequestException(
         'Esta jornada de trabajo ya ha sido cerrada anteriormente',
       );
     }
 
-    // 3. Validar que el horometro final no sea menor al inicial
-    const startHourMeter = Number(shift.startHourMeter);
-    const endHourMeter = Number(dto.endHourMeter);
+    // 3. Validar que la lectura final no sea menor a la inicial
+    const meterType =
+      shift.meterType ?? shift.item?.meterType ?? MeterType.HOUR_METER;
+    const meterLabel =
+      meterType === MeterType.KILOMETER ? 'kilometraje' : 'horometro';
+    const startMeter = Number(shift.startMeter);
+    const endMeter = Number(dto.endMeter);
 
-    if (endHourMeter < startHourMeter) {
+    if (endMeter < startMeter) {
       throw new BadRequestException(
-        `El horometro final (${endHourMeter}) no puede ser menor al horometro inicial (${startHourMeter})`,
+        `El ${meterLabel} final (${endMeter}) no puede ser menor al ${meterLabel} inicial (${startMeter})`,
       );
     }
 
@@ -248,7 +258,7 @@ export class MachineryService {
     });
     if (!endPhoto) {
       throw new NotFoundException(
-        'La fotografia del horometro final no fue encontrada en el sistema',
+        `La fotografia del ${meterLabel} final no fue encontrada en el sistema`,
       );
     }
 
@@ -264,8 +274,8 @@ export class MachineryService {
       }
     }
 
-    // 6. Calcular total de horas efectivas trabajadas
-    const totalHours = Number((endHourMeter - startHourMeter).toFixed(2));
+    // 6. Calcular total de uso efectivo (horas trabajadas o kilometros recorridos)
+    const totalUsage = Number((endMeter - startMeter).toFixed(2));
 
     let finalNotes = shift.notes;
     if (dto.notes?.trim()) {
@@ -277,8 +287,8 @@ export class MachineryService {
     const updatedShift = await this.prisma.machineryShiftLog.update({
       where: { id },
       data: {
-        endHourMeter: dto.endHourMeter,
-        totalHours,
+        endMeter: dto.endMeter,
+        totalUsage,
         endPhotoId: dto.endPhotoId,
         fuelPhotoId: dto.fuelPhotoId ?? null,
         notes: finalNotes,
@@ -292,6 +302,7 @@ export class MachineryService {
             name: true,
             baseUnit: true,
             type: true,
+            meterType: true,
           },
         },
         warehouse: {
@@ -378,6 +389,7 @@ export class MachineryService {
               name: true,
               baseUnit: true,
               type: true,
+              meterType: true,
             },
           },
           warehouse: {
@@ -437,7 +449,7 @@ export class MachineryService {
     return this.enrichShiftPhotos(shift);
   }
 
-  // Consultar estado operativo actual de una maquinaria (turno en marcha y ultimo horometro)
+  // Consultar estado operativo actual de una maquinaria (turno en marcha, tipo de medidor y ultima lectura)
   async getStatus(itemId: string, _user: { id: string; role: Role }) {
     const item = await this.prisma.item.findUnique({
       where: { id: itemId },
@@ -465,6 +477,7 @@ export class MachineryService {
               name: true,
               baseUnit: true,
               type: true,
+              meterType: true,
             },
           },
         },
@@ -483,9 +496,10 @@ export class MachineryService {
       itemId: item.id,
       sku: item.sku,
       name: item.name,
+      meterType: item.meterType ?? MeterType.HOUR_METER,
       hasActiveShift: !!activeShift,
       activeShift: enrichedActiveShift,
-      lastHourMeter: lastClosedShift ? Number(lastClosedShift.endHourMeter) : null,
+      lastMeter: lastClosedShift ? Number(lastClosedShift.endMeter) : null,
       lastShiftEndDateTime: lastClosedShift ? lastClosedShift.endDateTime : null,
     };
   }
