@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -
 COPY package*.json ./
 COPY prisma ./prisma/
 
-RUN npm ci
+RUN npm ci || npm install
 
 # Etapa 2: Compilacion de codigo TypeScript y generacion de cliente Prisma
 FROM node:22-bookworm-slim AS builder
