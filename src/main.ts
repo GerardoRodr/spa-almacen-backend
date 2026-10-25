@@ -16,15 +16,35 @@ async function bootstrap() {
     }),
   );
 
-  // Habilitar CORS con soporte para variable de entorno en produccion
-  const corsOrigin = process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim())
-    : true;
+  // Configuracion dinamica de CORS segun variables de entorno
+  const corsEnabled = process.env.CORS_ENABLED !== 'false';
 
-  app.enableCors({
-    origin: corsOrigin,
-    credentials: true,
-  });
+  if (corsEnabled) {
+    const rawOrigin = process.env.CORS_ORIGIN?.trim();
+    let origin: boolean | string | string[] = true;
+
+    if (rawOrigin && rawOrigin !== '*' && rawOrigin !== 'true') {
+      const parsedOrigins = rawOrigin
+        .split(',')
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+
+      origin = parsedOrigins.length === 1 ? parsedOrigins[0] : parsedOrigins;
+    }
+
+    app.enableCors({
+      origin,
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    });
+
+    logger.log(
+      `CORS habilitado. Origenes autorizados: ${Array.isArray(origin) ? origin.join(', ') : origin === true ? 'todos (origin: true)' : origin}`,
+    );
+  } else {
+    logger.warn('CORS deshabilitado por configuracion (CORS_ENABLED=false)');
+  }
 
   // Prefijo global de la API segun arquitectura
   app.setGlobalPrefix('api/v1');

@@ -1,5 +1,9 @@
 export const configuration = () => ({
   port: parseInt(process.env.PORT ?? '3000', 10),
+  cors: {
+    enabled: process.env.CORS_ENABLED !== 'false',
+    origin: process.env.CORS_ORIGIN ?? '*',
+  },
   database: {
     url: process.env.DATABASE_URL,
   },

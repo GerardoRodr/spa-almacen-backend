@@ -36,6 +36,7 @@ services:
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
       UPLOAD_DIR: /app/uploads
       BACKUP_DIR: /app/backups
+      CORS_ENABLED: ${CORS_ENABLED:-true}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
     ports:
       - "3000:3000"
