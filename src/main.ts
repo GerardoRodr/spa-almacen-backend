@@ -4,6 +4,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module.js';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter.js';
+import { parseCorsOrigins } from './config/cors.util.js';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -20,17 +21,7 @@ async function bootstrap() {
   const corsEnabled = process.env.CORS_ENABLED !== 'false';
 
   if (corsEnabled) {
-    const rawOrigin = process.env.CORS_ORIGIN?.trim();
-    let origin: boolean | string | string[] = true;
-
-    if (rawOrigin && rawOrigin !== '*' && rawOrigin !== 'true') {
-      const parsedOrigins = rawOrigin
-        .split(',')
-        .map((item) => item.trim())
-        .filter((item) => item.length > 0);
-
-      origin = parsedOrigins.length === 1 ? parsedOrigins[0] : parsedOrigins;
-    }
+    const origin = parseCorsOrigins(process.env.CORS_ORIGIN);
 
     app.enableCors({
       origin,
