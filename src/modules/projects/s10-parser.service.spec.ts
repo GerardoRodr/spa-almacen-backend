@@ -121,6 +121,17 @@ describe('S10ParserService', () => {
       expect(service.resolveUnitPrice(0, '26.50', '265.00')).toBeUndefined();
       expect(service.resolveUnitPrice(100, '0', '0')).toBeUndefined();
     });
+
+    it('debe calcular precio unitario dividiendo parcial entre cantidad en reporte con incidencia sin signo % en datos', () => {
+      // Cantidad: 8.10, Celda1 (Parcial): 99.52, Celda2 (Incidencia sin %): 98.54 con isIncidence=true
+      // 99.52 / 8.10 = 12.286419... -> 12.2864
+      const priceWithFlag = service.resolveUnitPrice(8.1, '99.52', '98.54', true);
+      expect(priceWithFlag).toBe(12.2864);
+
+      // Mismo caso sin flag explicita: la heuristica matematica detecta que 8.10 * 99.52 != 98.54
+      const priceWithMath = service.resolveUnitPrice(8.1, '99.52', '98.54', false);
+      expect(priceWithMath).toBe(12.2864);
+    });
   });
 
   describe('parseS10Buffer', () => {
@@ -245,8 +256,60 @@ describe('S10ParserService', () => {
       expect(result.resources).toHaveLength(2);
       expect(result.resources[0].s10Code).toBe('0204010001');
       expect(result.resources[0].unitPrice).toBe(26.5);
+      expect(result.resources[0].suggestedType).toBe('CONSUMABLE');
       expect(result.resources[1].s10Code).toBe('0202010005');
       expect(result.resources[1].unitPrice).toBe(36);
+      expect(result.resources[1].suggestedType).toBe('CONSUMABLE');
+    });
+
+    it('debe parsear fila con incidencia donde el porcentaje no tiene simbolo % y existe cabecera % Inc.', () => {
+      // Simula fila real donde % Inc. viene en columnas previas y las celdas posteriores son 99.52 y 98.54
+      const row = [
+        'Obra', '0301004', 'CREACION DEL SISTEMA DE SANEAMIENTO BASICO',
+        'Subpresupuesto', '002', 'REDES DE AGUA',
+        'Etiquetas', 'Código', 'Descripción', 'Unidad', 'Cuadrilla', 'Cantidad', '% Inc.', 'Parcial',
+        '0204010099', 'CODO PVC SAP 2 PULGADAS', 'UND', '8.10', '99.52', '98.54',
+      ].join(';');
+
+      const buffer = Buffer.from(row, 'utf-8');
+      const result = service.parseS10Buffer(buffer);
+
+      expect(result.resources).toHaveLength(1);
+      expect(result.resources[0].s10Code).toBe('0204010099');
+      expect(result.resources[0].quantity).toBe(8.1);
+      // 99.52 / 8.10 = 12.286419... -> 12.2864 (no debe tomar 99.52 como precio unitario)
+      expect(result.resources[0].unitPrice).toBe(12.2864);
+      expect(result.resources[0].suggestedType).toBe('CONSUMABLE');
+    });
+
+    it('debe asignar suggestedType ASSET_TOOL para equipos o herramientas con prefijo 03', () => {
+      const row = [
+        '0301010002;MEZCLADORA DE CONCRETO 11P3;HM;15;55.00;825.00',
+      ].join('\n');
+
+      const buffer = Buffer.from(row, 'utf-8');
+      const result = service.parseS10Buffer(buffer);
+
+      expect(result.resources).toHaveLength(1);
+      expect(result.resources[0].s10Code).toBe('0301010002');
+      expect(result.resources[0].suggestedType).toBe('ASSET_TOOL');
+    });
+
+    it('debe lanzar BadRequestException si el archivo contiene partidas presupuestales sin codigos de insumos validos', () => {
+      // Simula exportacion de "Hoja de Presupuesto / Resumen Cliente" con partidas contractuales pero sin recursos 02 ni 03
+      const csvContent = [
+        'Item;Descripcion;Unidad;Metrado;Precio S/.;Parcial S/.',
+        '01;OBRAS PROVISIONALES, TRABAJOS PRELIMINARES;GLB;1.00;15000.00;15000.00',
+        '01.01;CARTEL DE IDENTIFICACION DE LA OBRA DE 3.60 X 2.40 M;UND;1.00;1200.00;1200.00',
+        '01.02;ALMACEN, OFICINA Y CASETA DE GUARDIANIA;M2;50.00;120.00;6000.00',
+        '02;MOVIMIENTO DE TIERRAS;M3;250.00;45.00;11250.00',
+      ].join('\n');
+
+      const buffer = Buffer.from(csvContent, 'utf-8');
+      expect(() => service.parseS10Buffer(buffer)).toThrow(BadRequestException);
+      expect(() => service.parseS10Buffer(buffer)).toThrow(
+        /no contiene materiales \(02\) ni equipos \(03\) validos/,
+      );
     });
   });
 });

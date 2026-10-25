@@ -284,9 +284,11 @@ export class ProjectsService {
 
     const itemByName = new Map<string, (typeof items)[0]>();
     const itemBySku = new Map<string, (typeof items)[0]>();
+    const itemById = new Map<string, (typeof items)[0]>();
     for (const item of items) {
       itemByName.set(item.name.trim().toUpperCase(), item);
       itemBySku.set(item.sku.trim().toUpperCase(), item);
+      itemById.set(item.id, item);
     }
 
     const mappedDemands = new Map<
@@ -299,6 +301,7 @@ export class ProjectsService {
       s10Unit?: string;
       quantity: number;
       unitPrice?: number;
+      suggestedType?: 'CONSUMABLE' | 'ASSET_TOOL';
     }> = [];
 
     for (const res of validResources) {
@@ -354,15 +357,27 @@ export class ProjectsService {
           s10UnitPrice: resolvedUnitPrice,
         });
       } else {
+        let suggestedType = res.suggestedType;
+        if (!suggestedType && cleanCode) {
+          if (cleanCode.startsWith('02')) {
+            suggestedType = 'CONSUMABLE';
+          } else if (cleanCode.startsWith('03')) {
+            suggestedType = 'ASSET_TOOL';
+          }
+        }
+
         unmappedItems.push({
           s10Code: res.s10Code,
           s10RawName: res.s10RawName,
           s10Unit: res.s10Unit,
           quantity: res.quantity,
           unitPrice: rawPrice,
+          suggestedType,
         });
       }
     }
+
+    const mode = dto.mode ?? 'REPLACE';
 
     // Persistir o actualizar ProjectRequirement en transaccion atomica
     let requirementsCreatedOrUpdated = 0;
@@ -378,9 +393,22 @@ export class ProjectsService {
         });
 
         if (existingReq) {
-          const newRequired = Number(
-            (Number(existingReq.requiredQty) + demand.baseQty).toFixed(4),
-          );
+          const newRequired =
+            mode === 'ACCUMULATE'
+              ? Number(
+                  (Number(existingReq.requiredQty) + demand.baseQty).toFixed(4),
+                )
+              : demand.baseQty;
+
+          if (newRequired < Number(existingReq.allocatedQty)) {
+            const item = itemById.get(itemId);
+            const itemName = item?.name ?? itemId;
+            const itemSku = item?.sku ?? 'N/A';
+            throw new BadRequestException(
+              `No se puede actualizar el requerimiento del insumo "${itemName}" (SKU: ${itemSku}): la nueva cantidad requerida (${newRequired}) es menor que el stock actualmente reservado en almacen central (${existingReq.allocatedQty}). Libere o ajuste las reservas del insumo antes de reducir el requerimiento presupuestado.`,
+            );
+          }
+
           await tx.projectRequirement.update({
             where: { id: existingReq.id },
             data: {
@@ -431,6 +459,7 @@ export class ProjectsService {
     const ingestResult = await this.ingestS10(id, {
       budgetCode: parseResult.s10ProjectCode,
       resources: parseResult.resources,
+      mode: 'REPLACE',
     });
 
     return {

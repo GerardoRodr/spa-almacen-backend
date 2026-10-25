@@ -1,5 +1,6 @@
 import {
   IsArray,
+  IsEnum,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -64,9 +65,33 @@ export class S10ResourceItemDto {
   @IsNumber({}, { message: 'El precio unitario S10 debe ser un valor numerico' })
   @Min(0, { message: 'El precio unitario S10 no puede ser negativo' })
   s10UnitPrice?: number;
+
+  @ApiPropertyOptional({
+    enum: ['CONSUMABLE', 'ASSET_TOOL'],
+    example: 'CONSUMABLE',
+    description:
+      'Tipo de insumo sugerido para catalogo maestro segun prefijo S10 (02 -> CONSUMABLE, 03 -> ASSET_TOOL)',
+  })
+  @IsOptional()
+  @IsEnum(['CONSUMABLE', 'ASSET_TOOL'], {
+    message: 'El tipo sugerido debe ser CONSUMABLE o ASSET_TOOL',
+  })
+  suggestedType?: 'CONSUMABLE' | 'ASSET_TOOL';
 }
 
 export class IngestS10Dto {
+  @ApiPropertyOptional({
+    enum: ['REPLACE', 'ACCUMULATE'],
+    default: 'REPLACE',
+    description:
+      'Estrategia de actualizacion en base de datos: REPLACE (idempotente) o ACCUMULATE (suma a requerimientos existentes)',
+  })
+  @IsOptional()
+  @IsEnum(['REPLACE', 'ACCUMULATE'], {
+    message: 'El modo de ingesta debe ser REPLACE o ACCUMULATE',
+  })
+  mode?: 'REPLACE' | 'ACCUMULATE';
+
   @ApiPropertyOptional({
     example: 'S10-OBRA-2026-01',
     description: 'Codigo de presupuesto S10 del proyecto',

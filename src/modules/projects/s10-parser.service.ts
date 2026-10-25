@@ -127,6 +127,7 @@ export class S10ParserService {
     quantity: number,
     rawCellAfter1: unknown,
     rawCellAfter2: unknown,
+    isIncidence = false,
   ): number | undefined {
     if (quantity <= 0) return undefined;
 
@@ -140,12 +141,29 @@ export class S10ParserService {
       (typeof rawCellAfter2 === 'string' && rawCellAfter2.trim() === '');
     const val2 = !isCell2Percentage && !isCell2Empty ? this.parseQuantity(rawCellAfter2) : 0;
 
-    // Caso 1: Ambas celdas posteriores contienen valores numericos positivos -> +4 es P.U. y +5 es Parcial
-    if (val2 > 0) {
-      return Number(val1.toFixed(4));
+    // Si la fila corresponde a un reporte con incidencia o la celda posterior es porcentaje:
+    // +4 es siempre el importe Parcial acumulado y el precio se calcula como Parcial / Cantidad
+    if (isIncidence || isCell2Percentage) {
+      const calculatedPrice = Number((val1 / quantity).toFixed(4));
+      return calculatedPrice > 0 ? calculatedPrice : undefined;
     }
 
-    // Caso 2: Solo la primera celda contiene valor positivo y la siguiente es % o vacia -> +4 es Parcial
+    // Caso 1: Ambas celdas posteriores contienen valores numericos positivos
+    if (val2 > 0) {
+      // Validacion matematica: en un reporte clasico se cumple que Cantidad * Celda1 ≈ Celda2
+      const expectedTotal = val1 * quantity;
+      const diff = Math.abs(expectedTotal - val2);
+      // Tolerancia por redondeo de decimales (hasta 5% del parcial o 1 sol)
+      if (diff <= Math.max(1, val2 * 0.05)) {
+        return Number(val1.toFixed(4));
+      }
+
+      // Si no se cumple la relacion, Celda1 es el monto parcial y Celda2 es incidencia plana
+      const calculatedPrice = Number((val1 / quantity).toFixed(4));
+      return calculatedPrice > 0 ? calculatedPrice : undefined;
+    }
+
+    // Caso 2: Solo la primera celda contiene valor positivo y la siguiente esta vacia -> +4 es Parcial
     const calculatedPrice = Number((val1 / quantity).toFixed(4));
     return calculatedPrice > 0 ? calculatedPrice : undefined;
   }
@@ -179,11 +197,38 @@ export class S10ParserService {
     let discardedRows = 0;
     let s10ProjectCode: string | undefined;
     let s10ProjectName: string | undefined;
+    let nonBlankRowsCount = 0;
+    let isFileIncidenceReport = false;
+
+    // Evaluacion previa de cabeceras globales para detectar si el archivo es con incidencia
+    for (const r of rows) {
+      if (Array.isArray(r)) {
+        const text = r.map((c) => String(c ?? '').toUpperCase()).join(' | ');
+        if (text.includes('(CON INCIDENCIA)') || text.includes('% INC')) {
+          isFileIncidenceReport = true;
+          break;
+        }
+      }
+    }
 
     for (const row of rows) {
       if (!Array.isArray(row) || row.length === 0) {
         continue;
       }
+
+      const hasContent = row.some((c) => (c ?? '').trim() !== '');
+      if (!hasContent) {
+        continue;
+      }
+
+      nonBlankRowsCount++;
+
+      // Deteccion de reporte de incidencia en las etiquetas de la fila actual
+      const rowUpperText = row.map((c) => String(c ?? '').toUpperCase()).join(' | ');
+      const hasIncidenceTag =
+        rowUpperText.includes('% INC') ||
+        rowUpperText.includes('(CON INCIDENCIA)');
+      const isIncidenceRow = isFileIncidenceReport || hasIncidenceTag;
 
       // 1. Escaneo de metadatos de Obra en las primeras posiciones de la fila
       let obraIndex = -1;
@@ -261,7 +306,20 @@ export class S10ParserService {
       // 5. Calculo resiliente del precio unitario (+4 y +5)
       const rawCellAfter1 = row[codeIdx + 4];
       const rawCellAfter2 = row[codeIdx + 5];
-      const unitPrice = this.resolveUnitPrice(quantity, rawCellAfter1, rawCellAfter2);
+      const unitPrice = this.resolveUnitPrice(
+        quantity,
+        rawCellAfter1,
+        rawCellAfter2,
+        isIncidenceRow,
+      );
+
+      // Determinar clasificacion sugerida segun el prefijo del codigo S10
+      let suggestedType: 'CONSUMABLE' | 'ASSET_TOOL' | undefined;
+      if (s10Code.startsWith('02')) {
+        suggestedType = 'CONSUMABLE';
+      } else if (s10Code.startsWith('03')) {
+        suggestedType = 'ASSET_TOOL';
+      }
 
       materialsAndEquipmentRows++;
       resources.push({
@@ -270,7 +328,15 @@ export class S10ParserService {
         s10Unit: s10Unit || undefined,
         quantity,
         unitPrice,
+        suggestedType,
       });
+    }
+
+    // 6. Rechazo explicito de archivos de S10 sin insumos validos (ej. Presupuesto de Partidas)
+    if (resources.length === 0 && (totalRowsParsed > 0 || nonBlankRowsCount > 0)) {
+      throw new BadRequestException(
+        'El archivo no contiene materiales (02) ni equipos (03) validos. Asegurese de exportar desde S10 el reporte de "Precios y cantidades de recursos requeridos" y no la hoja de presupuesto de partidas.',
+      );
     }
 
     return {

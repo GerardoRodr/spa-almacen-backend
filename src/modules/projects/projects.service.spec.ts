@@ -306,6 +306,7 @@ describe('ProjectsService', () => {
       expect(result.mappedCount).toBe(2);
       expect(result.unmappedCount).toBe(1);
       expect(result.unmappedItems[0].s10RawName).toBe('ADITIVO DESCONOCIDO S10');
+      expect(result.unmappedItems[0].suggestedType).toBe('CONSUMABLE');
       expect(result.requirementsCreatedOrUpdated).toBe(2);
 
       expect(prisma.projectRequirement.create).toHaveBeenCalledWith({
@@ -329,6 +330,171 @@ describe('ProjectsService', () => {
           s10UnitPrice: null,
         },
       });
+    });
+
+    it('debe ser idempotente al re-importar el mismo lote en modo REPLACE sin duplicar requiredQty', async () => {
+      prisma.project.findUnique.mockResolvedValue({
+        id: 'p1',
+        budgetCode: 'S10-01',
+        status: ProjectStatus.ACTIVE,
+      });
+      prisma.itemAlias.findMany.mockResolvedValue([]);
+      prisma.item.findMany.mockResolvedValue([
+        { id: 'item-cemento', name: 'Cemento Tipo I', sku: 'CEM-01' },
+      ]);
+
+      // Simular que el requerimiento ya existe previamente con 50 unidades requeridas
+      prisma.projectRequirement.findUnique.mockResolvedValue({
+        id: 'req-cemento-1',
+        projectId: 'p1',
+        itemId: 'item-cemento',
+        requiredQty: 50,
+        allocatedQty: 20,
+        consumedQty: 10,
+        s10UnitPrice: 26.5,
+      });
+      prisma.projectRequirement.update.mockResolvedValue({});
+
+      // Re-importar el mismo archivo donde cemento tiene cantidad 50
+      const result = await service.ingestS10('p1', {
+        resources: [
+          {
+            s10Code: '0204010001',
+            s10RawName: 'Cemento Tipo I',
+            quantity: 50,
+            unitPrice: 28.0,
+          },
+        ],
+      });
+
+      expect(result.mappedCount).toBe(1);
+      expect(result.requirementsCreatedOrUpdated).toBe(1);
+
+      // Debe actualizar sobrescribiendo con 50 (NO sumando a 100)
+      expect(prisma.projectRequirement.update).toHaveBeenCalledWith({
+        where: { id: 'req-cemento-1' },
+        data: {
+          requiredQty: 50,
+          s10UnitPrice: 28.0,
+        },
+      });
+    });
+
+    it('debe acumular cantidades sobre requerimientos existentes si se envia mode ACCUMULATE', async () => {
+      prisma.project.findUnique.mockResolvedValue({
+        id: 'p1',
+        budgetCode: 'S10-01',
+        status: ProjectStatus.ACTIVE,
+      });
+      prisma.itemAlias.findMany.mockResolvedValue([]);
+      prisma.item.findMany.mockResolvedValue([
+        { id: 'item-cemento', name: 'Cemento Tipo I', sku: 'CEM-01' },
+      ]);
+
+      prisma.projectRequirement.findUnique.mockResolvedValue({
+        id: 'req-cemento-1',
+        projectId: 'p1',
+        itemId: 'item-cemento',
+        requiredQty: 50,
+        allocatedQty: 0,
+        consumedQty: 0,
+        s10UnitPrice: 26.5,
+      });
+      prisma.projectRequirement.update.mockResolvedValue({});
+
+      await service.ingestS10('p1', {
+        mode: 'ACCUMULATE',
+        resources: [
+          {
+            s10Code: '0204010001',
+            s10RawName: 'Cemento Tipo I',
+            quantity: 30,
+            unitPrice: 26.5,
+          },
+        ],
+      });
+
+      // 50 existente + 30 nuevo = 80 acumulado
+      expect(prisma.projectRequirement.update).toHaveBeenCalledWith({
+        where: { id: 'req-cemento-1' },
+        data: {
+          requiredQty: 80,
+          s10UnitPrice: 26.5,
+        },
+      });
+    });
+
+    it('debe lanzar BadRequestException con mensaje descriptivo si el nuevo requiredQty es menor que allocatedQty', async () => {
+      prisma.project.findUnique.mockResolvedValue({
+        id: 'p1',
+        budgetCode: 'S10-01',
+        status: ProjectStatus.ACTIVE,
+      });
+      prisma.itemAlias.findMany.mockResolvedValue([]);
+      prisma.item.findMany.mockResolvedValue([
+        { id: 'item-cemento', name: 'Cemento Portland Tipo I', sku: 'CEM-001' },
+      ]);
+
+      // Requerimiento con 40 unidades reservadas fisicamente
+      prisma.projectRequirement.findUnique.mockResolvedValue({
+        id: 'req-cemento-1',
+        projectId: 'p1',
+        itemId: 'item-cemento',
+        requiredQty: 100,
+        allocatedQty: 40,
+        consumedQty: 0,
+        s10UnitPrice: 26.5,
+      });
+
+      // Se intenta reducir a 25 requeridos (menor que los 40 reservados)
+      await expect(
+        service.ingestS10('p1', {
+          resources: [
+            {
+              s10Code: '0204010001',
+              s10RawName: 'Cemento Portland Tipo I',
+              quantity: 25,
+            },
+          ],
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.ingestS10('p1', {
+          resources: [
+            {
+              s10Code: '0204010001',
+              s10RawName: 'Cemento Portland Tipo I',
+              quantity: 25,
+            },
+          ],
+        }),
+      ).rejects.toThrow(
+        /No se puede actualizar el requerimiento del insumo "Cemento Portland Tipo I" \(SKU: CEM-001\): la nueva cantidad requerida \(25\) es menor que el stock actualmente reservado en almacen central \(40\)/,
+      );
+    });
+
+    it('debe clasificar suggestedType como ASSET_TOOL para insumos con prefijo 03 no mapeados', async () => {
+      prisma.project.findUnique.mockResolvedValue({
+        id: 'p1',
+        budgetCode: 'S10-01',
+        status: ProjectStatus.ACTIVE,
+      });
+      prisma.itemAlias.findMany.mockResolvedValue([]);
+      prisma.item.findMany.mockResolvedValue([]);
+
+      const result = await service.ingestS10('p1', {
+        resources: [
+          {
+            s10Code: '0301010099',
+            s10RawName: 'ROTOMARTILLO INDUSTRIAL SDS MAX',
+            quantity: 2,
+          },
+        ],
+      });
+
+      expect(result.unmappedCount).toBe(1);
+      expect(result.unmappedItems[0].suggestedType).toBe('ASSET_TOOL');
     });
   });
 
