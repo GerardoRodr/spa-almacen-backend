@@ -232,7 +232,7 @@ export class S10ParserService {
 
       // 1. Escaneo de metadatos de Obra en las primeras posiciones de la fila
       let obraIndex = -1;
-      const searchLimit = Math.min(row.length, 15);
+      const searchLimit = Math.min(row.length, 30);
       for (let i = 0; i < searchLimit; i++) {
         const cellText = (row[i] ?? '').trim().toLowerCase().replace(/:$/, '');
         if (cellText === 'obra') {

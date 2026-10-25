@@ -48,8 +48,8 @@
     },
     {
       "id": "c0000000-0000-4000-8000-000000000003",
-      "name": "Habilitacion Urbana Los Alamos",
-      "budgetCode": "S10-HLA-2026",
+      "name": "Obra Saneamiento Yanivilca - Quiruvilca",
+      "budgetCode": null,
       "status": "PLANNING"
     },
     {
@@ -86,7 +86,7 @@
     },
     {
       "id": "b0000000-0000-4000-8000-000000000004",
-      "name": "Caseta Avanzada Los Alamos",
+      "name": "Almacen Obra Yanivilca",
       "type": "PROJECT_SITE",
       "isTemporary": true,
       "isActive": true,
@@ -397,6 +397,136 @@
       "meterType": "KILOMETER",
       "minStockAlert": 1,
       "isPerishable": false
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000021",
+      "sku": "MAT-CEM-002",
+      "name": "Cemento Portland Tipo I (42.5 kg)",
+      "description": "Cemento Portland Tipo I en bolsas de 42.5 kg para obras civiles",
+      "baseUnit": "BOLSA",
+      "type": "CONSUMABLE",
+      "minStockAlert": 500,
+      "isPerishable": false
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000022",
+      "sku": "MAT-CLA-212",
+      "name": "Clavos para Madera con Cabeza 2 1/2\"",
+      "description": "Clavos de acero para encofrado y carpinteria 2 1/2 pulgada",
+      "baseUnit": "KG",
+      "type": "CONSUMABLE",
+      "minStockAlert": 100,
+      "isPerishable": false
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000023",
+      "sku": "MAT-GAS-090",
+      "name": "Gasolina 90 Octanos",
+      "description": "Combustible para maquinaria menor y motores estacionarios",
+      "baseUnit": "GALON",
+      "type": "CONSUMABLE",
+      "minStockAlert": 10,
+      "isPerishable": false
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000024",
+      "sku": "MAT-ALA-008",
+      "name": "Alambre Negro Recocido N° 8",
+      "description": "Alambre de amarre para armaduras y estribos calibre 8",
+      "baseUnit": "KG",
+      "type": "CONSUMABLE",
+      "minStockAlert": 200,
+      "isPerishable": false
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000025",
+      "sku": "MAT-TUB-100",
+      "name": "Tuberia PVC C-10 NTP 399.002 SP 1\"",
+      "description": "Tuberia para redes de distribucion de agua potable 1 pulgada C-10",
+      "baseUnit": "METRO",
+      "type": "CONSUMABLE",
+      "minStockAlert": 150,
+      "isPerishable": false
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000026",
+      "sku": "MAT-ACE-060",
+      "name": "Acero Corrugado fy=4200 kg/cm2 Grado 60",
+      "description": "Barras de acero de refuerzo para concreto armado Grado 60",
+      "baseUnit": "KG",
+      "type": "CONSUMABLE",
+      "minStockAlert": 1000,
+      "isPerishable": false
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000027",
+      "sku": "MAT-ALA-016",
+      "name": "Alambre Negro N° 16",
+      "description": "Alambre negro fino calibre 16 para amarras secundarias",
+      "baseUnit": "KG",
+      "type": "CONSUMABLE",
+      "minStockAlert": 100,
+      "isPerishable": false
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000028",
+      "sku": "MAT-CLA-003",
+      "name": "Clavos para Madera con Cabeza 3\"",
+      "description": "Clavos para encofrados pesados de 3 pulgadas",
+      "baseUnit": "KG",
+      "type": "CONSUMABLE",
+      "minStockAlert": 50,
+      "isPerishable": false
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000029",
+      "sku": "MAT-TUB-034",
+      "name": "Tuberia PVC-SAP Electrica 3/4\" x 3m",
+      "description": "Tuberia pesada para instalaciones electricas 3/4 pulgada (20mm)",
+      "baseUnit": "METRO",
+      "type": "CONSUMABLE",
+      "minStockAlert": 50,
+      "isPerishable": false
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000030",
+      "sku": "MAT-CUR-034",
+      "name": "Curvas PVC-SAP Electricas 3/4\"",
+      "description": "Accesorios para conexion y curvatura de tuberia electrica",
+      "baseUnit": "UNIDAD",
+      "type": "CONSUMABLE",
+      "minStockAlert": 20,
+      "isPerishable": false
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000031",
+      "sku": "EQU-NIV-002",
+      "name": "Nivel Topografico Optico Automatico",
+      "description": "Instrumento de nivelacion de precision con compensador automatico",
+      "baseUnit": "UNIDAD",
+      "type": "EQUIPMENT",
+      "minStockAlert": 1,
+      "isPerishable": false
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000032",
+      "sku": "EQU-VIB-002",
+      "name": "Vibrador de Concreto 4 HP 1.25\"",
+      "description": "Equipo vibrador pendular a gasolina con manguera de 4m",
+      "baseUnit": "UNIDAD",
+      "type": "EQUIPMENT",
+      "minStockAlert": 1,
+      "isPerishable": false
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000033",
+      "sku": "HER-BOM-001",
+      "name": "Bomba Manual para Prueba Hidraulica",
+      "description": "Bomba de presion manual para verificacion de estanqueidad en tuberias",
+      "baseUnit": "UNIDAD",
+      "type": "TOOL",
+      "minStockAlert": 1,
+      "isPerishable": false
     }
   ],
   "itemAliases": [
@@ -454,6 +584,110 @@
       "s10RawName": "TUBERIA PVC PESADO SAP P/DESAGUE 2\" X 3M",
       "s10Code": "0204010012",
       "s10Unit": "TUB",
+      "conversionFactor": 1
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000021",
+      "itemId": "e0000000-0000-4000-8000-000000000021",
+      "s10RawName": "CEMENTO PORTLAND TIPO I (42.5 kg)",
+      "s10Code": "0213010001",
+      "s10Unit": "bol",
+      "conversionFactor": 1
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000022",
+      "itemId": "e0000000-0000-4000-8000-000000000022",
+      "s10RawName": "CLAVOS PARA MADERA CON CABEZA DE 2 1/2\"",
+      "s10Code": "02041200010004",
+      "s10Unit": "kg",
+      "conversionFactor": 1
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000023",
+      "itemId": "e0000000-0000-4000-8000-000000000023",
+      "s10RawName": "GASOLINA",
+      "s10Code": "0201030001",
+      "s10Unit": "gal",
+      "conversionFactor": 1
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000024",
+      "itemId": "e0000000-0000-4000-8000-000000000024",
+      "s10RawName": "ALAMBRE NEGRO RECOCIDO Nº 8",
+      "s10Code": "02040100010001",
+      "s10Unit": "kg",
+      "conversionFactor": 1
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000025",
+      "itemId": "e0000000-0000-4000-8000-000000000025",
+      "s10RawName": "TUBERIA PVC C-10 NTP 399.002 SP DE 1\"",
+      "s10Code": "02050700020026",
+      "s10Unit": "m",
+      "conversionFactor": 1
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000026",
+      "itemId": "e0000000-0000-4000-8000-000000000026",
+      "s10RawName": "ACERO CORRUGADO fy = 4200 kg/cm2 GRADO 60",
+      "s10Code": "0204030001",
+      "s10Unit": "kg",
+      "conversionFactor": 1
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000027",
+      "itemId": "e0000000-0000-4000-8000-000000000027",
+      "s10RawName": "ALAMBRE NEGRO Nº 16",
+      "s10Code": "02040100020001",
+      "s10Unit": "kg",
+      "conversionFactor": 1
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000028",
+      "itemId": "e0000000-0000-4000-8000-000000000028",
+      "s10RawName": "CLAVOS PARA MADERA CON CABEZA DE 3\"",
+      "s10Code": "02041200010005",
+      "s10Unit": "kg",
+      "conversionFactor": 1
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000029",
+      "itemId": "e0000000-0000-4000-8000-000000000029",
+      "s10RawName": "TUBERIA PVC-SAP ELECTRICA DE 3/4\" X 3 m (20 mm)",
+      "s10Code": "02050100010003",
+      "s10Unit": "m",
+      "conversionFactor": 1
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000030",
+      "itemId": "e0000000-0000-4000-8000-000000000030",
+      "s10RawName": "CURVAS PVC-SAP ELECTRICAS 3/4\" (20 mm)",
+      "s10Code": "02050200010002",
+      "s10Unit": "und",
+      "conversionFactor": 1
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000031",
+      "itemId": "e0000000-0000-4000-8000-000000000031",
+      "s10RawName": "NIVEL TOPOGRAFICO",
+      "s10Code": "0301000002",
+      "s10Unit": "día",
+      "conversionFactor": 1
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000032",
+      "itemId": "e0000000-0000-4000-8000-000000000032",
+      "s10RawName": "VIBRADOR DE CONCRETO 4 HP 1.25\"",
+      "s10Code": "03012900010002",
+      "s10Unit": "hm",
+      "conversionFactor": 1
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000033",
+      "itemId": "e0000000-0000-4000-8000-000000000033",
+      "s10RawName": "BOMBA PARA PRUEBA HIDRAULICAS",
+      "s10Code": "03010400010006",
+      "s10Unit": "hm",
       "conversionFactor": 1
     }
   ],
@@ -745,6 +979,30 @@
       "unitPriceOriginal": 400,
       "unitCostBasePEN": 33.3333,
       "subtotalPEN": 1200
+    },
+    {
+      "id": "f1000000-0000-4000-8000-000000000021",
+      "purchaseId": "f0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000021",
+      "purchaseUnit": "BOLSA",
+      "conversionFactor": 1,
+      "purchaseQty": 1000,
+      "baseQty": 1000,
+      "unitPriceOriginal": 28.5,
+      "unitCostBasePEN": 28.5,
+      "subtotalPEN": 28500
+    },
+    {
+      "id": "f1000000-0000-4000-8000-000000000024",
+      "purchaseId": "f0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000024",
+      "purchaseUnit": "KG",
+      "conversionFactor": 1,
+      "purchaseQty": 500,
+      "baseQty": 500,
+      "unitPriceOriginal": 5.75,
+      "unitCostBasePEN": 5.75,
+      "subtotalPEN": 2875
     }
   ],
   "stocks": [
@@ -1017,6 +1275,123 @@
       "reservedQty": 0,
       "loanedQty": 0,
       "averageCost": 420000
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000031",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000021",
+      "physicalQty": 6000,
+      "reservedQty": 0,
+      "loanedQty": 0,
+      "averageCost": 28.5
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000032",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000022",
+      "physicalQty": 2500,
+      "reservedQty": 0,
+      "loanedQty": 0,
+      "averageCost": 5
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000033",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000023",
+      "physicalQty": 50,
+      "reservedQty": 0,
+      "loanedQty": 0,
+      "averageCost": 12
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000034",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000024",
+      "physicalQty": 800,
+      "reservedQty": 0,
+      "loanedQty": 0,
+      "averageCost": 5.8
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000035",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000025",
+      "physicalQty": 500,
+      "reservedQty": 0,
+      "loanedQty": 0,
+      "averageCost": 3.9
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000036",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000026",
+      "physicalQty": 5000,
+      "reservedQty": 0,
+      "loanedQty": 0,
+      "averageCost": 5.15
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000037",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000027",
+      "physicalQty": 0,
+      "reservedQty": 0,
+      "loanedQty": 0,
+      "averageCost": 6.3
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000038",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000028",
+      "physicalQty": 0,
+      "reservedQty": 0,
+      "loanedQty": 0,
+      "averageCost": 5.35
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000039",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000029",
+      "physicalQty": 0,
+      "reservedQty": 0,
+      "loanedQty": 0,
+      "averageCost": 1.8
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000040",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000030",
+      "physicalQty": 100,
+      "reservedQty": 0,
+      "loanedQty": 0,
+      "averageCost": 1.35
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000041",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000031",
+      "physicalQty": 3,
+      "reservedQty": 0,
+      "loanedQty": 0,
+      "averageCost": 1800
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000042",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000032",
+      "physicalQty": 2,
+      "reservedQty": 0,
+      "loanedQty": 0,
+      "averageCost": 1450
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000043",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "itemId": "e0000000-0000-4000-8000-000000000033",
+      "physicalQty": 2,
+      "reservedQty": 0,
+      "loanedQty": 0,
+      "averageCost": 350
     }
   ],
   "transfers": [
