@@ -1,0 +1,13 @@
+node_modules
+dist
+backups
+uploads
+test-uploads-health
+.git
+.gitignore
+.env
+.env.*
+*.md
+docs
+.agents
+.codegraph

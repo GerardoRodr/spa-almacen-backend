@@ -16,9 +16,13 @@ async function bootstrap() {
     }),
   );
 
-  // Habilitar CORS para frontend Angular y clientes web
+  // Habilitar CORS con soporte para variable de entorno en produccion
+  const corsOrigin = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim())
+    : true;
+
   app.enableCors({
-    origin: true,
+    origin: corsOrigin,
     credentials: true,
   });
 
@@ -51,7 +55,7 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, document);
 
   const port = process.env.PORT ?? 3000;
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
 
   logger.log(`Servidor iniciado en puerto: ${port}`);
   logger.log(`Documentacion Swagger disponible en: http://localhost:${port}/api/docs`);
