@@ -61,23 +61,31 @@ async function bootstrap() {
     }),
   );
 
-  // Documentacion interactiva OpenAPI Swagger
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('SPA-ALMACEN-ERP API')
-    .setDescription(
-      'API REST modular para la gestion logistica de almacenes y obras civiles',
-    )
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
+  // Documentacion interactiva OpenAPI Swagger condicional
+  const swaggerEnabled = process.env.SWAGGER_ENABLED !== 'false';
 
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+  if (swaggerEnabled) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('SPA-ALMACEN-ERP API')
+      .setDescription(
+        'API REST modular para la gestion logistica de almacenes y obras civiles',
+      )
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, document);
+  }
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port, '0.0.0.0');
 
   logger.log(`Servidor iniciado en puerto: ${port}`);
-  logger.log(`Documentacion Swagger disponible en: http://localhost:${port}/api/docs`);
+  if (swaggerEnabled) {
+    logger.log(`Documentacion Swagger disponible en: http://localhost:${port}/api/docs`);
+  } else {
+    logger.log('Documentacion Swagger deshabilitada por configuracion (SWAGGER_ENABLED=false)');
+  }
 }
 await bootstrap();

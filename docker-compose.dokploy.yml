@@ -38,6 +38,7 @@ services:
       BACKUP_DIR: /app/backups
       CORS_ENABLED: ${CORS_ENABLED:-true}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
       SEED_ON_START: ${SEED_ON_START:-false}
     ports:
       - "3000:3000"

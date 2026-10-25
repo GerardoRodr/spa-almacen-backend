@@ -4,6 +4,9 @@ export const configuration = () => ({
     enabled: process.env.CORS_ENABLED !== 'false',
     origin: process.env.CORS_ORIGIN ?? '*',
   },
+  swagger: {
+    enabled: process.env.SWAGGER_ENABLED !== 'false',
+  },
   database: {
     url: process.env.DATABASE_URL,
   },
