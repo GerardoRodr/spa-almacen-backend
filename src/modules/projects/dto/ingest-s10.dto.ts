@@ -100,6 +100,74 @@ export class IngestS10Dto {
   @IsString({ message: 'El codigo de presupuesto debe ser una cadena de texto' })
   budgetCode?: string;
 
+  @ApiPropertyOptional({
+    example: 'LA LIBERTAD - SANTIAGO DE CHUCO - QUIRUVILCA',
+    description: 'Ubicacion geografica del proyecto segun expediente S10',
+  })
+  @IsOptional()
+  @IsString({ message: 'La ubicacion debe ser una cadena de texto' })
+  s10Location?: string;
+
+  @ApiPropertyOptional({
+    example: '131006',
+    description: 'Codigo Ubigeo segun expediente S10',
+  })
+  @IsOptional()
+  @IsString({ message: 'El ubigeo debe ser una cadena de texto' })
+  s10Ubigeo?: string;
+
+  @ApiPropertyOptional({
+    example: '2025-11-01T00:00:00.000Z',
+    description: 'Fecha original del presupuesto S10',
+  })
+  @IsOptional()
+  s10BudgetDate?: string | Date;
+
+  @ApiPropertyOptional({
+    example: 3479983.23,
+    description: 'Costo Directo Total presupuestado S10 en PEN',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'El presupuesto total S10 debe ser un numero' })
+  s10TotalBudget?: number;
+
+  @ApiPropertyOptional({
+    example: 1135524.35,
+    description: 'Subtotal Grupo 02 (Materiales) S10 en PEN',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'El subtotal de materiales debe ser un numero' })
+  s10MaterialsBudget?: number;
+
+  @ApiPropertyOptional({
+    example: 153599.14,
+    description: 'Subtotal Grupo 03 (Equipos y Herramientas) S10 en PEN',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'El subtotal de equipos debe ser un numero' })
+  s10EquipmentBudget?: number;
+
+  @ApiPropertyOptional({
+    example: 1587459.81,
+    description: 'Subtotal Grupo 01 (Mano de Obra) S10 en PEN',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'El subtotal de mano de obra debe ser un numero' })
+  s10LaborBudget?: number;
+
+  @ApiPropertyOptional({
+    example: 603399.93,
+    description: 'Subtotal Grupo 04 (Subcontratos) S10 en PEN',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'El subtotal de subcontratos debe ser un numero' })
+  s10SubcontractsBudget?: number;
+
   @ApiProperty({
     type: [S10ResourceItemDto],
     description: 'Lista de recursos y materiales extraidos del presupuesto S10',

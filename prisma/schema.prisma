@@ -214,18 +214,30 @@ model ItemAlias {
 // --------------------------------------------------------
 
 model Project {
-  id           String               @id @default(uuid())
-  name         String
-  budgetCode   String?              // Codigo de presupuesto S10
-  status       ProjectStatus        @default(PLANNING)
+  id                    String               @id @default(uuid())
+  name                  String
+  budgetCode            String?              // Codigo del presupuesto S10 (ej. 1101024)
+  status                ProjectStatus        @default(PLANNING)
   
-  warehouse    Warehouse?
-  requirements ProjectRequirement[]
-  transfers    Transfer[]
-  movements    Movement[]
+  // Metadatos del Expediente S10
+  s10Location           String?              // Ej: "LA LIBERTAD - SANTIAGO DE CHUCO - QUIRUVILCA"
+  s10Ubigeo             String?              // Ej: "131006"
+  s10BudgetDate         DateTime?            // Fecha original del presupuesto S10
   
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
+  // Totales y KPIs Financieros S10 (PEN)
+  s10TotalBudget        Decimal?             @db.Decimal(14, 2) // Costo Directo Total de Recursos
+  s10MaterialsBudget    Decimal?             @db.Decimal(14, 2) // Subtotal Grupo 02 (Materiales)
+  s10EquipmentBudget    Decimal?             @db.Decimal(14, 2) // Subtotal Grupo 03 (Equipos/Herramientas)
+  s10LaborBudget        Decimal?             @db.Decimal(14, 2) // Subtotal Grupo 01 (Mano de Obra)
+  s10SubcontractsBudget Decimal?             @db.Decimal(14, 2) // Subtotal Grupo 04 (Subcontratos)
+
+  warehouse             Warehouse?
+  requirements          ProjectRequirement[]
+  transfers             Transfer[]
+  movements             Movement[]
+  
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
 }
 
 model ProjectRequirement {

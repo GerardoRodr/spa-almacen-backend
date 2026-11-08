@@ -523,10 +523,17 @@ describe('ProjectsService', () => {
 
       expect(result.s10ProjectCode).toBe('0102003');
       expect(result.s10ProjectName).toBe('MEJORAMIENTO DE TRANSITABILIDAD VIAL');
-      expect(prisma.project.update).toHaveBeenCalledWith({
-        where: { id: 'p1' },
-        data: { budgetCode: '0102003' },
-      });
+      expect(result.budgetSummary).toBeDefined();
+      expect(result.budgetSummary.materialsTotal).toBe(66250.0);
+      expect(prisma.project.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'p1' },
+          data: expect.objectContaining({
+            budgetCode: '0102003',
+            s10MaterialsBudget: 66250.0,
+          }),
+        }),
+      );
     });
   });
 
@@ -535,6 +542,11 @@ describe('ProjectsService', () => {
       prisma.project.findUnique.mockResolvedValue({
         id: 'p1',
         name: 'Obra 1',
+        s10TotalBudget: 150000.0,
+        s10MaterialsBudget: 80000.0,
+        s10EquipmentBudget: 20000.0,
+        s10LaborBudget: 35000.0,
+        s10SubcontractsBudget: 15000.0,
         warehouse: { id: 'wh-site-1', name: 'Almacen Obra 1' },
       });
       prisma.projectRequirement.findMany.mockResolvedValue([
@@ -574,6 +586,15 @@ describe('ProjectsService', () => {
 
       const result = await service.getGapAnalysis('p1', { id: 'admin1', role: Role.ADMIN });
       expect(result.analysis).toHaveLength(1);
+      expect(result.budgetSummary).toBeDefined();
+      expect(result.budgetSummary.totalBudgetPEN).toBe(150000.0);
+      expect(result.budgetSummary.materialsBudgetPEN).toBe(80000.0);
+      expect(result.budgetSummary.equipmentBudgetPEN).toBe(20000.0);
+      expect(result.budgetSummary.laborBudgetPEN).toBe(35000.0);
+      expect(result.budgetSummary.subcontractsBudgetPEN).toBe(15000.0);
+      expect(result.budgetSummary.totalRequiredItemsCount).toBe(1);
+      expect(result.budgetSummary.totalDeficitEstimatedCostPEN).toBe(0);
+
       const row = result.analysis[0];
 
       // Requerido: 2500. Reservado: 500. Consumido: 1200. Pendiente: 2500 - 500 - 1200 = 800.
@@ -589,6 +610,49 @@ describe('ProjectsService', () => {
       expect(row.minHistoricalUnitCost).toBe('25.8000');
       expect(row.weightedAverageCost).toBe('26.0000');
       expect(row.s10BudgetUnitPrice).toBe('27.5000');
+    });
+
+    it('debe calcular totalDeficitEstimatedCostPEN cuando existe deficit de compra no cubierto por almacen central', async () => {
+      prisma.project.findUnique.mockResolvedValue({
+        id: 'p1',
+        name: 'Obra 2',
+        warehouse: { id: 'wh-site-1', name: 'Almacen Obra 2' },
+      });
+      prisma.projectRequirement.findMany.mockResolvedValue([
+        {
+          id: 'req1',
+          projectId: 'p1',
+          itemId: 'item1',
+          requiredQty: 100,
+          allocatedQty: 0,
+          consumedQty: 0,
+          s10UnitPrice: 50.0,
+          item: {
+            id: 'item1',
+            sku: 'TUB-01',
+            name: 'Tuberia',
+            baseUnit: 'M',
+            type: ItemType.CONSUMABLE,
+          },
+          project: { id: 'p1', name: 'Obra 2' },
+        },
+      ]);
+      prisma.warehouse.findMany.mockResolvedValue([{ id: 'wh-central' }]);
+      // Central tiene 20 disponible. Pendiente 100 -> Deficit = 80.
+      // Deficit cost = 80 * 50.0 = 4000.00
+      prisma.stock.findMany.mockResolvedValue([
+        {
+          warehouseId: 'wh-central',
+          itemId: 'item1',
+          physicalQty: 20,
+          reservedQty: 0,
+          averageCost: 48.0,
+        },
+      ]);
+
+      const result = await service.getGapAnalysis('p1', { id: 'admin1', role: Role.ADMIN });
+      expect(result.budgetSummary.totalDeficitEstimatedCostPEN).toBe(4000.0);
+      expect(result.analysis[0].purchaseDeficit).toBe('80.0000');
     });
   });
 

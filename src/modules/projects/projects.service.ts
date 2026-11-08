@@ -252,14 +252,6 @@ export class ProjectsService {
       );
     }
 
-    // Actualizar budgetCode si no estaba registrado
-    if (dto.budgetCode?.trim() && !project.budgetCode) {
-      await this.prisma.project.update({
-        where: { id },
-        data: { budgetCode: dto.budgetCode.trim() },
-      });
-    }
-
     // Filtrar partidas de mano de obra (01) o subcontratos (04)
     const validResources = dto.resources.filter(
       (r) => !this.s10ParserService.isDiscardedResource(r.s10Code, r.s10RawName),
@@ -379,9 +371,26 @@ export class ProjectsService {
 
     const mode = dto.mode ?? 'REPLACE';
 
-    // Persistir o actualizar ProjectRequirement en transaccion atomica
+    // Persistir o actualizar ProjectRequirement y KPIs en transaccion atomica
     let requirementsCreatedOrUpdated = 0;
     await this.prisma.$transaction(async (tx) => {
+      // 1. Actualizar metadatos y KPIs financieros en Project
+      await tx.project.update({
+        where: { id },
+        data: {
+          budgetCode: dto.budgetCode?.trim() || undefined,
+          s10Location: dto.s10Location ?? undefined,
+          s10Ubigeo: dto.s10Ubigeo ?? undefined,
+          s10BudgetDate: dto.s10BudgetDate ? new Date(dto.s10BudgetDate) : undefined,
+          s10TotalBudget: dto.s10TotalBudget !== undefined ? dto.s10TotalBudget : undefined,
+          s10MaterialsBudget: dto.s10MaterialsBudget !== undefined ? dto.s10MaterialsBudget : undefined,
+          s10EquipmentBudget: dto.s10EquipmentBudget !== undefined ? dto.s10EquipmentBudget : undefined,
+          s10LaborBudget: dto.s10LaborBudget !== undefined ? dto.s10LaborBudget : undefined,
+          s10SubcontractsBudget: dto.s10SubcontractsBudget !== undefined ? dto.s10SubcontractsBudget : undefined,
+        },
+      });
+
+      // 2. Persistir o actualizar ProjectRequirement
       for (const [itemId, demand] of mappedDemands.entries()) {
         const existingReq = await tx.projectRequirement.findUnique({
           where: {
@@ -457,7 +466,20 @@ export class ProjectsService {
     const parseResult = this.s10ParserService.parseS10Buffer(file.buffer);
 
     const ingestResult = await this.ingestS10(id, {
-      budgetCode: parseResult.s10ProjectCode,
+      budgetCode: parseResult.projectMetadata?.code ?? parseResult.s10ProjectCode,
+      s10Location:
+        parseResult.projectMetadata?.location ??
+        parseResult.budgetSummary.location,
+      s10Ubigeo:
+        parseResult.projectMetadata?.ubigeo ?? parseResult.budgetSummary.ubigeo,
+      s10BudgetDate:
+        parseResult.projectMetadata?.budgetDate ??
+        parseResult.budgetSummary.budgetDate,
+      s10TotalBudget: parseResult.budgetSummary.totalDirectCost,
+      s10MaterialsBudget: parseResult.budgetSummary.materialsTotal,
+      s10EquipmentBudget: parseResult.budgetSummary.equipmentTotal,
+      s10LaborBudget: parseResult.budgetSummary.laborTotal,
+      s10SubcontractsBudget: parseResult.budgetSummary.subcontractsTotal,
       resources: parseResult.resources,
       mode: 'REPLACE',
     });
@@ -468,6 +490,7 @@ export class ProjectsService {
       s10ProjectName: parseResult.s10ProjectName,
       totalRowsParsed: parseResult.totalRowsParsed,
       materialsAndEquipmentRows: parseResult.materialsAndEquipmentRows,
+      budgetSummary: parseResult.budgetSummary,
       mappedItems: ingestResult.mappedCount,
       unmappedItems: ingestResult.unmappedItems,
       requirementsCreatedOrUpdated: ingestResult.requirementsCreatedOrUpdated,
@@ -501,6 +524,15 @@ export class ProjectsService {
       return {
         projectId: id,
         projectName: project.name ?? '',
+        budgetSummary: {
+          totalBudgetPEN: Number(project.s10TotalBudget ?? 0),
+          materialsBudgetPEN: Number(project.s10MaterialsBudget ?? 0),
+          equipmentBudgetPEN: Number(project.s10EquipmentBudget ?? 0),
+          laborBudgetPEN: Number(project.s10LaborBudget ?? 0),
+          subcontractsBudgetPEN: Number(project.s10SubcontractsBudget ?? 0),
+          totalRequiredItemsCount: 0,
+          totalDeficitEstimatedCostPEN: 0,
+        },
         analysis: [],
       };
     }
@@ -576,6 +608,8 @@ export class ProjectsService {
       }
     }
 
+    let totalDeficitEstimatedCostPEN = 0;
+
     const analysis = requirements.map((req) => {
       const requiredQty = Number(req.requiredQty);
       const allocatedQty = Number(req.allocatedQty);
@@ -607,6 +641,12 @@ export class ProjectsService {
         0,
         Number((pendingToSupply - centralAvailableStock).toFixed(4)),
       );
+
+      // Acumulacion del costo estimado de deficit si existe precio unitario S10
+      if (purchaseDeficit > 0 && req.s10UnitPrice) {
+        totalDeficitEstimatedCostPEN +=
+          purchaseDeficit * Number(req.s10UnitPrice);
+      }
 
       // Indicadores de Precios:
       // a) Menor precio historico de compra
@@ -669,6 +709,17 @@ export class ProjectsService {
     return {
       projectId: id,
       projectName,
+      budgetSummary: {
+        totalBudgetPEN: Number(project.s10TotalBudget ?? 0),
+        materialsBudgetPEN: Number(project.s10MaterialsBudget ?? 0),
+        equipmentBudgetPEN: Number(project.s10EquipmentBudget ?? 0),
+        laborBudgetPEN: Number(project.s10LaborBudget ?? 0),
+        subcontractsBudgetPEN: Number(project.s10SubcontractsBudget ?? 0),
+        totalRequiredItemsCount: requirements.length,
+        totalDeficitEstimatedCostPEN: Number(
+          totalDeficitEstimatedCostPEN.toFixed(2),
+        ),
+      },
       analysis,
     };
   }

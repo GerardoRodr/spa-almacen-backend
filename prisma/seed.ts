@@ -63,6 +63,14 @@ async function main() {
         name: project.name,
         budgetCode: project.budgetCode,
         status: project.status,
+        s10Location: project.s10Location ?? null,
+        s10Ubigeo: project.s10Ubigeo ?? null,
+        s10BudgetDate: project.s10BudgetDate ? new Date(project.s10BudgetDate) : null,
+        s10TotalBudget: project.s10TotalBudget ?? null,
+        s10MaterialsBudget: project.s10MaterialsBudget ?? null,
+        s10EquipmentBudget: project.s10EquipmentBudget ?? null,
+        s10LaborBudget: project.s10LaborBudget ?? null,
+        s10SubcontractsBudget: project.s10SubcontractsBudget ?? null,
       },
     });
   }

@@ -169,11 +169,20 @@ Al devolver la herramienta o equipo a la caseta, el almacenero evalua su condici
 - Soporta delimitadores por coma (`,`) y punto y coma (`;`).
 - Soporta codificacion `Windows-1252` (estandar de exportacion de S10 en Peru) y `UTF-8` para evitar corrupcion de caracteres tecnicos.
 
-### 6.2. Filtrado Estricto de Recursos
-- El parser clasifica y descarta automaticamente las partidas agrupadas bajo:
-  - `01 MANO DE OBRA`
-  - `04 SUBCONTRATOS`
-- Procesa unicamente insumos de tipo `02 MATERIALES` (`CONSUMABLE`) y `03 EQUIPOS` (`TOOL`, `EQUIPMENT`, `MACHINERY`).
+### 6.2. Clasificacion de Recursos y Captura Presupuestal
+- El parser clasifica y extrae los montos parciales de todas las partidas S10 segun sus dos primeros digitos:
+  - `01 MANO DE OBRA`: Acumulado en `s10LaborBudget` / `laborBudget`.
+  - `02 MATERIALES`: Acumulado en `s10MaterialsBudget` / `materialsBudget`.
+  - `03 EQUIPOS Y HERRAMIENTAS`: Acumulado en `s10EquipmentBudget` / `equipmentBudget` (incluyendo partidas porcentuales `%mo` con metrado `0.00`).
+  - `04 SUBCONTRATOS`: Acumulado en `s10SubcontractsBudget` / `subcontractsBudget`.
+- **Descarte Operativo para Almacen:**
+  - Las partidas de `01` y `04` son descartadas de la lista de requerimientos de abastecimiento (`ProjectRequirement`), pero sus importes economicos se conservan para los totales y KPIs del proyecto.
+  - Se admiten exclusivamente insumos con metrado positivo de tipo `02` (`CONSUMABLE`) y `03` (`TOOL`, `EQUIPMENT`, `MACHINERY`).
+- **Costo Directo Total y Consistencia:**
+  - El Costo Directo Total (`s10TotalBudget`) se detecta prioritariamente de la firma `TOTAL` del pie de pagina del reporte S10. Si esta ausente, se calcula como la suma de los 4 grupos:
+    $$\text{s10TotalBudget} = \text{materialsBudget} + \text{equipmentBudget} + \text{laborBudget} + \text{subcontractsBudget}$$
+- **Metadatos del Expediente:**
+  - Extrae de forma resiliente la fecha del presupuesto (`s10BudgetDate`), codigo ubigeo (`s10Ubigeo`) y ubicacion geografica (`s10Location`).
 
 ### 6.3. Resolucion de Alias y Factores de Conversion (`ItemAlias`)
 - Si la descripcion cruda del S10 (`s10RawName`) coincide con un registro en `ItemAlias`, se vincula directamente al SKU maestro.
@@ -207,6 +216,8 @@ Un almacen de obra (`PROJECT_SITE`) se liquida formalmente (`isActive = false`, 
 ### 8.2. Rol `WAREHOUSE_KEEPER` (Almacenero de Obra / Caseta)
 - Asignado a uno o mas almacenes mediante la tabla `UserWarehouse`. En la interfaz solo visualiza y opera los almacenes a los que tiene permiso activo.
 - **Acceso Ciego a Finanzas (Data Masking Estricto):**
-  - Los endpoints de la API filtran y omiten todo campo financiero (`averageCost`, `unitPriceOriginal`, `subtotalPEN`, `totalAmountPEN`, `unitCostSnapshot`).
+  - Los endpoints de la API filtran y omiten todo campo financiero (`averageCost`, `unitPriceOriginal`, `subtotalPEN`, `totalAmountPEN`, `unitCostSnapshot`, `s10UnitPrice`, `minHistoricalUnitCost`, `weightedAverageCost`, `s10BudgetUnitPrice`).
+  - Los totales presupuestales y KPIs monetarios S10 (`s10TotalBudget`, `s10MaterialsBudget`, `s10EquipmentBudget`, `s10LaborBudget`, `s10SubcontractsBudget`, `totalBudgetPEN`, `materialsBudgetPEN`, `equipmentBudgetPEN`, `laborBudgetPEN`, `subcontractsBudgetPEN`, `totalDeficitEstimatedCostPEN`) son purgados de forma automatica por `CostMaskingInterceptor`.
+  - Se preservan metadatos y cantidades operativas (`s10Location`, `s10Ubigeo`, `s10BudgetDate`, `totalRequiredItemsCount`, `requiredQty`, `allocatedQty`, `consumedQty`, `purchaseDeficit`).
   - No tiene permiso de visualizacion de facturas con montos; unicamente accede a guias de remision fisica y fotos de evidencia.
 - Operatividad touch en caseta: recepcion de transferencias, salidas por consumo a capataces, vales de herramientas y conteo de inventario.

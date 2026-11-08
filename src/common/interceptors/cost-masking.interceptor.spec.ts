@@ -146,4 +146,77 @@ describe('CostMaskingInterceptor', () => {
       expect(result.requirements[0].s10UnitPrice).toBeUndefined();
     });
   });
+
+  it('debe purgar totales y KPIs financieros de presupuesto S10 para WAREHOUSE_KEEPER preservando metadatos', async () => {
+    const rawData = {
+      id: 'proj-1',
+      name: 'Obra Yanivilca',
+      budgetCode: '1101024',
+      s10Location: 'LA LIBERTAD - SANTIAGO DE CHUCO - QUIRUVILCA',
+      s10Ubigeo: '131006',
+      s10BudgetDate: new Date('2025-11-01T00:00:00.000Z'),
+      s10TotalBudget: 3479983.23,
+      s10MaterialsBudget: 1135524.35,
+      s10EquipmentBudget: 153599.14,
+      s10LaborBudget: 1587459.81,
+      s10SubcontractsBudget: 603399.93,
+      budgetSummary: {
+        totalBudgetPEN: 3479983.23,
+        materialsBudgetPEN: 1135524.35,
+        equipmentBudgetPEN: 153599.14,
+        laborBudgetPEN: 1587459.81,
+        subcontractsBudgetPEN: 603399.93,
+        totalRequiredItemsCount: 48,
+        totalDeficitEstimatedCostPEN: 45280.5,
+      },
+    };
+
+    const context = createMockContext(Role.WAREHOUSE_KEEPER);
+    const handler = createMockHandler(rawData);
+
+    interceptor.intercept(context, handler).subscribe((result: any) => {
+      // Metadatos preservados
+      expect(result.name).toBe('Obra Yanivilca');
+      expect(result.budgetCode).toBe('1101024');
+      expect(result.s10Location).toBe('LA LIBERTAD - SANTIAGO DE CHUCO - QUIRUVILCA');
+      expect(result.s10Ubigeo).toBe('131006');
+      expect(result.s10BudgetDate).toBeInstanceOf(Date);
+      expect(result.budgetSummary.totalRequiredItemsCount).toBe(48);
+
+      // Campos financieros y montos S10 purgados
+      expect(result.s10TotalBudget).toBeUndefined();
+      expect(result.s10MaterialsBudget).toBeUndefined();
+      expect(result.s10EquipmentBudget).toBeUndefined();
+      expect(result.s10LaborBudget).toBeUndefined();
+      expect(result.s10SubcontractsBudget).toBeUndefined();
+      expect(result.budgetSummary.totalBudgetPEN).toBeUndefined();
+      expect(result.budgetSummary.materialsBudgetPEN).toBeUndefined();
+      expect(result.budgetSummary.equipmentBudgetPEN).toBeUndefined();
+      expect(result.budgetSummary.laborBudgetPEN).toBeUndefined();
+      expect(result.budgetSummary.subcontractsBudgetPEN).toBeUndefined();
+      expect(result.budgetSummary.totalDeficitEstimatedCostPEN).toBeUndefined();
+    });
+  });
+
+  it('debe mantener totales y KPIs financieros de presupuesto S10 intactos para ADMIN', async () => {
+    const rawData = {
+      id: 'proj-1',
+      s10TotalBudget: 3479983.23,
+      s10MaterialsBudget: 1135524.35,
+      budgetSummary: {
+        totalBudgetPEN: 3479983.23,
+        totalDeficitEstimatedCostPEN: 45280.5,
+      },
+    };
+
+    const context = createMockContext(Role.ADMIN);
+    const handler = createMockHandler(rawData);
+
+    interceptor.intercept(context, handler).subscribe((result: any) => {
+      expect(result.s10TotalBudget).toBe(3479983.23);
+      expect(result.s10MaterialsBudget).toBe(1135524.35);
+      expect(result.budgetSummary.totalBudgetPEN).toBe(3479983.23);
+      expect(result.budgetSummary.totalDeficitEstimatedCostPEN).toBe(45280.5);
+    });
+  });
 });

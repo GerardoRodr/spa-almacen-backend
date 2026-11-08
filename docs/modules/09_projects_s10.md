@@ -37,8 +37,16 @@ Retorna la relacion de obras civiles registradas con su estado, almacen de obra 
   {
     "id": "77777777-7777-7777-7777-777777777777",
     "name": "Residencial Las Palmeras - San Isidro",
-    "budgetCode": "S10-OBRA-2026-01",
+    "budgetCode": "1101024",
     "status": "ACTIVE",
+    "s10Location": "LA LIBERTAD - SANTIAGO DE CHUCO - QUIRUVILCA",
+    "s10Ubigeo": "131006",
+    "s10BudgetDate": "2025-11-01T00:00:00.000Z",
+    "s10TotalBudget": "3479983.23",
+    "s10MaterialsBudget": "1135524.35",
+    "s10EquipmentBudget": "153599.14",
+    "s10LaborBudget": "1587459.81",
+    "s10SubcontractsBudget": "603399.93",
     "createdAt": "2026-09-20T22:55:00.000Z",
     "warehouse": {
       "id": "44444444-4444-4444-4444-444444444444",
@@ -52,6 +60,8 @@ Retorna la relacion de obras civiles registradas con su estado, almacen de obra 
   }
 ]
 ```
+
+> **Aislamiento RBAC:** Para usuarios con rol `WAREHOUSE_KEEPER`, los campos monetarios `s10TotalBudget`, `s10MaterialsBudget`, `s10EquipmentBudget`, `s10LaborBudget` y `s10SubcontractsBudget` son purgados automaticamente de la respuesta por `CostMaskingInterceptor`. Se preservan los metadatos `s10Location`, `s10Ubigeo` y `s10BudgetDate`.
 
 ---
 
@@ -128,8 +138,16 @@ Consulta la ficha integral del proyecto civil, incluyendo el almacen de obra, su
 {
   "id": "77777777-7777-7777-7777-777777777777",
   "name": "Residencial Las Palmeras - San Isidro",
-  "budgetCode": "S10-OBRA-2026-01",
+  "budgetCode": "1101024",
   "status": "ACTIVE",
+  "s10Location": "LA LIBERTAD - SANTIAGO DE CHUCO - QUIRUVILCA",
+  "s10Ubigeo": "131006",
+  "s10BudgetDate": "2025-11-01T00:00:00.000Z",
+  "s10TotalBudget": "3479983.23",
+  "s10MaterialsBudget": "1135524.35",
+  "s10EquipmentBudget": "153599.14",
+  "s10LaborBudget": "1587459.81",
+  "s10SubcontractsBudget": "603399.93",
   "createdAt": "2026-09-20T22:55:00.000Z",
   "warehouse": {
     "id": "44444444-4444-4444-4444-444444444444",
@@ -146,6 +164,7 @@ Consulta la ficha integral del proyecto civil, incluyendo el almacen de obra, su
       "requiredQty": "2500.0000",
       "allocatedQty": "500.0000",
       "consumedQty": "1200.0000",
+      "s10UnitPrice": "26.5000",
       "item": {
         "id": "item-uuid-cemento",
         "sku": "CEM-PORT-T1",
@@ -162,6 +181,8 @@ Consulta la ficha integral del proyecto civil, incluyendo el almacen de obra, su
   }
 }
 ```
+
+> **Aislamiento RBAC:** Los campos financieros `s10TotalBudget`, `s10MaterialsBudget`, `s10EquipmentBudget`, `s10LaborBudget`, `s10SubcontractsBudget` y `requirements[].s10UnitPrice` se purgan automaticamente para `WAREHOUSE_KEEPER`.
 
 ---
 
@@ -274,6 +295,15 @@ Calcula el estado del abastecimiento del proyecto comparando:
 {
   "projectId": "77777777-7777-7777-7777-777777777777",
   "projectName": "Residencial Las Palmeras - San Isidro",
+  "budgetSummary": {
+    "totalBudgetPEN": 3479983.23,
+    "materialsBudgetPEN": 1135524.35,
+    "equipmentBudgetPEN": 153599.14,
+    "laborBudgetPEN": 1587459.81,
+    "subcontractsBudgetPEN": 603399.93,
+    "totalRequiredItemsCount": 48,
+    "totalDeficitEstimatedCostPEN": 2650.00
+  },
   "analysis": [
     {
       "itemId": "item-uuid-cemento",
@@ -294,6 +324,8 @@ Calcula el estado del abastecimiento del proyecto comparando:
   ]
 }
 ```
+
+> **Aislamiento RBAC:** Para usuarios con rol `WAREHOUSE_KEEPER`, las claves financieras en `budgetSummary` (`totalBudgetPEN`, `materialsBudgetPEN`, `equipmentBudgetPEN`, `laborBudgetPEN`, `subcontractsBudgetPEN`, `totalDeficitEstimatedCostPEN`) y en `analysis` (`minHistoricalUnitCost`, `weightedAverageCost`, `s10BudgetUnitPrice`) son purgadas automaticamente por `CostMaskingInterceptor`. El usuario de caseta visualiza unicamente cantidades operativas y `totalRequiredItemsCount`.
 
 ---
 
@@ -402,10 +434,20 @@ Sube y procesa un archivo exportado de presupuesto S10 utilizando `papaparse` e 
 ```json
 {
   "projectId": "77777777-7777-7777-7777-777777777777",
-  "s10ProjectCode": "0102003",
-  "s10ProjectName": "MEJORAMIENTO DE TRANSITABILIDAD VIAL",
-  "totalRowsParsed": 120,
-  "materialsAndEquipmentRows": 85,
+  "s10ProjectCode": "1101024",
+  "s10ProjectName": "MEJORAMIENTO Y AMPLIACION DEL SERVICIO DE AGUA POTABLE RURAL...",
+  "totalRowsParsed": 296,
+  "materialsAndEquipmentRows": 271,
+  "budgetSummary": {
+    "totalDirectCost": 3479983.23,
+    "materialsTotal": 1135524.35,
+    "equipmentTotal": 153599.14,
+    "laborTotal": 1587459.81,
+    "subcontractsTotal": 603399.93,
+    "location": "LA LIBERTAD - SANTIAGO DE CHUCO - QUIRUVILCA",
+    "ubigeo": "131006",
+    "budgetDate": "2025-11-01T00:00:00.000Z"
+  },
   "mappedItems": 80,
   "unmappedItems": [
     {

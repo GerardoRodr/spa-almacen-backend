@@ -3,6 +3,25 @@ import Papa from 'papaparse';
 import iconv from 'iconv-lite';
 import { S10ResourceItemDto } from './dto/ingest-s10.dto.js';
 
+export interface S10BudgetSummaryDto {
+  totalDirectCost: number;
+  materialsTotal: number;
+  equipmentTotal: number;
+  laborTotal: number;
+  subcontractsTotal: number;
+  location?: string;
+  ubigeo?: string;
+  budgetDate?: Date;
+}
+
+export interface S10ProjectMetadata {
+  code?: string;
+  name?: string;
+  location?: string;
+  ubigeo?: string;
+  budgetDate?: Date;
+}
+
 export interface ParsedS10Result {
   resources: S10ResourceItemDto[];
   totalRowsParsed: number;
@@ -10,7 +29,11 @@ export interface ParsedS10Result {
   discardedRows: number;
   s10ProjectCode?: string;
   s10ProjectName?: string;
+  projectMetadata?: S10ProjectMetadata;
+  budgetSummary: S10BudgetSummaryDto;
 }
+
+export type S10ParseResult = ParsedS10Result;
 
 @Injectable()
 export class S10ParserService {
@@ -122,6 +145,82 @@ export class S10ParserService {
     return false;
   }
 
+  // Parsear fecha proveniente de cabecera S10 (DD/MM/YYYY o YYYY-MM-DD)
+  parseS10Date(rawDate?: string): Date | undefined {
+    if (!rawDate) return undefined;
+    const trimmed = rawDate.trim();
+    if (!trimmed) return undefined;
+
+    // DD/MM/YYYY o DD-MM-YYYY
+    const dmyMatch = trimmed.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
+    if (dmyMatch) {
+      const day = parseInt(dmyMatch[1], 10);
+      const month = parseInt(dmyMatch[2], 10) - 1;
+      const year = parseInt(dmyMatch[3], 10);
+      const date = new Date(Date.UTC(year, month, day));
+      return isNaN(date.getTime()) ? undefined : date;
+    }
+
+    // YYYY-MM-DD
+    const ymdMatch = trimmed.match(/^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})$/);
+    if (ymdMatch) {
+      const year = parseInt(ymdMatch[1], 10);
+      const month = parseInt(ymdMatch[2], 10) - 1;
+      const day = parseInt(ymdMatch[3], 10);
+      const date = new Date(Date.UTC(year, month, day));
+      return isNaN(date.getTime()) ? undefined : date;
+    }
+
+    const parsed = new Date(trimmed);
+    return isNaN(parsed.getTime()) ? undefined : parsed;
+  }
+
+  // Resolver importe parcial segun estructura de reporte (clasico con precio en +4 y parcial en +5, o con incidencia con parcial en +4)
+  resolvePartialAmount(
+    row: string[],
+    codeIdx: number,
+    isIncidenceRow: boolean,
+    quantity: number,
+  ): number {
+    const rawCellAfter1 = row[codeIdx + 4];
+    const rawCellAfter2 = row[codeIdx + 5];
+
+    const val1 = this.parseQuantity(rawCellAfter1);
+    const isCell2Percentage = this.isPercentageValue(rawCellAfter2);
+    const isCell2Empty =
+      rawCellAfter2 === undefined ||
+      rawCellAfter2 === null ||
+      (typeof rawCellAfter2 === 'string' && rawCellAfter2.trim() === '');
+
+    // En reporte con incidencia o cuando la celda posterior es porcentaje o esta vacia:
+    // +4 es el importe parcial acumulado
+    if (isIncidenceRow || isCell2Percentage || isCell2Empty) {
+      return val1;
+    }
+
+    const val2 = this.parseQuantity(rawCellAfter2);
+    if (val2 > 0) {
+      // Caso especial herramientas manuales u otros donde cantidad es 0 pero celda +5 contiene el parcial
+      if (val1 === 0 && val2 > 0) {
+        return val2;
+      }
+
+      // En reporte clasico se cumple que Cantidad * Celda1 (Precio) ≈ Celda2 (Parcial)
+      if (quantity > 0) {
+        const expectedTotal = val1 * quantity;
+        const diff = Math.abs(expectedTotal - val2);
+        if (diff <= Math.max(1, val2 * 0.05)) {
+          return val2;
+        }
+      }
+
+      // Si no coincide la multiplicacion, celda1 es parcial y celda2 es porcentaje plano sin signo %
+      return val1;
+    }
+
+    return val1;
+  }
+
   // Calculo resiliente del precio unitario segun estructura de celdas adyacentes (+4 y +5)
   resolveUnitPrice(
     quantity: number,
@@ -197,6 +296,16 @@ export class S10ParserService {
     let discardedRows = 0;
     let s10ProjectCode: string | undefined;
     let s10ProjectName: string | undefined;
+    let s10Location: string | undefined;
+    let s10Ubigeo: string | undefined;
+    let s10BudgetDate: Date | undefined;
+    let capturedTotalDirectCost: number | undefined;
+
+    let laborBudget = 0;
+    let materialsBudget = 0;
+    let equipmentBudget = 0;
+    let subcontractsBudget = 0;
+
     let nonBlankRowsCount = 0;
     let isFileIncidenceReport = false;
 
@@ -230,7 +339,7 @@ export class S10ParserService {
         rowUpperText.includes('(CON INCIDENCIA)');
       const isIncidenceRow = isFileIncidenceReport || hasIncidenceTag;
 
-      // 1. Escaneo de metadatos de Obra en las primeras posiciones de la fila
+      // 1. Escaneo de metadatos de Obra, Fecha y Lugar en las primeras posiciones de la fila
       let obraIndex = -1;
       const searchLimit = Math.min(row.length, 30);
       for (let i = 0; i < searchLimit; i++) {
@@ -255,6 +364,78 @@ export class S10ParserService {
             }
           }
           break;
+        }
+      }
+
+      // Deteccion de Fecha del presupuesto en la fila
+      if (!s10BudgetDate) {
+        for (let i = 0; i < searchLimit; i++) {
+          const cellText = (row[i] ?? '').trim().toLowerCase().replace(/:$/, '');
+          if (cellText === 'fecha') {
+            for (let j = i + 1; j < Math.min(row.length, i + 4); j++) {
+              const val = (row[j] ?? '').trim();
+              if (val) {
+                const parsedDate = this.parseS10Date(val);
+                if (parsedDate) {
+                  s10BudgetDate = parsedDate;
+                  break;
+                }
+              }
+            }
+            if (s10BudgetDate) break;
+          }
+        }
+      }
+
+      // Deteccion de Ubicacion y Ubigeo (Lugar) en la fila
+      if (!s10Location) {
+        for (let i = 0; i < searchLimit; i++) {
+          const cellText = (row[i] ?? '').trim().toLowerCase().replace(/:$/, '');
+          if (cellText === 'lugar') {
+            const adjacentLugar: string[] = [];
+            for (let j = i + 1; j < Math.min(row.length, i + 5); j++) {
+              const val = (row[j] ?? '').trim();
+              if (val) {
+                adjacentLugar.push(val);
+                if (adjacentLugar.length === 2) break;
+              }
+            }
+            if (adjacentLugar.length >= 2) {
+              if (/^\d{6}$/.test(adjacentLugar[0])) {
+                s10Ubigeo = adjacentLugar[0];
+                s10Location = adjacentLugar[1];
+              } else {
+                s10Location = adjacentLugar.join(' - ');
+              }
+            } else if (adjacentLugar.length === 1) {
+              if (/^\d{6}$/.test(adjacentLugar[0])) {
+                s10Ubigeo = adjacentLugar[0];
+              } else {
+                s10Location = adjacentLugar[0];
+              }
+            }
+            if (s10Location) break;
+          }
+        }
+      }
+
+      // Deteccion de celda TOTAL (Pie de pagina o columna de reporte repetida)
+      if (capturedTotalDirectCost === undefined) {
+        for (let i = 0; i < row.length; i++) {
+          const cellText = (row[i] ?? '').trim().toUpperCase().replace(/:$/, '');
+          if (cellText === 'TOTAL') {
+            for (let j = i + 1; j < Math.min(row.length, i + 5); j++) {
+              const val = (row[j] ?? '').trim();
+              if (!val) continue;
+              if (val.toUpperCase() === 'S/.' || val.toUpperCase() === 'S/') continue;
+              const num = this.parseQuantity(val);
+              if (num > 0) {
+                capturedTotalDirectCost = num;
+                break;
+              }
+            }
+            if (capturedTotalDirectCost !== undefined) break;
+          }
         }
       }
 
@@ -283,7 +464,28 @@ export class S10ParserService {
 
       totalRowsParsed++;
 
-      // 3. Filtrar recursos descartados (Mano de Obra 01 y Subcontratos 04)
+      // Extraer cantidad cruda y resolver importe parcial para acumulacion presupuestal
+      const rawQuantity = row[codeIdx + 3];
+      const quantity = this.parseQuantity(rawQuantity);
+      const partialAmount = this.resolvePartialAmount(
+        row,
+        codeIdx,
+        isIncidenceRow,
+        quantity,
+      );
+
+      // Acumulacion presupuestal por categoria segun prefijo S10
+      if (s10Code.startsWith('01')) {
+        laborBudget += partialAmount;
+      } else if (s10Code.startsWith('02')) {
+        materialsBudget += partialAmount;
+      } else if (s10Code.startsWith('03')) {
+        equipmentBudget += partialAmount;
+      } else if (s10Code.startsWith('04')) {
+        subcontractsBudget += partialAmount;
+      }
+
+      // 3. Filtrar recursos descartados para almacen (Mano de Obra 01 y Subcontratos 04)
       if (this.isDiscardedResource(s10Code)) {
         discardedRows++;
         continue;
@@ -292,13 +494,11 @@ export class S10ParserService {
       // 4. Extraccion por adyacencia relativa (+1 descripcion, +2 unidad, +3 cantidad)
       const s10RawName = (row[codeIdx + 1] ?? '').trim();
       const s10Unit = (row[codeIdx + 2] ?? '').trim();
-      const rawQuantity = row[codeIdx + 3];
 
       if (!s10RawName) {
         continue;
       }
 
-      const quantity = this.parseQuantity(rawQuantity);
       if (quantity <= 0) {
         continue;
       }
@@ -339,6 +539,40 @@ export class S10ParserService {
       );
     }
 
+    // Normalizar redondeos a dos decimales
+    laborBudget = Number(laborBudget.toFixed(2));
+    materialsBudget = Number(materialsBudget.toFixed(2));
+    equipmentBudget = Number(equipmentBudget.toFixed(2));
+    subcontractsBudget = Number(subcontractsBudget.toFixed(2));
+
+    const calculatedTotal = Number(
+      (laborBudget + materialsBudget + equipmentBudget + subcontractsBudget).toFixed(2),
+    );
+
+    const totalDirectCost =
+      capturedTotalDirectCost !== undefined && capturedTotalDirectCost > 0
+        ? capturedTotalDirectCost
+        : calculatedTotal;
+
+    const budgetSummary: S10BudgetSummaryDto = {
+      totalDirectCost,
+      materialsTotal: materialsBudget,
+      equipmentTotal: equipmentBudget,
+      laborTotal: laborBudget,
+      subcontractsTotal: subcontractsBudget,
+      location: s10Location,
+      ubigeo: s10Ubigeo,
+      budgetDate: s10BudgetDate,
+    };
+
+    const projectMetadata: S10ProjectMetadata = {
+      code: s10ProjectCode,
+      name: s10ProjectName,
+      location: s10Location,
+      ubigeo: s10Ubigeo,
+      budgetDate: s10BudgetDate,
+    };
+
     return {
       resources,
       totalRowsParsed,
@@ -346,6 +580,8 @@ export class S10ParserService {
       discardedRows,
       s10ProjectCode,
       s10ProjectName,
+      projectMetadata,
+      budgetSummary,
     };
   }
 }

@@ -38,25 +38,57 @@
       "id": "c0000000-0000-4000-8000-000000000001",
       "name": "Proyecto Torre Central San Isidro",
       "budgetCode": "S10-TCS-2026",
-      "status": "ACTIVE"
+      "status": "ACTIVE",
+      "s10Location": "LIMA - LIMA - SAN ISIDRO",
+      "s10Ubigeo": "150131",
+      "s10BudgetDate": "2026-01-15T00:00:00.000Z",
+      "s10TotalBudget": 2850000.00,
+      "s10MaterialsBudget": 1250000.00,
+      "s10EquipmentBudget": 350000.00,
+      "s10LaborBudget": 850000.00,
+      "s10SubcontractsBudget": 400000.00
     },
     {
       "id": "c0000000-0000-4000-8000-000000000002",
       "name": "Condominio Las Villas de Surco",
       "budgetCode": "S10-CVS-2026",
-      "status": "ACTIVE"
+      "status": "ACTIVE",
+      "s10Location": "LIMA - LIMA - SANTIAGO DE SURCO",
+      "s10Ubigeo": "150140",
+      "s10BudgetDate": "2026-02-01T00:00:00.000Z",
+      "s10TotalBudget": 1980000.00,
+      "s10MaterialsBudget": 890000.00,
+      "s10EquipmentBudget": 210000.00,
+      "s10LaborBudget": 620000.00,
+      "s10SubcontractsBudget": 260000.00
     },
     {
       "id": "c0000000-0000-4000-8000-000000000003",
       "name": "Obra Saneamiento Yanivilca - Quiruvilca",
       "budgetCode": null,
-      "status": "PLANNING"
+      "status": "PLANNING",
+      "s10Location": "LA LIBERTAD - SANTIAGO DE CHUCO - QUIRUVILCA",
+      "s10Ubigeo": "131006",
+      "s10BudgetDate": null,
+      "s10TotalBudget": null,
+      "s10MaterialsBudget": null,
+      "s10EquipmentBudget": null,
+      "s10LaborBudget": null,
+      "s10SubcontractsBudget": null
     },
     {
       "id": "c0000000-0000-4000-8000-000000000004",
       "name": "Residencial Costa Verde San Miguel",
       "budgetCode": "S10-RCV-2025",
-      "status": "LIQUIDATED"
+      "status": "LIQUIDATED",
+      "s10Location": "LIMA - LIMA - SAN MIGUEL",
+      "s10Ubigeo": "150136",
+      "s10BudgetDate": "2025-05-10T00:00:00.000Z",
+      "s10TotalBudget": 1450000.00,
+      "s10MaterialsBudget": 680000.00,
+      "s10EquipmentBudget": 150000.00,
+      "s10LaborBudget": 420000.00,
+      "s10SubcontractsBudget": 200000.00
     }
   ],
   "warehouses": [

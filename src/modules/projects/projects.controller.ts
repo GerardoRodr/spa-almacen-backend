@@ -33,6 +33,8 @@ import { RolesGuard } from '../../common/guards/roles.guard.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import { CostMaskingInterceptor } from '../../common/interceptors/cost-masking.interceptor.js';
+import { ProjectDetailResponseDto } from './dto/project-response.dto.js';
+import { GapAnalysisResponseDto } from './dto/gap-analysis-response.dto.js';
 
 @ApiTags('Proyectos y S10')
 @ApiBearerAuth()
@@ -49,6 +51,7 @@ export class ProjectsController {
   })
   @ApiResponse({
     status: 200,
+    type: [ProjectDetailResponseDto],
     description: 'Listado de proyectos obtenido exitosamente',
   })
   findAll(
@@ -83,6 +86,7 @@ export class ProjectsController {
   })
   @ApiResponse({
     status: 200,
+    type: ProjectDetailResponseDto,
     description: 'Detalle del proyecto obtenido exitosamente',
   })
   @ApiResponse({
@@ -176,6 +180,7 @@ export class ProjectsController {
   })
   @ApiResponse({
     status: 200,
+    type: GapAnalysisResponseDto,
     description: 'Matriz de brechas calculada exitosamente',
   })
   @ApiResponse({

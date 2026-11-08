@@ -28,6 +28,18 @@ const FINANCIAL_KEYS = new Set([
   'minHistoricalUnitCost',
   'weightedAverageCost',
   's10BudgetUnitPrice',
+  // Totales y KPIs presupuestales S10
+  's10TotalBudget',
+  's10MaterialsBudget',
+  's10EquipmentBudget',
+  's10LaborBudget',
+  's10SubcontractsBudget',
+  'totalBudgetPEN',
+  'materialsBudgetPEN',
+  'equipmentBudgetPEN',
+  'laborBudgetPEN',
+  'subcontractsBudgetPEN',
+  'totalDeficitEstimatedCostPEN',
 ]);
 
 // Funcion recursiva para eliminar datos de costos y precios

@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { BadRequestException } from '@nestjs/common';
 import iconv from 'iconv-lite';
+import fs from 'node:fs';
+import path from 'node:path';
 import { S10ParserService } from './s10-parser.service.js';
 
 describe('S10ParserService', () => {
@@ -60,6 +62,58 @@ describe('S10ParserService', () => {
     it('debe retornar 0 para valores no numericos o vacios', () => {
       expect(service.parseQuantity('')).toBe(0);
       expect(service.parseQuantity('invalido')).toBe(0);
+    });
+  });
+
+  describe('parseS10Date', () => {
+    it('debe parsear fechas en formato DD/MM/YYYY', () => {
+      const date = service.parseS10Date('01/11/2025');
+      expect(date).toBeDefined();
+      expect(date?.getUTCFullYear()).toBe(2025);
+      expect(date?.getUTCMonth()).toBe(10); // Noviembre es mes 10 (base 0)
+      expect(date?.getUTCDate()).toBe(1);
+    });
+
+    it('debe parsear fechas en formato DD-MM-YYYY', () => {
+      const date = service.parseS10Date('15-05-2024');
+      expect(date).toBeDefined();
+      expect(date?.getUTCFullYear()).toBe(2024);
+      expect(date?.getUTCMonth()).toBe(4); // Mayo es mes 4
+      expect(date?.getUTCDate()).toBe(15);
+    });
+
+    it('debe parsear fechas en formato YYYY-MM-DD', () => {
+      const date = service.parseS10Date('2026-03-20');
+      expect(date).toBeDefined();
+      expect(date?.getUTCFullYear()).toBe(2026);
+      expect(date?.getUTCMonth()).toBe(2);
+      expect(date?.getUTCDate()).toBe(20);
+    });
+
+    it('debe retornar undefined para valores invalidos o vacios', () => {
+      expect(service.parseS10Date(undefined)).toBeUndefined();
+      expect(service.parseS10Date('')).toBeUndefined();
+      expect(service.parseS10Date('invalido')).toBeUndefined();
+    });
+  });
+
+  describe('resolvePartialAmount', () => {
+    it('debe resolver importe parcial en reporte clasico (+5 es parcial y +4 es precio)', () => {
+      const row = ['0204010001', 'CEMENTO', 'BOL', '2500', '26.50', '66250.00'];
+      const partial = service.resolvePartialAmount(row, 0, false, 2500);
+      expect(partial).toBe(66250.0);
+    });
+
+    it('debe resolver parcial en reporte con incidencia (+4 es parcial)', () => {
+      const row = ['0401010005', 'SUBCONTRATO', 'GLB', '1.00', '15000.00', '12.50%'];
+      const partial = service.resolvePartialAmount(row, 0, true, 1.0);
+      expect(partial).toBe(15000.0);
+    });
+
+    it('debe resolver parcial para partidas porcentuales con cantidad 0 donde celda +5 tiene el monto', () => {
+      const row = ['0301010006', 'HERRAMIENTAS MANUALES', '%mo', '0.00', '0.00', '47304.40'];
+      const partial = service.resolvePartialAmount(row, 0, false, 0);
+      expect(partial).toBe(47304.4);
     });
   });
 
@@ -310,6 +364,67 @@ describe('S10ParserService', () => {
       expect(() => service.parseS10Buffer(buffer)).toThrow(
         /no contiene materiales \(02\) ni equipos \(03\) validos/,
       );
+    });
+
+    it('debe procesar exitosamente archivo real tipovtipo2.csv extrayendo metadatos, TOTAL directo y subtotales por grupo', () => {
+      const csvPath = path.resolve(process.cwd(), 'docs/tipovtipo2.csv');
+      const buffer = fs.readFileSync(csvPath);
+
+      const result = service.parseS10Buffer(buffer);
+
+      // Metadatos de obra
+      expect(result.s10ProjectCode).toBe('1101024');
+      expect(result.projectMetadata?.code).toBe('1101024');
+      expect(result.s10ProjectName).toContain('MEJORAMIENTO Y AMPLIACION');
+      expect(result.projectMetadata?.name).toContain('MEJORAMIENTO Y AMPLIACION');
+      expect(result.projectMetadata?.ubigeo).toBe('131006');
+      expect(result.projectMetadata?.location).toBe(
+        'LA LIBERTAD - SANTIAGO DE CHUCO - QUIRUVILCA',
+      );
+      expect(result.projectMetadata?.budgetDate?.toISOString()).toContain('2025-11-01');
+
+      // Totales y KPIs financieros (PEN)
+      expect(result.budgetSummary.totalDirectCost).toBe(3479983.23);
+      expect(result.budgetSummary.laborTotal).toBe(1587459.81);
+      expect(result.budgetSummary.materialsTotal).toBe(1135524.35);
+      expect(result.budgetSummary.equipmentTotal).toBe(153599.14);
+      expect(result.budgetSummary.subcontractsTotal).toBe(603399.93);
+
+      // Consistencia matematica directa con margen por redondeo <= 0.10
+      const sumGroups =
+        result.budgetSummary.laborTotal +
+        result.budgetSummary.materialsTotal +
+        result.budgetSummary.equipmentTotal +
+        result.budgetSummary.subcontractsTotal;
+      expect(Math.abs(result.budgetSummary.totalDirectCost - sumGroups)).toBeLessThanOrEqual(0.1);
+
+      // Insumos de materiales y equipos para almacen
+      expect(result.resources.length).toBeGreaterThan(0);
+      expect(result.discardedRows).toBeGreaterThan(0);
+    });
+
+    it('debe calcular el total directo sumando los 4 grupos cuando la firma TOTAL no esta presente en el archivo', () => {
+      const csvContent = [
+        'Obra;0501002;OBRA TEST SIN TOTAL',
+        'Fecha;15/08/2025',
+        'Lugar;150101;LIMA - LIMA - LIMA',
+        '0101010001;CAPATAZ;HH;10.00;100.00;1000.00',
+        '0204010001;CEMENTO PORTLAND;BOL;100.00;20.00;2000.00',
+        '0301010001;MEZCLADORA;HM;10.00;50.00;500.00',
+        '0401010001;SUBCONTRATO EXCAVACION;GLB;1.00;1500.00;1500.00',
+      ].join('\n');
+
+      const buffer = Buffer.from(csvContent, 'utf-8');
+      const result = service.parseS10Buffer(buffer);
+
+      expect(result.budgetSummary.laborTotal).toBe(1000.0);
+      expect(result.budgetSummary.materialsTotal).toBe(2000.0);
+      expect(result.budgetSummary.equipmentTotal).toBe(500.0);
+      expect(result.budgetSummary.subcontractsTotal).toBe(1500.0);
+      expect(result.budgetSummary.totalDirectCost).toBe(5000.0);
+      expect(result.projectMetadata?.code).toBe('0501002');
+      expect(result.projectMetadata?.ubigeo).toBe('150101');
+      expect(result.projectMetadata?.location).toBe('LIMA - LIMA - LIMA');
     });
   });
 });
