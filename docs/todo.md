@@ -21,6 +21,7 @@ Este documento representa la hoja de ruta integral y el estado de avance para el
 - [x] **Paso 12: Optimizaciones de Rendimiento, Correlativos Atomicos y Saneamiento de Endpoints**
 - [x] **Paso 13: Clasificaciones Personalizadas de Insumos, Ampliacion de Custodias y Migracion v2**
 - [x] **Paso 14: Compras Multi-Almacen, Observaciones y Cuadro Comparativo de Precios**
+- [x] **Paso 15: Catalogo Maestro de Unidades de Medida y Doble Confirmacion en Items**
 
 ---
 
@@ -377,6 +378,34 @@ Evolucion del modulo de compras para admitir recepcion directa en casetas de obr
   - [x] 220 pruebas unitarias pasando al 100% en Vitest.
   - [x] Compilacion NestJS limpia sin errores.
   - [x] Actualizados manuales `docs/modules/05_purchases_suppliers.md`, `docs/business/BUSINESS_RULES.md`, `docs/correcciones.md` y `docs/todo.md`.
+
+---
+
+## Paso 15: Catalogo Maestro de Unidades de Medida y Doble Confirmacion en Items (Completado)
+
+Creacion del modulo corporativo de unidades de medida maestras (`MeasurementUnit`) con endpoints CRUD, proteccion referencial automatica y regla de doble confirmacion para alteracion de unidades base en insumos con historial o existencias.
+
+### Tareas:
+- [x] **Base de Datos y Prisma:**
+  - [x] Modelo `MeasurementUnit` en `prisma/schema.prisma` (`code` unico, `name`, `description`, `isActive`).
+  - [x] Migracion SQL `20261109230333_add_measurement_units` aplicada en PostgreSQL.
+  - [x] Actualizacion de `prisma/clean.ts` y `prisma/seed.ts` con sembrado de unidades estandar.
+- [x] **Modulo de Unidades de Medida (`src/modules/measurement-units`):**
+  - [x] DTOs: `CreateMeasurementUnitDto`, `UpdateMeasurementUnitDto`.
+  - [x] Servicio `MeasurementUnitsService` con calculo de `itemsCount`, eliminacion fisica (0 items) y desactivacion logica (items > 0).
+  - [x] Controlador `MeasurementUnitsController` con endpoints `/api/v1/measurement-units` (`GET`, `POST`, `PATCH`, `DELETE`) y documentacion Swagger.
+  - [x] Registro de `MeasurementUnitsModule` en `src/app.module.ts`.
+- [x] **Regla de Doble Confirmacion en Catalogo de Items (`src/modules/items`):**
+  - [x] Adicion de `confirmUnitChange?: boolean` en `UpdateItemDto`.
+  - [x] Calculo de `hasTransactions` y `transactionStats` en `ItemsService.findOne()`.
+  - [x] Bloqueo con `HTTP 400 REQUIRES_DOUBLE_CONFIRMATION` en `ItemsService.update()` si el insumo tiene stock o movimientos sin confirmacion explicita.
+  - [x] Auto-registro de nuevas unidades y validacion de unidades inactivas.
+- [x] **Pruebas y Documentacion:**
+  - [x] 9 pruebas unitarias en `measurement-units.service.spec.ts` y 20 pruebas en `items.service.spec.ts`.
+  - [x] 279 pruebas unitarias totales pasando al 100% en Vitest y compilacion NestJS limpia.
+  - [x] Creacion del manual de integracion `docs/modules/14_measurement_units.md`.
+  - [x] Actualizacion de `docs/modules/04_items.md`, `docs/modules/README.md`, `docs/business/ARCHITECTURE.md` y `docs/business/BUSINESS_RULES.md`.
+
 
 
 

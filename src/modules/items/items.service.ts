@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { ItemType, MeterType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
@@ -80,6 +81,7 @@ export class ItemsService {
   // Registrar nuevo insumo o herramienta en el catalogo maestro
   async create(dto: CreateItemDto) {
     const formattedSku = dto.sku.trim().toUpperCase();
+    const formattedBaseUnit = dto.baseUnit.trim().toUpperCase();
 
     const existing = await this.prisma.item.findUnique({
       where: { sku: formattedSku },
@@ -100,6 +102,26 @@ export class ItemsService {
       }
     }
 
+    // Asegurar que la unidad de medida exista en el catalogo maestro y este activa
+    const unitInMaster = await this.prisma.measurementUnit.findUnique({
+      where: { code: formattedBaseUnit },
+    });
+    if (unitInMaster && !unitInMaster.isActive) {
+      throw new BadRequestException(
+        `La unidad de medida ${formattedBaseUnit} se encuentra inactiva en el catalogo maestro`,
+      );
+    }
+    if (!unitInMaster) {
+      await this.prisma.measurementUnit.create({
+        data: {
+          code: formattedBaseUnit,
+          name: formattedBaseUnit,
+          description: 'Unidad registrada dinamicamente desde catalogo de items',
+          isActive: true,
+        },
+      });
+    }
+
     const resolvedMeterType =
       dto.type === ItemType.MACHINERY
         ? (dto.meterType ?? MeterType.HOUR_METER)
@@ -110,7 +132,7 @@ export class ItemsService {
         sku: formattedSku,
         name: dto.name.trim(),
         description: dto.description?.trim(),
-        baseUnit: dto.baseUnit.trim().toUpperCase(),
+        baseUnit: formattedBaseUnit,
         type: dto.type,
         meterType: resolvedMeterType,
         minStockAlert: dto.minStockAlert ?? 0,
@@ -165,6 +187,29 @@ export class ItemsService {
       0,
     );
 
+    // Calcular metricas de transacciones para control de doble confirmacion
+    const [stocksWithQtyCount, movementItemsCount, purchaseDetailsCount, transferItemsCount] =
+      await Promise.all([
+        this.prisma.stock.count({
+          where: { itemId: id, physicalQty: { gt: 0 } },
+        }),
+        this.prisma.movementItem.count({
+          where: { itemId: id },
+        }),
+        this.prisma.purchaseDetail.count({
+          where: { itemId: id },
+        }),
+        this.prisma.transferItem.count({
+          where: { itemId: id },
+        }),
+      ]);
+
+    const hasTransactions =
+      stocksWithQtyCount > 0 ||
+      movementItemsCount > 0 ||
+      purchaseDetailsCount > 0 ||
+      transferItemsCount > 0;
+
     return {
       ...item,
       totals: {
@@ -177,6 +222,13 @@ export class ItemsService {
             (acc, s) => acc + (Number(s.physicalQty) - Number(s.reservedQty)),
             0,
           ),
+      },
+      hasTransactions,
+      transactionStats: {
+        stocksWithQtyCount,
+        movementItemsCount,
+        purchaseDetailsCount,
+        transferItemsCount,
       },
     };
   }
@@ -191,6 +243,47 @@ export class ItemsService {
       });
       if (!category) {
         throw new NotFoundException('La clasificacion especificada no existe');
+      }
+    }
+
+    // Validacion y guarda para alteracion de baseUnit
+    let formattedBaseUnit: string | undefined = undefined;
+    if (dto.baseUnit) {
+      formattedBaseUnit = dto.baseUnit.trim().toUpperCase();
+
+      if (formattedBaseUnit !== currentItem.baseUnit) {
+        // Verificar estado en catalogo maestro de unidades
+        const unitInMaster = await this.prisma.measurementUnit.findUnique({
+          where: { code: formattedBaseUnit },
+        });
+
+        if (unitInMaster && !unitInMaster.isActive) {
+          throw new BadRequestException(
+            `La unidad de medida ${formattedBaseUnit} se encuentra inactiva en el catalogo maestro`,
+          );
+        }
+
+        if (!unitInMaster) {
+          await this.prisma.measurementUnit.create({
+            data: {
+              code: formattedBaseUnit,
+              name: formattedBaseUnit,
+              description: 'Unidad registrada dinamicamente desde actualizacion de item',
+              isActive: true,
+            },
+          });
+        }
+
+        // Si tiene movimientos o existencias activas, exigir confirmacion explicita
+        if (currentItem.hasTransactions && !dto.confirmUnitChange) {
+          throw new BadRequestException({
+            statusCode: 400,
+            code: 'REQUIRES_DOUBLE_CONFIRMATION',
+            message:
+              'El insumo cuenta con existencias fisicas o movimientos historicos registrados. Modificar su unidad base requiere doble confirmacion explicita.',
+            details: currentItem.transactionStats,
+          });
+        }
       }
     }
 
@@ -209,7 +302,7 @@ export class ItemsService {
       data: {
         name: dto.name ? dto.name.trim() : undefined,
         description: dto.description ? dto.description.trim() : undefined,
-        baseUnit: dto.baseUnit ? dto.baseUnit.trim().toUpperCase() : undefined,
+        baseUnit: formattedBaseUnit,
         type: dto.type,
         meterType: resolvedMeterType,
         minStockAlert: dto.minStockAlert,

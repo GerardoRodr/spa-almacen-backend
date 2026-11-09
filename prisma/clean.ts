@@ -22,6 +22,7 @@ async function clean() {
     await tx.itemAlias.deleteMany();
     await tx.item.deleteMany();
     await tx.itemCategory.deleteMany();
+    await tx.measurementUnit.deleteMany();
     await tx.userWarehouse.deleteMany();
     await tx.supplier.deleteMany();
     await tx.warehouse.deleteMany();

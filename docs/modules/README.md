@@ -112,5 +112,6 @@ Codigos HTTP comunes:
 11. [11 - Administracion y Mantenimiento](11_admin_maintenance.md): Copias de seguridad de PostgreSQL, metricas de salud, purga programada y hardening E2E.
 12. [12 - Maquinaria y Horometros](12_machinery.md): Control de jornadas de maquinaria pesada, validacion de horometros inicial y final, fotos obligatorias y calculo de horas de trabajo.
 13. [13 - Dashboard y Analitica](13_dashboard.md): Metricas consolidadas, valorizacion neta de inventario, calculo de inversion patrimonial en herramientas y alertas operativas.
+14. [14 - Unidades de Medida Maestras](14_measurement_units.md): Catalogo maestro de unidades base (`MeasurementUnit`), endpoints CRUD para administracion y protocolo de doble confirmacion para modificacion de unidades en insumos con historial.
 
 

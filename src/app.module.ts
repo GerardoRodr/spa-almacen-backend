@@ -8,6 +8,7 @@ import { UsersModule } from './modules/users/users.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { WarehousesModule } from './modules/warehouses/warehouses.module.js';
 import { ItemsModule } from './modules/items/items.module.js';
+import { MeasurementUnitsModule } from './modules/measurement-units/measurement-units.module.js';
 import { SuppliersModule } from './modules/suppliers/suppliers.module.js';
 import { PurchasesModule } from './modules/purchases/purchases.module.js';
 import { ToolCustodyModule } from './modules/tool-custody/tool-custody.module.js';
@@ -46,6 +47,7 @@ import { AppService } from './app.service.js';
     // Modulos de almacenes y catalogo de items
     WarehousesModule,
     ItemsModule,
+    MeasurementUnitsModule,
     // Modulos de proveedores y compras
     SuppliersModule,
     PurchasesModule,

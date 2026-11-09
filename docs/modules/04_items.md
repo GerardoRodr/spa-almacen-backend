@@ -246,7 +246,14 @@ Obtiene la ficha del item junto con el desglose de existencias por almacen, calc
       }
     }
   ],
-  "aliases": []
+  "aliases": [],
+  "hasTransactions": true,
+  "transactionStats": {
+    "stocksWithQtyCount": 2,
+    "movementItemsCount": 8,
+    "purchaseDetailsCount": 3,
+    "transferItemsCount": 1
+  }
 }
 ```
 
@@ -268,6 +275,13 @@ Obtiene la ficha del item junto con el desglose de existencias por almacen, calc
     "totalReservedQty": 2,
     "totalLoanedQty": 4,
     "netAvailableCentralQty": 6
+  },
+  "hasTransactions": true,
+  "transactionStats": {
+    "stocksWithQtyCount": 2,
+    "movementItemsCount": 8,
+    "purchaseDetailsCount": 3,
+    "transferItemsCount": 1
   },
   "stocks": [
     {
@@ -321,18 +335,21 @@ Modifica datos descriptivos, unidad base o limite de alerta de un SKU maestro.
 |---|---|---|---|
 | `name` | string | No | Nombre del item. |
 | `description` | string | No | Descripcion tecnica. |
-| `baseUnit` | string | No | Unidad base. |
+| `baseUnit` | string | No | Unidad base (normalizada a mayusculas). Se valida contra el catalogo de `MeasurementUnit`. |
+| `confirmUnitChange` | boolean | No | Bandera de doble confirmacion explicita requerida para cambiar `baseUnit` si el insumo ya cuenta con transacciones o existencias activas. |
 | `type` | `CONSUMABLE` \| `TOOL` \| `EQUIPMENT` \| `MACHINERY` | No | Clasificacion del item. |
 | `meterType` | `HOUR_METER` \| `KILOMETER` \| `null` | No | Tipo de medidor para maquinaria (`HOUR_METER` o `KILOMETER`). Si el item no es `MACHINERY`, el sistema lo limpia a `null`. |
 | `categoryId` | string (UUID) \| `null` | No | Clasificacion personalizada asignada o `null` para desvincular. |
 | `isPerishable` | boolean | No | Indicador de material perecible. |
 | `minStockAlert` | number | No | Cantidad minima para alerta de reposicion. |
 
-**Ejemplo de Peticion:**
+> **Regla de Doble Confirmacion:** Si el insumo cuenta con existencias fisicas (`physicalQty > 0`), movimientos en Kardex, compras o transferencias, cambiar `baseUnit` sin enviar `confirmUnitChange: true` provocara un error `400 Bad Request` con codigo `REQUIRES_DOUBLE_CONFIRMATION`. Al enviar `confirmUnitChange: true`, la modificacion se autoriza. Consultar [Modulo 14 - Unidades de Medida](14_measurement_units.md) para detalles del flujo.
+
+**Ejemplo de Peticion con Doble Confirmacion:**
 ```json
 {
-  "minStockAlert": 5,
-  "isPerishable": false
+  "baseUnit": "KG",
+  "confirmUnitChange": true
 }
 ```
 
@@ -350,6 +367,21 @@ Modifica datos descriptivos, unidad base o limite de alerta de un SKU maestro.
   "isPerishable": false,
   "createdAt": "2026-09-23T12:15:00.000Z",
   "updatedAt": "2026-09-23T12:18:00.000Z"
+}
+```
+
+**400 Bad Request - Doble confirmacion requerida:**
+```json
+{
+  "statusCode": 400,
+  "code": "REQUIRES_DOUBLE_CONFIRMATION",
+  "message": "El insumo cuenta con existencias fisicas o movimientos historicos registrados. Modificar su unidad base requiere doble confirmacion explicita.",
+  "details": {
+    "stocksWithQtyCount": 2,
+    "movementItemsCount": 8,
+    "purchaseDetailsCount": 3,
+    "transferItemsCount": 1
+  }
 }
 ```
 

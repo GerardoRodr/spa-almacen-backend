@@ -326,3 +326,19 @@ Utiliza este espacio para registrar decisiones de diseno, hashes de commits rele
       - Reordenadas las 5 tarjetas para una secuencia contable logica y armonia cromatica contrastada: 1) Valorizacion Total (Esmeralda), 2) Insumos (Indigo), 3) Herramientas (Azul), 4) En Campo (Ambar), 5) Insumos Criticos (Carmesi).
       - Suite de pruebas unitarias validada al 100% (280/280 pruebas pasando).
     - Documentacion tecnica actualizada en `docs/modules/13_dashboard.md`, `docs/modules/README.md` y `docs/todo.md`.
+  * **2026-11-09 (Fase 7 - Catalogo Maestro de Unidades de Medida y Doble Confirmacion en Items)**:
+    - En base de datos (`prisma/schema.prisma`):
+      - Creado modelo `MeasurementUnit` (`id`, `code` unico, `name`, `description`, `isActive`, `createdAt`, `updatedAt`).
+      - Creada y ejecutada migracion SQL `20261109230333_add_measurement_units`.
+      - Actualizado `clean.ts` y `seed.ts` para sembrar y limpiar unidades maestras estandar.
+    - En modulo `measurement-units` (Backend):
+      - Implementado `MeasurementUnitsController` con endpoints `/api/v1/measurement-units` (`GET`, `POST`, `PATCH`, `DELETE`) para gestion de unidades.
+      - En `MeasurementUnitsService`: listado con `itemsCount` dinamico, proteccion de integridad (desactivacion logica si la unidad tiene items vinculados y eliminacion fisica si tiene 0 items).
+      - Registrado `MeasurementUnitsModule` en `src/app.module.ts`.
+    - En modulo `items` (Backend):
+      - Agregada propiedad `confirmUnitChange?: boolean` en `UpdateItemDto`.
+      - En `findOne()`: calculo reactivo de `hasTransactions` y `transactionStats` (existencias con saldo, compras, movimientos de kardex y transferencias).
+      - En `update()`: guarda de seguridad que rechaza mutaciones de `baseUnit` con `HTTP 400 REQUIRES_DOUBLE_CONFIRMATION` si el insumo cuenta con transacciones historicas y no se envia `confirmUnitChange: true`.
+      - En `create()` y `update()`: auto-registro de unidades nuevas en `MeasurementUnit` y validacion de unidades inactivas.
+    - Pruebas unitarias: 9 tests en `measurement-units.service.spec.ts` y 20 tests en `items.service.spec.ts` (279/279 tests totales del proyecto pasando al 100%) y compilacion `nest build` limpia.
+    - Documentacion tecnica creada en `docs/modules/14_measurement_units.md` y actualizada en `docs/modules/04_items.md`, `docs/modules/README.md`, `docs/business/ARCHITECTURE.md`, `docs/business/BUSINESS_RULES.md` y `docs/todo.md`.

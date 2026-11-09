@@ -221,3 +221,26 @@ Un almacen de obra (`PROJECT_SITE`) se liquida formalmente (`isActive = false`, 
   - Se preservan metadatos y cantidades operativas (`s10Location`, `s10Ubigeo`, `s10BudgetDate`, `totalRequiredItemsCount`, `requiredQty`, `allocatedQty`, `consumedQty`, `purchaseDeficit`).
   - No tiene permiso de visualizacion de facturas con montos; unicamente accede a guias de remision fisica y fotos de evidencia.
 - Operatividad touch en caseta: recepcion de transferencias, salidas por consumo a capataces, vales de herramientas y conteo de inventario.
+
+---
+
+## 9. Gestion de Unidades de Medida y Regla de Doble Confirmacion
+
+### 9.1. Catalogo Maestro de Unidades de Medida (`MeasurementUnit`)
+- Las unidades de medida base constituyen un catalogo maestro corporativo persistido en la tabla `MeasurementUnit`.
+- Cada registro contiene un codigo abreviado unico en mayusculas (`code`, ej. `UND`, `BOLSA`, `KG`, `M3`, `VARILLA`), nombre descriptivo (`name`), descripcion opcional y estado (`isActive`).
+- Los endpoints CRUD de administracion (`/measurement-units`) estan restringidos al rol `ADMIN` para creacion, edicion y baja.
+- El listado de unidades activas (`GET /measurement-units`) esta disponible para todos los roles autenticados para alimentar selectores en la interfaz.
+
+### 9.2. Politica de Eliminacion de Unidades de Medida
+- **Eliminacion Fisica:** Permitida unicamente si ningun insumo en el catalogo maestro (`Item`) tiene asignada dicha unidad en `Item.baseUnit`.
+- **Desactivacion Logica:** Si la unidad esta asignada a uno o mas insumos, la peticion `DELETE` no elimina el registro de la base de datos; en su lugar, marca `isActive = false` para preservar la trazabilidad historica y evitar que sea seleccionada en nuevos insumos.
+
+### 9.3. Regla de Integridad de Stock y Doble Confirmacion en Modificacion de `baseUnit`
+- **Insumos Nuevos o sin Movimientos:** Si un insumo no registra existencias fisicas (`physicalQty == 0`) ni registros historicos en compras, movimientos de Kardex o transferencias, su unidad base (`baseUnit`) puede modificarse libremente.
+- **Insumos con Historial Transaccional:** Si un insumo cuenta con existencias fisicas (`Stock.physicalQty > 0`), movimientos en Kardex (`MovementItem`), detalles de compra (`PurchaseDetail`) o transferencias (`TransferItem`), modificar su `baseUnit` altera la interpretacion dimensional de los saldos y costos promedio calculados.
+- **Requisito de Doble Confirmacion (`confirmUnitChange`):**
+  - Si se intenta mutar `baseUnit` en un insumo con transacciones sin enviar la bandera `confirmUnitChange: true`, el backend rechaza la operacion retornando `HTTP 400 Bad Request` con codigo `REQUIRES_DOUBLE_CONFIRMATION` y el detalle cuantitativo de transacciones asociadas.
+  - Al recibir `confirmUnitChange: true`, el backend autoriza la mutacion de la unidad base en el insumo.
+  - El detalle de insumo retornado por `GET /items/:id` expone los campos `hasTransactions: boolean` y `transactionStats: object` para que el frontend pueda advertir preventivamente al usuario y solicitar la confirmacion antes de enviar la peticion.
+

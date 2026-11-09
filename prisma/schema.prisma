@@ -152,8 +152,21 @@ model Stock {
 }
 
 // --------------------------------------------------------
-// CATALOGO DE ITEMS Y ALIAS S10
+// CATALOGO DE ITEMS, CATEGORIAS Y UNIDADES DE MEDIDA
 // --------------------------------------------------------
+
+model MeasurementUnit {
+  id          String   @id @default(uuid())
+  code        String   @unique // Codigo estandar ej. UND, BOLSA, KG, M3, VARILLA
+  name        String           // Nombre descriptivo ej. Unidad, Bolsa, Kilogramo
+  description String?
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([code])
+}
 
 model ItemCategory {
   id          String   @id @default(uuid())

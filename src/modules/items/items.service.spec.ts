@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, BadRequestException } from '@nestjs/common';
 import { ItemType, MeterType } from '@prisma/client';
 import { ItemsService } from './items.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
@@ -28,6 +28,26 @@ describe('ItemsService', () => {
         create: vi.fn(),
         update: vi.fn(),
         delete: vi.fn(),
+      },
+      measurementUnit: {
+        findMany: vi.fn(),
+        findUnique: vi.fn().mockResolvedValue({ code: 'BOLSA', name: 'Bolsa', isActive: true }),
+        findFirst: vi.fn(),
+        create: vi.fn(),
+        update: vi.fn(),
+        delete: vi.fn(),
+      },
+      stock: {
+        count: vi.fn().mockResolvedValue(0),
+      },
+      movementItem: {
+        count: vi.fn().mockResolvedValue(0),
+      },
+      purchaseDetail: {
+        count: vi.fn().mockResolvedValue(0),
+      },
+      transferItem: {
+        count: vi.fn().mockResolvedValue(0),
       },
     } as unknown as PrismaService;
 
@@ -384,6 +404,118 @@ describe('ItemsService', () => {
         where: { id: 'cat-1' },
         data: { isActive: false },
       });
+    });
+  });
+
+  describe('Actualizacion de baseUnit y control de doble confirmacion', () => {
+    it('debe lanzar BadRequestException (REQUIRES_DOUBLE_CONFIRMATION) si el item tiene stock > 0 y no se envia confirmUnitChange', async () => {
+      vi.spyOn(prisma.item, 'findUnique').mockResolvedValue({
+        id: 'item-1',
+        sku: 'CEM-01',
+        name: 'Cemento',
+        baseUnit: 'BOLSA',
+        type: ItemType.CONSUMABLE,
+        stocks: [],
+      } as any);
+      vi.spyOn(prisma.stock, 'count').mockResolvedValue(1);
+      vi.spyOn(prisma.measurementUnit, 'findUnique').mockResolvedValue({
+        code: 'KG',
+        name: 'Kilogramo',
+        isActive: true,
+      } as any);
+
+      await expect(
+        service.update('item-1', {
+          baseUnit: 'KG',
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('debe permitir cambiar baseUnit si se envia confirmUnitChange: true aunque tenga movimientos o stock', async () => {
+      vi.spyOn(prisma.item, 'findUnique').mockResolvedValue({
+        id: 'item-1',
+        sku: 'CEM-01',
+        name: 'Cemento',
+        baseUnit: 'BOLSA',
+        type: ItemType.CONSUMABLE,
+        stocks: [],
+      } as any);
+      vi.spyOn(prisma.stock, 'count').mockResolvedValue(2);
+      vi.spyOn(prisma.movementItem, 'count').mockResolvedValue(5);
+      vi.spyOn(prisma.measurementUnit, 'findUnique').mockResolvedValue({
+        code: 'KG',
+        name: 'Kilogramo',
+        isActive: true,
+      } as any);
+      vi.spyOn(prisma.item, 'update').mockResolvedValue({
+        id: 'item-1',
+        baseUnit: 'KG',
+      } as any);
+
+      const result = await service.update('item-1', {
+        baseUnit: 'KG',
+        confirmUnitChange: true,
+      });
+
+      expect(result.baseUnit).toBe('KG');
+      expect(prisma.item.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'item-1' },
+          data: expect.objectContaining({
+            baseUnit: 'KG',
+          }),
+        }),
+      );
+    });
+
+    it('debe permitir cambiar baseUnit sin confirmUnitChange si el item no tiene transacciones ni existencias', async () => {
+      vi.spyOn(prisma.item, 'findUnique').mockResolvedValue({
+        id: 'item-new',
+        sku: 'NEW-01',
+        name: 'Insumo Nuevo',
+        baseUnit: 'UND',
+        type: ItemType.CONSUMABLE,
+        stocks: [],
+      } as any);
+      vi.spyOn(prisma.stock, 'count').mockResolvedValue(0);
+      vi.spyOn(prisma.movementItem, 'count').mockResolvedValue(0);
+      vi.spyOn(prisma.purchaseDetail, 'count').mockResolvedValue(0);
+      vi.spyOn(prisma.transferItem, 'count').mockResolvedValue(0);
+      vi.spyOn(prisma.measurementUnit, 'findUnique').mockResolvedValue({
+        code: 'CIENTO',
+        name: 'Ciento',
+        isActive: true,
+      } as any);
+      vi.spyOn(prisma.item, 'update').mockResolvedValue({
+        id: 'item-new',
+        baseUnit: 'CIENTO',
+      } as any);
+
+      const result = await service.update('item-new', {
+        baseUnit: 'CIENTO',
+      });
+
+      expect(result.baseUnit).toBe('CIENTO');
+    });
+
+    it('debe lanzar BadRequestException si la unidad de medida seleccionada esta inactiva en el catalogo', async () => {
+      vi.spyOn(prisma.item, 'findUnique').mockResolvedValue({
+        id: 'item-1',
+        baseUnit: 'BOLSA',
+        type: ItemType.CONSUMABLE,
+        stocks: [],
+      } as any);
+      vi.spyOn(prisma.measurementUnit, 'findUnique').mockResolvedValue({
+        code: 'DESUSO',
+        name: 'En Desuso',
+        isActive: false,
+      } as any);
+
+      await expect(
+        service.update('item-1', {
+          baseUnit: 'DESUSO',
+        }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

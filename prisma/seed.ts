@@ -119,6 +119,37 @@ async function main() {
     });
   }
 
+  // 5.5 Unidades de Medida Maestras
+  console.log('Sembrando catalogo maestro de unidades de medida...');
+  const defaultMeasurementUnits = [
+    { code: 'UND', name: 'Unidad', description: 'Unidad de pieza o articulo individual' },
+    { code: 'UNIDAD', name: 'Unidad', description: 'Equivalente textual de unidad' },
+    { code: 'BOLSA', name: 'Bolsa', description: 'Bolsa (ej. Cemento 42.5 kg)' },
+    { code: 'KG', name: 'Kilogramo', description: 'Unidad de masa en kilogramos' },
+    { code: 'M3', name: 'Metro Cubico', description: 'Unidad de volumen para agregados o concreto' },
+    { code: 'M2', name: 'Metro Cuadrado', description: 'Unidad de area para encofrados o acabados' },
+    { code: 'METRO', name: 'Metro Lineal', description: 'Unidad de longitud lineal' },
+    { code: 'VARILLA', name: 'Varilla de Acero', description: 'Varilla de construccion' },
+    { code: 'GLN', name: 'Galon', description: 'Galon de combustible o liquido' },
+    { code: 'GALON', name: 'Galon', description: 'Equivalente textual de galon' },
+    { code: 'MILLAR', name: 'Millar', description: 'Mil unidades (ej. ladrillos)' },
+    { code: 'TUBO', name: 'Tubo', description: 'Tubo PVC, conduit o fierro' },
+    { code: 'PQTE', name: 'Paquete', description: 'Paquete de articulos agrupados' },
+    { code: 'ROLLO', name: 'Rollo', description: 'Rollo de alambre o geomembrana' },
+    { code: 'LITRO', name: 'Litro', description: 'Unidad de volumen liquido' },
+    { code: 'CIENTO', name: 'Ciento', description: 'Cien unidades' },
+    { code: 'CAJA', name: 'Caja', description: 'Caja contenedora' },
+    { code: 'PLIEGO', name: 'Pliego', description: 'Pliego de lija o lamina' },
+  ];
+
+  for (const mu of defaultMeasurementUnits) {
+    await prisma.measurementUnit.upsert({
+      where: { code: mu.code },
+      update: {},
+      create: mu,
+    });
+  }
+
   // 6. Catalogo de Items
   console.log('Sembrando catalogo de items...');
   for (const item of data.items) {

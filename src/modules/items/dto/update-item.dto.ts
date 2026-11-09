@@ -79,4 +79,13 @@ export class UpdateItemDto {
   @ValidateIf((_, value) => value !== null && value !== undefined)
   @IsUUID('4', { message: 'El categoryId debe ser un UUID valido o null' })
   categoryId?: string | null;
+
+  @ApiPropertyOptional({
+    example: false,
+    description:
+      'Bandera de doble confirmacion explicita para autorizar el cambio de unidad base cuando el insumo ya cuenta con existencias fisicas o movimientos historicos registrados',
+  })
+  @IsOptional()
+  @IsBoolean({ message: 'confirmUnitChange debe ser un valor booleano' })
+  confirmUnitChange?: boolean;
 }
