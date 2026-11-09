@@ -314,3 +314,15 @@ Utiliza este espacio para registrar decisiones de diseno, hashes de commits rele
       - Actualizados DTOs a `startMeter` y `endMeter`.
       - Calculo de `totalUsage = endMeter - startMeter`, validaciones con mensajes dinamicos (`horometro` vs `kilometraje`) e inclusion de `meterType` y `lastMeter` en `GET /api/v1/machinery/item/:itemId/status`.
     - Actualizados `seed.ts`, `seed-data.json` y documentacion en `docs/modules/04_items.md` y `docs/modules/12_machinery.md`.
+  * **2026-11-09 (Fase 6 - Modulo Dashboard: Valorizacion de Insumos y Sincronizacion de Alertas)**:
+    - En modulo `dashboard` (Backend):
+      - Agregada metrica `suppliesValuation` mediante agregacion SQL (`CASE WHEN i."type" = 'CONSUMABLE' ...`) en `DashboardService.getMetrics()` tanto para consolidado (`ALL`) como para almacenes especificos.
+      - Expuesta propiedad `suppliesValuationPEN?: number | null;` en `DashboardMetricsDto`.
+      - Incorporada `'suppliesValuationPEN'` a `FINANCIAL_KEYS` en `CostMaskingInterceptor` para salvaguarda de confidencialidad financiera ante almaceneros (`WAREHOUSE_KEEPER`).
+      - Actualizadas pruebas unitarias en `dashboard.service.spec.ts` (6 pruebas pasando al 100%) y compilacion limpia con `nest build`.
+    - En `spa-almacen-frontend` (Frontend):
+      - Sustituido KPI 1 ("Total SKUs Activos") por "Valorizacion Total Insumos (PEN)" enlazado reactivamente a `suppliesValuationPEN` con proteccion RBAC (`*appHasRole="'ADMIN'"` / `isAdmin`).
+      - Sincronizado conteo de insumos criticos con la tabla de reposicion urgente (`criticalAlertsCount = replenishments().length`), clarificando las alertas en sedes y el deficit global consolidado.
+      - Reordenadas las 5 tarjetas para una secuencia contable logica y armonia cromatica contrastada: 1) Valorizacion Total (Esmeralda), 2) Insumos (Indigo), 3) Herramientas (Azul), 4) En Campo (Ambar), 5) Insumos Criticos (Carmesi).
+      - Suite de pruebas unitarias validada al 100% (280/280 pruebas pasando).
+    - Documentacion tecnica actualizada en `docs/modules/13_dashboard.md`, `docs/modules/README.md` y `docs/todo.md`.

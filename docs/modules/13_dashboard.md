@@ -6,9 +6,11 @@ Este modulo centraliza los calculos analiticos, consolidacion multi-sede y metri
 ### Reglas Clave y Metricas:
 - **Separacion de Inversion Patrimonial vs Consumibles:**
   - `inventoryValuationPEN`: Valorizacion neta total de todas las existencias en soles (consumibles, herramientas, equipos y maquinaria).
+  - `suppliesValuationPEN`: Valorizacion neta exclusiva de materiales consumibles (`Item.type = 'CONSUMABLE'`). Corresponde al valor contable de existencias gastables en stock (cemento, aditivos, tuberias, etc.).
   - `toolsInvestmentPEN`: Inversion patrimonial acumulada exclusivamente para bienes de activo clasificados como `TOOL`, `EQUIPMENT` o `MACHINERY`. Los consumibles (`CONSUMABLE`) quedan excluidos de esta metrica.
+  - Relacion de balance: `inventoryValuationPEN = suppliesValuationPEN + toolsInvestmentPEN`.
 - **Proteccion Financiera RBAC (`CostMaskingInterceptor`):**
-  - Los usuarios con rol `ADMIN` acceden a las cifras monetarias completas (`inventoryValuationPEN`, `toolsInvestmentPEN`).
+  - Los usuarios con rol `ADMIN` acceden a las cifras monetarias completas (`inventoryValuationPEN`, `suppliesValuationPEN`, `toolsInvestmentPEN`).
   - Los usuarios con rol `WAREHOUSE_KEEPER` reciben las respuestas con los campos monetarios completamente purgados, visualizando unicamente los volumenes fisicos, SKUs y conteos operativos.
 - **Soporte Multi-Sede y Consolidado:**
   - `warehouseId = 'ALL'` (o sin parametro): Agrega las existencias a nivel de toda la corporacion (todas las obras y almacen central).
@@ -50,6 +52,7 @@ Authorization: Bearer <accessToken>
 {
   "totalActiveSkus": 45,
   "inventoryValuationPEN": 184500.5,
+  "suppliesValuationPEN": 135600.5,
   "toolsInvestmentPEN": 48900.0,
   "toolsInField": 12,
   "criticalItemsCount": 3,

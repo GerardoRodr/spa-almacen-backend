@@ -288,12 +288,12 @@ Centralizacion de metricas corporativas, separacion de inversion patrimonial en 
   - [x] DTOs `DashboardFilterDto` y `DashboardMetricsDto`.
   - [x] Servicio `DashboardService`:
     - Calculo de `toolsInvestmentPEN` (sumatoria de `physicalQty * averageCost` unicamente para `TOOL`, `EQUIPMENT` y `MACHINERY`).
-    - Calculo de `inventoryValuationPEN`, `totalActiveSkus`, `toolsInField` y `criticalItemsCount`.
+    - Calculo de `inventoryValuationPEN`, `suppliesValuationPEN` (exclusivo `CONSUMABLE`), `totalActiveSkus`, `toolsInField` y `criticalItemsCount`.
     - Metodos analiticos auxiliares: `getStockComparison()`, `getUrgentReplenishments()`, `getLogicalReservations()`.
   - [x] Controlador `DashboardController` con endpoints `/api/v1/dashboard/metrics`, `/api/v1/dashboard/stock-comparison`, `/api/v1/dashboard/urgent-replenishments` y `/api/v1/dashboard/logical-reservations`.
   - [x] Pruebas unitarias de `DashboardService` en `dashboard.service.spec.ts` (6 pruebas pasando).
 - [x] **Proteccion RBAC en `CostMaskingInterceptor`:**
-  - [x] Incorporacion de `toolsInvestmentPEN`, `inventoryValuationPEN` e `igvAmountPEN` a `FINANCIAL_KEYS`.
+  - [x] Incorporacion de `toolsInvestmentPEN`, `suppliesValuationPEN`, `inventoryValuationPEN` e `igvAmountPEN` a `FINANCIAL_KEYS`.
   - [x] Pruebas unitarias en `cost-masking.interceptor.spec.ts` (3 pruebas pasando).
 - [x] **Alertas de Perecibles en `ItemsModule`:**
   - [x] Endpoint `GET /api/v1/items/perishable-alerts` en `ItemsController` e `ItemsService`.

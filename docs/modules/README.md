@@ -50,6 +50,7 @@ Para los usuarios con rol `WAREHOUSE_KEEPER`, el interceptor elimina recursivame
 - `unitCostSnapshot`
 - `totalCostSnapshot`
 - `inventoryValuationPEN`
+- `suppliesValuationPEN`
 - `toolsInvestmentPEN`
 
 Para el usuario con rol `ADMIN`, todos estos campos se entregan con sus valores numericos decimales correspondientes.
