@@ -16,6 +16,13 @@ export class DashboardMetricsDto {
   inventoryValuationPEN?: number | null;
 
   @ApiPropertyOptional({
+    description: 'Valorizacion total neta de insumos y consumibles en Soles (PEN) sin IGV (confidencial ADMIN)',
+    example: 6422.5,
+    nullable: true,
+  })
+  suppliesValuationPEN?: number | null;
+
+  @ApiPropertyOptional({
     description: 'Inversion patrimonial en herramientas, equipos y maquinarias en Soles (PEN) (confidencial ADMIN)',
     example: 48900.0,
     nullable: true,

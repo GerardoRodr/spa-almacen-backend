@@ -19,6 +19,7 @@ const FINANCIAL_KEYS = new Set([
   'unitCostSnapshot',
   'totalCostSnapshot',
   'inventoryValuationPEN',
+  'suppliesValuationPEN',
   'toolsInvestmentPEN',
   'minUnitCostPEN',
   'maxUnitCostPEN',

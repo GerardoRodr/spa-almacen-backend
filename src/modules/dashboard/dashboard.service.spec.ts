@@ -38,6 +38,7 @@ describe('DashboardService', () => {
           {
             totalValuation: 154500,
             toolsValuation: 152500,
+            suppliesValuation: 2000,
             totalActiveSkus: 3,
           },
         ])
@@ -55,6 +56,9 @@ describe('DashboardService', () => {
 
       // Valorizacion total de inventario: (100*20) + (5*500) + (1*150000) = 2000 + 2500 + 150000 = 154500
       expect(metrics.inventoryValuationPEN).toBe(154500);
+
+      // Valorizacion de insumos y consumibles: (100*20) = 2000
+      expect(metrics.suppliesValuationPEN).toBe(2000);
 
       // Inversion patrimonial (TOOL + MACHINERY): 2500 + 150000 = 152500 (el cemento no se suma)
       expect(metrics.toolsInvestmentPEN).toBe(152500);
@@ -80,6 +84,7 @@ describe('DashboardService', () => {
           {
             totalValuation: 600,
             toolsValuation: 600,
+            suppliesValuation: 0,
             totalActiveSkus: 1,
           },
         ])
@@ -97,6 +102,7 @@ describe('DashboardService', () => {
       expect(metrics.warehouseType).toBe(WarehouseType.PROJECT_SITE);
       expect(metrics.totalActiveSkus).toBe(1);
       expect(metrics.inventoryValuationPEN).toBe(600);
+      expect(metrics.suppliesValuationPEN).toBe(0);
       expect(metrics.toolsInvestmentPEN).toBe(600);
       expect(metrics.criticalItemsCount).toBe(1);
     });

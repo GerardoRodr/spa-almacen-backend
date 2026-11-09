@@ -36,6 +36,7 @@ export class DashboardService {
     let valuationRows: Array<{
       totalValuation: string | number;
       toolsValuation: string | number;
+      suppliesValuation: string | number;
       totalActiveSkus: string | number;
     }>;
 
@@ -44,6 +45,7 @@ export class DashboardService {
         SELECT 
           COALESCE(SUM(s."physicalQty" * s."averageCost"), 0)::numeric AS "totalValuation",
           COALESCE(SUM(CASE WHEN i."type" IN ('TOOL', 'EQUIPMENT', 'MACHINERY') THEN s."physicalQty" * s."averageCost" ELSE 0 END), 0)::numeric AS "toolsValuation",
+          COALESCE(SUM(CASE WHEN i."type" = 'CONSUMABLE' THEN s."physicalQty" * s."averageCost" ELSE 0 END), 0)::numeric AS "suppliesValuation",
           COUNT(DISTINCT s."itemId")::int AS "totalActiveSkus"
         FROM "Stock" s
         JOIN "Item" i ON s."itemId" = i."id"
@@ -54,6 +56,7 @@ export class DashboardService {
         SELECT 
           COALESCE(SUM(s."physicalQty" * s."averageCost"), 0)::numeric AS "totalValuation",
           COALESCE(SUM(CASE WHEN i."type" IN ('TOOL', 'EQUIPMENT', 'MACHINERY') THEN s."physicalQty" * s."averageCost" ELSE 0 END), 0)::numeric AS "toolsValuation",
+          COALESCE(SUM(CASE WHEN i."type" = 'CONSUMABLE' THEN s."physicalQty" * s."averageCost" ELSE 0 END), 0)::numeric AS "suppliesValuation",
           COUNT(DISTINCT s."itemId")::int AS "totalActiveSkus"
         FROM "Stock" s
         JOIN "Item" i ON s."itemId" = i."id"
@@ -64,6 +67,7 @@ export class DashboardService {
     const valuation = valuationRows[0];
     const totalValuation = Number(valuation?.totalValuation ?? 0);
     const toolsValuation = Number(valuation?.toolsValuation ?? 0);
+    const suppliesValuation = Number(valuation?.suppliesValuation ?? 0);
     const totalActiveSkus = Number(valuation?.totalActiveSkus ?? 0);
 
     // Conteo de insumos en nivel critico de existencias calculado en motor SQL
@@ -111,6 +115,7 @@ export class DashboardService {
     return {
       totalActiveSkus,
       inventoryValuationPEN: Number(totalValuation.toFixed(2)),
+      suppliesValuationPEN: Number(suppliesValuation.toFixed(2)),
       toolsInvestmentPEN: Number(toolsValuation.toFixed(2)),
       toolsInField,
       criticalItemsCount,
