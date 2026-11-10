@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Patch,
   Body,
   Param,
   Query,
@@ -20,6 +21,7 @@ import { WarehousesService } from './warehouses.service.js';
 import { CreateWarehouseDto } from './dto/create-warehouse.dto.js';
 import { UpdateWarehouseDto } from './dto/update-warehouse.dto.js';
 import { WarehouseStockFilterDto } from './dto/warehouse-stock-filter.dto.js';
+import { UpdateStockValuationDto } from './dto/update-stock-valuation.dto.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
@@ -91,5 +93,18 @@ export class WarehousesController {
   @ApiResponse({ status: 200, description: 'Alertas de reposicion obtenidas' })
   getAlerts(@Param('id') id: string) {
     return this.warehousesService.getAlerts(id);
+  }
+
+  @Patch(':id/stock/:itemId/valuation')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Actualizar manualmente el CPP o valoracion de un item en un almacen' })
+  @ApiResponse({ status: 200, description: 'Valoracion de stock actualizada exitosamente' })
+  updateStockValuation(
+    @Param('id') warehouseId: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: UpdateStockValuationDto,
+  ) {
+    return this.warehousesService.updateStockValuation(warehouseId, itemId, dto.averageCost);
   }
 }

@@ -3,13 +3,16 @@ import { ConflictException, BadRequestException } from '@nestjs/common';
 import { ItemType, MeterType } from '@prisma/client';
 import { ItemsService } from './items.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { SequenceGeneratorService } from '../../common/services/sequence-generator.service.js';
 
 describe('ItemsService', () => {
   let service: ItemsService;
   let prisma: PrismaService;
+  let sequenceGenerator: SequenceGeneratorService;
 
   beforeEach(() => {
     prisma = {
+      $transaction: vi.fn((cb: any) => cb(prisma)),
       item: {
         count: vi.fn(),
         findMany: vi.fn(),
@@ -39,6 +42,11 @@ describe('ItemsService', () => {
       },
       stock: {
         count: vi.fn().mockResolvedValue(0),
+        findUnique: vi.fn(),
+        create: vi.fn(),
+      },
+      movement: {
+        create: vi.fn(),
       },
       movementItem: {
         count: vi.fn().mockResolvedValue(0),
@@ -51,7 +59,12 @@ describe('ItemsService', () => {
       },
     } as unknown as PrismaService;
 
-    service = new ItemsService(prisma);
+    sequenceGenerator = {
+      previewNextItemSku: vi.fn().mockResolvedValue({ sku: 'MAT-0001', prefix: 'MAT' }),
+      getNextItemSku: vi.fn().mockResolvedValue('MAT-0001'),
+    } as unknown as SequenceGeneratorService;
+
+    service = new ItemsService(prisma, sequenceGenerator);
   });
 
   it('debe listar items con paginacion y metadatos correctos', async () => {

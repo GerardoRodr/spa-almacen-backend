@@ -21,6 +21,7 @@ import { CreateShrinkageExitDto } from './dto/create-shrinkage-exit.dto.js';
 import {
   CreateInventoryAdjustmentDto,
 } from './dto/create-inventory-adjustment.dto.js';
+import { CreateInitialStockDto } from './dto/create-initial-stock.dto.js';
 import { MovementFilterDto } from './dto/movement-filter.dto.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { WarehouseAccessGuard } from '../../common/guards/warehouse-access.guard.js';
@@ -124,6 +125,37 @@ export class MovementsController {
     @CurrentUser('id') userId: string,
   ) {
     return this.movementsService.createShrinkageExit(dto, userId);
+  }
+
+  @Post('initial-stock')
+  @UseGuards(WarehouseAccessGuard)
+  @UseInterceptors(CostMaskingInterceptor)
+  @ApiOperation({
+    summary:
+      'Registrar toma o ingreso de stock fisico inicial en almacen (ADMIN o WAREHOUSE_KEEPER asignado)',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Stock inicial registrado exitosamente y asentado en Kardex',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Datos invalidos o insumos no existentes en catalogo',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Sin autorizacion para operar en el almacen especificado',
+  })
+  createInitialStock(
+    @Body() dto: CreateInitialStockDto,
+    @CurrentUser()
+    user: {
+      id: string;
+      role: Role;
+      assignedWarehouses?: Array<{ warehouseId: string }>;
+    },
+  ) {
+    return this.movementsService.registerInitialStock(dto, user);
   }
 
   @Post('adjustment')

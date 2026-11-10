@@ -16,7 +16,7 @@ import {
   ApiResponse,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { Role } from '@prisma/client';
+import { Role, ItemType } from '@prisma/client';
 import { ItemsService } from './items.service.js';
 import { CreateItemDto } from './dto/create-item.dto.js';
 import { UpdateItemDto } from './dto/update-item.dto.js';
@@ -25,6 +25,7 @@ import { CreateItemAliasDto } from './dto/create-item-alias.dto.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
+import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import { CostMaskingInterceptor } from '../../common/interceptors/cost-masking.interceptor.js';
 
 @ApiTags('Catalogo de Items')
@@ -35,20 +36,32 @@ export class ItemsController {
   constructor(private readonly itemsService: ItemsService) {}
 
   @Get()
+  @UseInterceptors(CostMaskingInterceptor)
   @ApiOperation({ summary: 'Listar catalogo de insumos y herramientas paginado' })
   @ApiResponse({ status: 200, description: 'Listado de catalogo obtenido' })
   findAll(@Query() filter: ItemFilterDto) {
     return this.itemsService.findAll(filter);
   }
 
+  @Get('next-sku')
+  @ApiOperation({ summary: 'Previsualizar el siguiente SKU sugerido segun clasificacion' })
+  @ApiResponse({ status: 200, description: 'Siguiente SKU sugerido' })
+  getNextSku(@Query('type') type?: ItemType) {
+    return this.itemsService.previewNextSku(type ?? ItemType.CONSUMABLE);
+  }
+
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Registrar un nuevo insumo o herramienta en catalogo maestro' })
+  @Roles(Role.ADMIN, Role.WAREHOUSE_KEEPER)
+  @UseInterceptors(CostMaskingInterceptor)
+  @ApiOperation({ summary: 'Registrar un nuevo insumo o herramienta en catalogo maestro (con stock inicial opcional)' })
   @ApiResponse({ status: 201, description: 'Item registrado exitosamente' })
   @ApiResponse({ status: 409, description: 'SKU duplicado' })
-  create(@Body() dto: CreateItemDto) {
-    return this.itemsService.create(dto);
+  create(
+    @Body() dto: CreateItemDto,
+    @CurrentUser() user: { id: string; role: Role; assignedWarehouses?: Array<{ warehouseId: string }> },
+  ) {
+    return this.itemsService.create(dto, user);
   }
 
   @Get('perishable-alerts')

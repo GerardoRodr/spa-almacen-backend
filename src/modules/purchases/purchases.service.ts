@@ -323,9 +323,9 @@ export class PurchasesService {
         const prevCPP = existingStock ? Number(existingStock.averageCost) : 0;
 
         // Formula de Costo Promedio Ponderado (CPP / WAC)
-        // Si no habia stock fisico previo o era menor/igual a cero, nuevo CPP es unitCostBasePEN
+        // Si no habia stock fisico previo o su costo promedio era cero (stock inicial sin valorizar), nuevo CPP es unitCostBasePEN
         let newCPP: number;
-        if (prevQty <= 0) {
+        if (prevQty <= 0 || prevCPP <= 0) {
           newCPP = unitCostBasePEN;
         } else {
           const prevTotalVal = prevQty * prevCPP;

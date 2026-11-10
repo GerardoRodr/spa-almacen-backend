@@ -4,8 +4,9 @@ import {
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
-import { ItemType, MeterType } from '@prisma/client';
+import { ItemType, MeterType, MovementType, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { SequenceGeneratorService } from '../../common/services/sequence-generator.service.js';
 import { CreateItemDto } from './dto/create-item.dto.js';
 import { UpdateItemDto } from './dto/update-item.dto.js';
 import { ItemFilterDto } from './dto/item-filter.dto.js';
@@ -15,7 +16,15 @@ import { UpdateItemCategoryDto } from './dto/update-item-category.dto.js';
 
 @Injectable()
 export class ItemsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly sequenceGenerator: SequenceGeneratorService,
+  ) {}
+
+  // Previsualizar proximo SKU sugerido segun clasificacion
+  async previewNextSku(type: ItemType) {
+    return this.sequenceGenerator.previewNextItemSku(this.prisma, type);
+  }
 
   // Listar catalogo de items con paginacion y filtros
   async findAll(filter: ItemFilterDto) {
@@ -60,6 +69,19 @@ export class ItemsService {
               isActive: true,
             },
           },
+          stocks: {
+            include: {
+              warehouse: {
+                select: {
+                  id: true,
+                  name: true,
+                  type: true,
+                  isTemporary: true,
+                  isActive: true,
+                },
+              },
+            },
+          },
           _count: {
             select: { stocks: true, aliases: true },
           },
@@ -79,69 +101,173 @@ export class ItemsService {
   }
 
   // Registrar nuevo insumo o herramienta en el catalogo maestro
-  async create(dto: CreateItemDto) {
-    const formattedSku = dto.sku.trim().toUpperCase();
-    const formattedBaseUnit = dto.baseUnit.trim().toUpperCase();
-
-    const existing = await this.prisma.item.findUnique({
-      where: { sku: formattedSku },
-    });
-
-    if (existing) {
-      throw new ConflictException(
-        `Ya existe un item registrado con el SKU: ${formattedSku}`,
-      );
-    }
-
-    if (dto.categoryId) {
-      const category = await this.prisma.itemCategory.findUnique({
-        where: { id: dto.categoryId },
-      });
-      if (!category) {
-        throw new NotFoundException('La clasificacion especificada no existe');
+  async create(
+    dto: CreateItemDto,
+    user?: { id: string; role: Role; assignedWarehouses?: Array<{ warehouseId: string }> },
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      let formattedSku: string;
+      if (dto.sku && dto.sku.trim()) {
+        formattedSku = dto.sku.trim().toUpperCase();
+        const existing = await tx.item.findUnique({
+          where: { sku: formattedSku },
+        });
+        if (existing) {
+          throw new ConflictException(
+            `Ya existe un item registrado con el SKU: ${formattedSku}`,
+          );
+        }
+      } else {
+        formattedSku = await this.sequenceGenerator.getNextItemSku(tx, dto.type);
       }
-    }
 
-    // Asegurar que la unidad de medida exista en el catalogo maestro y este activa
-    const unitInMaster = await this.prisma.measurementUnit.findUnique({
-      where: { code: formattedBaseUnit },
-    });
-    if (unitInMaster && !unitInMaster.isActive) {
-      throw new BadRequestException(
-        `La unidad de medida ${formattedBaseUnit} se encuentra inactiva en el catalogo maestro`,
-      );
-    }
-    if (!unitInMaster) {
-      await this.prisma.measurementUnit.create({
+      const formattedBaseUnit = dto.baseUnit.trim().toUpperCase();
+
+      if (dto.categoryId) {
+        const category = await tx.itemCategory.findUnique({
+          where: { id: dto.categoryId },
+        });
+        if (!category) {
+          throw new NotFoundException('La clasificacion especificada no existe');
+        }
+      }
+
+      // Asegurar que la unidad de medida exista en el catalogo maestro y este activa
+      const unitInMaster = await tx.measurementUnit.findUnique({
+        where: { code: formattedBaseUnit },
+      });
+      if (unitInMaster && !unitInMaster.isActive) {
+        throw new BadRequestException(
+          `La unidad de medida ${formattedBaseUnit} se encuentra inactiva en el catalogo maestro`,
+        );
+      }
+      if (!unitInMaster) {
+        await tx.measurementUnit.create({
+          data: {
+            code: formattedBaseUnit,
+            name: formattedBaseUnit,
+            description: 'Unidad registrada dinamicamente desde catalogo de items',
+            isActive: true,
+          },
+        });
+      }
+
+      const resolvedMeterType =
+        dto.type === ItemType.MACHINERY
+          ? (dto.meterType ?? MeterType.HOUR_METER)
+          : null;
+
+      const createdItem = await tx.item.create({
         data: {
-          code: formattedBaseUnit,
-          name: formattedBaseUnit,
-          description: 'Unidad registrada dinamicamente desde catalogo de items',
-          isActive: true,
+          sku: formattedSku,
+          name: dto.name.trim(),
+          description: dto.description?.trim(),
+          baseUnit: formattedBaseUnit,
+          type: dto.type,
+          meterType: resolvedMeterType,
+          minStockAlert: dto.minStockAlert ?? 0,
+          isPerishable: dto.isPerishable ?? false,
+          categoryId: dto.categoryId ?? null,
+        },
+        include: {
+          category: true,
         },
       });
-    }
 
-    const resolvedMeterType =
-      dto.type === ItemType.MACHINERY
-        ? (dto.meterType ?? MeterType.HOUR_METER)
-        : null;
+      let initialMovementId: string | undefined = undefined;
 
-    return this.prisma.item.create({
-      data: {
-        sku: formattedSku,
-        name: dto.name.trim(),
-        description: dto.description?.trim(),
-        baseUnit: formattedBaseUnit,
-        type: dto.type,
-        meterType: resolvedMeterType,
-        minStockAlert: dto.minStockAlert ?? 0,
-        isPerishable: dto.isPerishable ?? false,
-        categoryId: dto.categoryId ?? null,
-      },
-      include: {
-        category: true,
-      },
+      // Procesar registro atomico de stock fisico inicial si se envia
+      if (dto.initialStock && dto.initialStock.quantity > 0) {
+        const initWhId = dto.initialStock.warehouseId;
+        const warehouse = await tx.warehouse.findUnique({
+          where: { id: initWhId },
+        });
+
+        if (!warehouse) {
+          throw new NotFoundException('Almacen de destino no encontrado para stock inicial');
+        }
+        if (!warehouse.isActive) {
+          throw new BadRequestException('El almacen de destino se encuentra inactivo');
+        }
+
+        // Si el usuario es WAREHOUSE_KEEPER, validar que tenga asignado el almacen
+        if (user && user.role === Role.WAREHOUSE_KEEPER) {
+          const userWarehouses = await tx.userWarehouse.findMany({
+            where: { userId: user.id },
+            select: { warehouseId: true },
+          });
+          const hasAccess = userWarehouses.some((w) => w.warehouseId === initWhId);
+          if (!hasAccess) {
+            throw new BadRequestException('No tiene permisos para ingresar stock en el almacen seleccionado');
+          }
+        }
+
+        // Determinar costo unitario efectivo: 0 para almaceneros o si se omite; costo real si es ADMIN
+        const isKeeper = user && user.role === Role.WAREHOUSE_KEEPER;
+        const initialUnitCost = isKeeper ? 0 : Number(dto.initialStock.unitCost ?? 0);
+        const initQty = Number(dto.initialStock.quantity);
+
+        await tx.stock.create({
+          data: {
+            warehouseId: initWhId,
+            itemId: createdItem.id,
+            physicalQty: initQty,
+            averageCost: initialUnitCost,
+          },
+        });
+
+        const movementNumber = await this.sequenceGenerator.getNextCode(tx, 'MOV');
+        const fallbackUserId = user?.id || (await tx.user.findFirst({ select: { id: true } }))!.id;
+        const movement = await tx.movement.create({
+          data: {
+            movementNumber,
+            type: MovementType.INVENTORY_ADJUSTMENT,
+            originWarehouseId: initWhId,
+            userId: fallbackUserId,
+            observation: dto.initialStock.observation?.trim()
+              ? `[STOCK INICIAL] ${dto.initialStock.observation.trim()}`
+              : `[STOCK INICIAL] Alta de inventario fisico en ${warehouse.name}`,
+            items: {
+              create: [
+                {
+                  itemId: createdItem.id,
+                  quantity: initQty,
+                  unitCostSnapshot: initialUnitCost,
+                  totalCostSnapshot: Number((initQty * initialUnitCost).toFixed(2)),
+                },
+              ],
+            },
+          },
+        });
+
+        initialMovementId = movement.id;
+      }
+
+      // Devolver item con stocks incluidos
+      const fullItem =
+        (await tx.item.findUnique({
+          where: { id: createdItem.id },
+          include: {
+            category: true,
+            stocks: {
+              include: {
+                warehouse: {
+                  select: {
+                    id: true,
+                    name: true,
+                    type: true,
+                    isActive: true,
+                  },
+                },
+              },
+            },
+          },
+        })) || createdItem;
+
+      return {
+        ...fullItem,
+        initialMovementId,
+      };
     });
   }
 

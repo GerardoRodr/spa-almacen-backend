@@ -6,20 +6,61 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
   Min,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ItemType, MeterType } from '@prisma/client';
 
-export class CreateItemDto {
+export class InitialStockOnCreateDto {
   @ApiProperty({
-    example: 'CEM-PORT-T1',
-    description: 'Codigo SKU unico del insumo o herramienta',
+    example: 'b0000000-0000-4000-8000-000000000001',
+    description: 'Identificador UUID del almacen donde ingresa el stock fisico inicial',
   })
+  @IsUUID('4', { message: 'El warehouseId debe ser un UUID valido' })
+  warehouseId: string;
+
+  @ApiProperty({
+    example: 10,
+    description: 'Cantidad fisica inicial a registrar en inventario',
+  })
+  @Type(() => Number)
+  @IsNumber({}, { message: 'La cantidad inicial debe ser numerica' })
+  @Min(0.0001, { message: 'La cantidad inicial debe ser mayor a cero' })
+  quantity: number;
+
+  @ApiPropertyOptional({
+    example: 28.5,
+    description: 'Costo unitario en Soles (solo computable para ADMIN, almaceneros forzaran 0)',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'El costo unitario debe ser numerico' })
+  @Min(0, { message: 'El costo unitario no puede ser negativo' })
+  unitCost?: number;
+
+  @ApiPropertyOptional({
+    example: 'Conteo fisico inicial en caseta de obra',
+    description: 'Observacion del ajuste inicial',
+  })
+  @IsOptional()
+  @IsString({ message: 'La observacion debe ser texto' })
+  @MaxLength(500, { message: 'La observacion no puede superar 500 caracteres' })
+  observation?: string;
+}
+
+export class CreateItemDto {
+  @ApiPropertyOptional({
+    example: 'CEM-PORT-T1',
+    description: 'Codigo SKU unico del insumo. Si se omite, se autogenera segun el tipo',
+  })
+  @IsOptional()
   @IsString({ message: 'El SKU debe ser una cadena de texto' })
-  @IsNotEmpty({ message: 'El SKU no puede estar vacio' })
-  sku: string;
+  @MaxLength(50, { message: 'El SKU no puede superar 50 caracteres' })
+  sku?: string;
 
   @ApiProperty({
     example: 'Cemento Portland Tipo I (Bolsa 42.5 kg)',
@@ -91,4 +132,13 @@ export class CreateItemDto {
   @IsOptional()
   @IsUUID('4', { message: 'El categoryId debe ser un UUID valido' })
   categoryId?: string | null;
+
+  @ApiPropertyOptional({
+    type: () => InitialStockOnCreateDto,
+    description: 'Registro opcional de stock fisico inicial en un solo paso',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => InitialStockOnCreateDto)
+  initialStock?: InitialStockOnCreateDto;
 }

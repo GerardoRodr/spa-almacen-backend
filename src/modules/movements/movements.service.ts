@@ -16,6 +16,7 @@ import { CreateShrinkageExitDto } from './dto/create-shrinkage-exit.dto.js';
 import {
   CreateInventoryAdjustmentDto,
 } from './dto/create-inventory-adjustment.dto.js';
+import { CreateInitialStockDto } from './dto/create-initial-stock.dto.js';
 import { AdjustmentDirection } from './dto/inventory-adjustment-item.dto.js';
 import { MovementFilterDto } from './dto/movement-filter.dto.js';
 import { SequenceGeneratorService } from '../../common/services/sequence-generator.service.js';
@@ -486,6 +487,142 @@ export class MovementsService {
     });
   }
 
+  // Registrar toma o ingreso de stock fisico inicial (ADMIN o WAREHOUSE_KEEPER asignado)
+  async registerInitialStock(
+    dto: CreateInitialStockDto,
+    user: { id: string; role: Role; assignedWarehouses?: Array<{ warehouseId: string }> },
+  ) {
+    // 1. Validar existencia y operatividad del almacen
+    const warehouse = await this.prisma.warehouse.findUnique({
+      where: { id: dto.warehouseId },
+    });
+    if (!warehouse) {
+      throw new NotFoundException('Almacen no encontrado');
+    }
+    if (!warehouse.isActive) {
+      throw new BadRequestException('El almacen no se encuentra activo');
+    }
+
+    // 2. Validar que no haya items duplicados en la lista
+    const itemIds = dto.items.map((i) => i.itemId);
+    if (new Set(itemIds).size !== itemIds.length) {
+      throw new BadRequestException(
+        'No se permiten items duplicados en la misma solicitud de stock inicial',
+      );
+    }
+
+    // 3. Validar existencia de todos los items en catalogo maestro
+    const existingItems = await this.prisma.item.findMany({
+      where: { id: { in: itemIds } },
+    });
+    if (existingItems.length !== itemIds.length) {
+      throw new BadRequestException(
+        'Uno o mas items especificados no existen en el catalogo maestro',
+      );
+    }
+
+    // 4. Obtener stocks actuales en el almacen
+    const stocks = await this.prisma.stock.findMany({
+      where: {
+        warehouseId: dto.warehouseId,
+        itemId: { in: itemIds },
+      },
+    });
+    const stockMap = new Map(stocks.map((s) => [s.itemId, s]));
+
+    const isKeeper = user.role === Role.WAREHOUSE_KEEPER;
+
+    // 5. Transaccion atomica
+    return this.prisma.$transaction(async (tx) => {
+      const movementNumber = await this.sequenceGenerator.getNextCode(tx, 'MOV');
+      const movementItemsData = [];
+
+      for (const itemDto of dto.items) {
+        const stock = stockMap.get(itemDto.itemId);
+        const prevQty = stock ? Number(stock.physicalQty) : 0;
+        const prevCPP = stock ? Number(stock.averageCost) : 0;
+        const adjQty = Number(itemDto.quantity);
+
+        const newPhysicalQty = Number((prevQty + adjQty).toFixed(4));
+        let newCPP = prevCPP;
+
+        if (isKeeper) {
+          // Si el almacenero ingresa stock, conserva costo previo o deja 0
+          newCPP = prevCPP;
+        } else if (itemDto.unitCost !== undefined && itemDto.unitCost !== null) {
+          const costVal = Number(itemDto.unitCost);
+          if (prevQty <= 0 || prevCPP <= 0) {
+            newCPP = costVal;
+          } else {
+            newCPP = Number(
+              ((prevQty * prevCPP + adjQty * costVal) / (prevQty + adjQty)).toFixed(4),
+            );
+          }
+        }
+
+        await tx.stock.upsert({
+          where: {
+            warehouseId_itemId: {
+              warehouseId: dto.warehouseId,
+              itemId: itemDto.itemId,
+            },
+          },
+          update: {
+            physicalQty: newPhysicalQty,
+            averageCost: newCPP,
+          },
+          create: {
+            warehouseId: dto.warehouseId,
+            itemId: itemDto.itemId,
+            physicalQty: newPhysicalQty,
+            averageCost: newCPP,
+          },
+        });
+
+        movementItemsData.push({
+          itemId: itemDto.itemId,
+          quantity: adjQty,
+          unitCostSnapshot: newCPP,
+          totalCostSnapshot: Number((adjQty * newCPP).toFixed(2)),
+        });
+      }
+
+      const observation = dto.observation?.trim()
+        ? `[STOCK INICIAL] ${dto.observation.trim()}`
+        : `[STOCK INICIAL] Conteo de existencias fisicas en ${warehouse.name}`;
+
+      const movement = await tx.movement.create({
+        data: {
+          movementNumber,
+          type: MovementType.INVENTORY_ADJUSTMENT,
+          originWarehouseId: dto.warehouseId,
+          userId: user.id,
+          observation,
+          items: {
+            create: movementItemsData,
+          },
+        },
+        include: {
+          items: {
+            include: {
+              item: {
+                select: {
+                  id: true,
+                  sku: true,
+                  name: true,
+                  baseUnit: true,
+                  type: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      return movement;
+    });
+  }
+
   // Registrar regularizacion por inventario fisico formal (INVENTORY_ADJUSTMENT - Exclusivo ADMIN)
   async createInventoryAdjustment(
     dto: CreateInventoryAdjustmentDto,
@@ -568,7 +705,7 @@ export class MovementsService {
 
           if (itemDto.unitCost !== undefined && itemDto.unitCost !== null) {
             const costVal = Number(itemDto.unitCost);
-            if (prevQty <= 0) {
+            if (prevQty <= 0 || prevCPP <= 0) {
               newCPP = costVal;
             } else {
               newCPP = Number(

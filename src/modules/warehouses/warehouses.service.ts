@@ -239,4 +239,47 @@ export class WarehousesService {
         deficitQty: Number(s.item.minStockAlert) - Number(s.physicalQty),
       }));
   }
+
+  // Valorizar o actualizar costo promedio (averageCost) de un insumo en un almacen especifico (Exclusivo ADMIN)
+  async updateStockValuation(warehouseId: string, itemId: string, averageCost: number) {
+    await this.findOne(warehouseId);
+
+    const item = await this.prisma.item.findUnique({
+      where: { id: itemId },
+    });
+    if (!item) {
+      throw new NotFoundException('Insumo no encontrado en el catalogo maestro');
+    }
+
+    const stock = await this.prisma.stock.upsert({
+      where: {
+        warehouseId_itemId: {
+          warehouseId,
+          itemId,
+        },
+      },
+      update: {
+        averageCost,
+      },
+      create: {
+        warehouseId,
+        itemId,
+        physicalQty: 0,
+        averageCost,
+      },
+      include: {
+        warehouse: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            isActive: true,
+          },
+        },
+        item: true,
+      },
+    });
+
+    return stock;
+  }
 }
