@@ -372,6 +372,8 @@ Obtiene la ficha del item junto con el desglose de existencias por almacen, calc
 }
 ```
 
+*Garantia de Serializacion de Cantidades:* En cumplimiento con la politica de integridad de existencias, las cantidades fisicas (`physicalQty`, `reservedQty`, `loanedQty`) son preservadas como instancias escalares y nunca se descomponen en objetos `{ d, e, s }`, permitiendo que la interfaz procese numeros directos sin arrojar `[object Object]` ni `NaN` tanto para `ADMIN` como para `WAREHOUSE_KEEPER`.
+
 ---
 
 ### 2.6 Actualizar Item

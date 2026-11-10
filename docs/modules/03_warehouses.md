@@ -205,7 +205,7 @@ Modifica nombre, estado o proyecto vinculado de una instalacion.
 
 ### 2.5 Consultar Existencias de Stock
 Retorna el inventario en piso del almacen con filtro opcional por termino de busqueda y tipo de item.
-Aplica `CostMaskingInterceptor` para proteger costos financieros ante usuarios de caseta.
+Aplica `CostMaskingInterceptor` para proteger costos financieros ante usuarios de caseta. Las cantidades fisicas (`physicalQty`, `reservedQty`, `loanedQty`) se preservan de forma estricta como instancias escalares y nunca se desglosan en estructuras de objeto, garantizando que el almacenero consulte existencias legitimas sin bloqueos tecnicos.
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/warehouses/:id/stock`

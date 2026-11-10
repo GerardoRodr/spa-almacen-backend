@@ -67,7 +67,7 @@ Toda la infraestructura se aloja en una unica instancia VPS KVM 2 (100 GB SSD NV
   - `JwtAuthGuard`: Autenticacion sin estado (Access Token de 15 min + Refresh Token de 7 dias).
   - `RolesGuard`: Segregacion de permisos (`ADMIN` vs `WAREHOUSE_KEEPER`).
   - `WarehouseAccessGuard`: Valida que el almacenero solo opere sobre almacenes donde tiene autorizacion activa en `UserWarehouse`.
-  - `CostMaskingInterceptor`: Serializador que omite campos monetarios en respuestas hacia roles no administrativos.
+  - `CostMaskingInterceptor`: Serializador que omite campos monetarios en respuestas hacia roles no administrativos (`WAREHOUSE_KEEPER`). Preserva de manera estricta las instancias de `Prisma.Decimal` en existencias fisicas (`physicalQty`, `reservedQty`, `loanedQty`), serializandolas como escalares numericos para evitar descomposiciones de objetos en tiempo de serializacion JSON.
   - `helmet` y `@nestjs/throttler` para proteccion de cabeceras y control de tasa de peticiones.
 * **Procesamiento Multimedia:** `Multer` junto a `Sharp` para convertir y comprimir imagenes de guias y evidencias a formato `.webp` al 80% (reduciendo archivos de 10 MB a menos de 350 KB).
 * **Motor de Presupuestos S10:** Pipeline de streaming con soporte de codificacion `Windows-1252` y `UTF-8`, con deteccion automatica de delimitador (`;` o `,`).
@@ -92,11 +92,11 @@ Toda la infraestructura se aloja en una unica instancia VPS KVM 2 (100 GB SSD NV
 
 | Modulo / Funcionalidad | Rol `ADMIN` (Arquitecto / Residente) | Rol `WAREHOUSE_KEEPER` (Almacenero Obra/Central) |
 | :--- | :---: | :---: |
-| **Selector de Almacen Activo** | Acceso Global a Todos los Almacenes | Solo Almacenes Asignados (`UserWarehouse`) |
-| **Catalogo Maestro (Crear / Editar SKU)** | Total | Solo Lectura |
+| **Selector de Almacen Activo** | Acceso Global a Todos los Almacenes | Solo Almacenes Asignados (`UserWarehouse`) con soporte multisede |
+| **Catalogo Maestro (Crear / Editar SKU)** | Total (edicion completa y confirmacion) | Alta Rapida Descentralizada (SKU automatico, sin edicion maestra) |
 | **Gestion de Alias S10 (`ItemAlias`)** | Total | Acceso Denegado |
 | **Visualizacion de Costos, Precios y CPP** | **Visible** | **Bloqueado / Ciego** |
-| **Registro de Compras a Proveedores** | Total (con costos, IGV y facturas) | Acceso Denegado |
+| **Registro de Compras a Proveedores** | Total (con costos, IGV, facturas y valorizacion) | Registro Operativo Descentralizado (recepcion directa, precio cero y proveedores) |
 | **Despacho de Transferencias (Fase 1)** | Autorizacion / Auditoria | Registro Operativo (Almacen Origen) |
 | **Recepcion de Transferencias (Fase 2)** | Auditoria de Discrepancias | Conteo Fisico y Confirmacion (Almacen Destino) |
 | **Salida por Consumo en Obra** | Auditoria por Partida/Frente | Registro Diario de Entrega a Capataces |
