@@ -107,8 +107,9 @@ export class DocumentsController {
       size?: number;
     },
     @Body() dto: UploadDocumentDto,
+    @CurrentUser() user?: { id: string; role: Role },
   ) {
-    return this.documentsService.upload(file, dto);
+    return this.documentsService.upload(file, dto, user);
   }
 
   @Post('upload-multiple')
@@ -182,8 +183,9 @@ export class DocumentsController {
       size?: number;
     }>,
     @Body() dto: UploadDocumentDto,
+    @CurrentUser() user?: { id: string; role: Role },
   ) {
-    return this.documentsService.uploadMultiple(files, dto);
+    return this.documentsService.uploadMultiple(files, dto, user);
   }
 
   @Get()

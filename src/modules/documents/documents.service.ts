@@ -22,14 +22,37 @@ export class DocumentsService {
     private readonly storageService: StorageService,
   ) {}
 
+  // Helper para obtener almacenes autorizados para un usuario
+  private async getAllowedWarehouseIds(userId: string): Promise<string[]> {
+    const userWarehouses = await this.prisma.userWarehouse.findMany({
+      where: { userId },
+      select: { warehouseId: true },
+    });
+    return userWarehouses.map((uw) => uw.warehouseId);
+  }
+
   // Resolver y validar la categoria y existencia de la entidad foranea vinculada
-  private async resolveCategoryAndValidate(dto: UploadDocumentDto): Promise<string> {
+  private async resolveCategoryAndValidate(
+    dto: UploadDocumentDto,
+    user?: { id: string; role: Role },
+  ): Promise<string> {
     if (dto.purchaseId) {
       const purchase = await this.prisma.purchase.findUnique({
         where: { id: dto.purchaseId },
       });
       if (!purchase) {
         throw new NotFoundException('La compra vinculada no existe');
+      }
+      if (user?.role === Role.WAREHOUSE_KEEPER) {
+        const allowedIds = await this.getAllowedWarehouseIds(user.id);
+        if (
+          !purchase.warehouseId ||
+          !allowedIds.includes(purchase.warehouseId)
+        ) {
+          throw new ForbiddenException(
+            'No tiene permisos para adjuntar documentos en compras de otro almacen',
+          );
+        }
       }
       return 'purchases';
     }
@@ -124,8 +147,9 @@ export class DocumentsService {
       size?: number;
     },
     dto: UploadDocumentDto,
+    user?: { id: string; role: Role },
   ) {
-    const category = await this.resolveCategoryAndValidate(dto);
+    const category = await this.resolveCategoryAndValidate(dto, user);
     const isConfidential = this.resolveConfidentiality(dto);
     const saved = await this.processFile(file, category);
 
@@ -160,6 +184,7 @@ export class DocumentsService {
       size?: number;
     }>,
     dto: UploadDocumentDto,
+    user?: { id: string; role: Role },
   ) {
     if (!files || files.length === 0) {
       throw new BadRequestException(
@@ -173,7 +198,7 @@ export class DocumentsService {
       );
     }
 
-    const category = await this.resolveCategoryAndValidate(dto);
+    const category = await this.resolveCategoryAndValidate(dto, user);
     const isConfidential = this.resolveConfidentiality(dto);
 
     const savedPaths: string[] = [];
@@ -232,9 +257,24 @@ export class DocumentsService {
     if (filter.custodyId) where.custodyId = filter.custodyId;
     if (filter.proofType) where.proofType = filter.proofType;
 
-    // Almaceneros nunca ven documentos confidenciales en los listados
+    // Almaceneros solo ven documentos no confidenciales o documentos vinculados a compras de sus almacenes asignados
     if (user.role === Role.WAREHOUSE_KEEPER) {
-      where.isConfidential = false;
+      const allowedIds = await this.getAllowedWarehouseIds(user.id);
+      const keeperCondition: Prisma.DocumentAttachmentWhereInput = {
+        OR: [
+          { isConfidential: false },
+          {
+            purchase: {
+              warehouseId: { in: allowedIds },
+            },
+          },
+        ],
+      };
+      if (where.AND) {
+        (where.AND as Prisma.DocumentAttachmentWhereInput[]).push(keeperCondition);
+      } else {
+        where.AND = [keeperCondition];
+      }
     }
 
     const [total, data] = await Promise.all([
@@ -262,6 +302,11 @@ export class DocumentsService {
   async findOne(id: string, user: { id: string; role: Role }) {
     const doc = await this.prisma.documentAttachment.findUnique({
       where: { id },
+      include: {
+        purchase: {
+          select: { warehouseId: true },
+        },
+      },
     });
 
     if (!doc) {
@@ -269,9 +314,18 @@ export class DocumentsService {
     }
 
     if (doc.isConfidential && user.role !== Role.ADMIN) {
-      throw new ForbiddenException(
-        'Acceso denegado: El documento es confidencial y solo puede ser consultado por administradores',
-      );
+      if (doc.purchaseId && doc.purchase?.warehouseId) {
+        const allowedIds = await this.getAllowedWarehouseIds(user.id);
+        if (!allowedIds.includes(doc.purchase.warehouseId)) {
+          throw new ForbiddenException(
+            'Acceso denegado: El documento es confidencial y solo puede ser consultado por administradores',
+          );
+        }
+      } else {
+        throw new ForbiddenException(
+          'Acceso denegado: El documento es confidencial y solo puede ser consultado por administradores',
+        );
+      }
     }
 
     return doc;

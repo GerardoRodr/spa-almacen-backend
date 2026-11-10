@@ -39,7 +39,7 @@ export class SuppliersController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.WAREHOUSE_KEEPER)
   @ApiOperation({ summary: 'Registrar nuevo proveedor comercial con RUC de 11 digitos' })
   @ApiResponse({ status: 201, description: 'Proveedor registrado exitosamente' })
   @ApiResponse({ status: 409, description: 'Numero de RUC ya registrado' })

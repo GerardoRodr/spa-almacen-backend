@@ -156,6 +156,32 @@ describe('Flujos Criticos E2E (Hardening)', () => {
       expect(response.body.meta).toBeDefined();
     });
 
+    it('GET /api/v1/purchases - debe permitir consulta a almacenero acotada a sus sedes asignadas', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/purchases')
+        .set('Authorization', `Bearer ${keeperToken}`)
+        .expect(200);
+
+      expect(response.body.data).toBeDefined();
+      expect(Array.isArray(response.body.data)).toBe(true);
+      expect(response.body.meta).toBeDefined();
+    });
+
+    it('GET /api/v1/purchases/price-comparison - debe denegar acceso a almacenero con 403', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/purchases/price-comparison?search=cemento')
+        .set('Authorization', `Bearer ${keeperToken}`)
+        .expect(403);
+    });
+
+    it('POST /api/v1/suppliers - debe permitir a almacenero registrar proveedor (validando campos con 400 si incompleto)', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/suppliers')
+        .set('Authorization', `Bearer ${keeperToken}`)
+        .send({})
+        .expect(400); // 400 Bad Request por validacion, no 403 Forbidden
+    });
+
     it('GET /api/v1/transfers - debe consultar transferencias entre almacenes paginadas', async () => {
       const response = await request(app.getHttpServer())
         .get('/api/v1/transfers')

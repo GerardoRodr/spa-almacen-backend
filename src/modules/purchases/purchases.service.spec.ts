@@ -1,7 +1,16 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
-import { Currency, MovementType, WarehouseType } from '@prisma/client';
+import {
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
+import {
+  Currency,
+  MovementType,
+  WarehouseType,
+  Role,
+} from '@prisma/client';
 import { PurchasesService } from './purchases.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { SequenceGeneratorService } from '../../common/services/sequence-generator.service.js';
@@ -12,6 +21,9 @@ describe('PurchasesService', () => {
     getNextCode: ReturnType<typeof vi.fn>;
   };
   let prisma: {
+    userWarehouse: {
+      findMany: ReturnType<typeof vi.fn>;
+    };
     supplier: {
       findUnique: ReturnType<typeof vi.fn>;
     };
@@ -20,12 +32,26 @@ describe('PurchasesService', () => {
     };
     item: {
       findMany: ReturnType<typeof vi.fn>;
+      findUnique: ReturnType<typeof vi.fn>;
+      findFirst: ReturnType<typeof vi.fn>;
+    };
+    stock: {
+      findMany: ReturnType<typeof vi.fn>;
+      findUnique: ReturnType<typeof vi.fn>;
+      upsert: ReturnType<typeof vi.fn>;
+      update?: ReturnType<typeof vi.fn>;
+    };
+    purchaseDetail: {
+      findMany: ReturnType<typeof vi.fn>;
+      create: ReturnType<typeof vi.fn>;
+      update?: ReturnType<typeof vi.fn>;
     };
     purchase: {
       findMany: ReturnType<typeof vi.fn>;
       findUnique: ReturnType<typeof vi.fn>;
       count: ReturnType<typeof vi.fn>;
       create: ReturnType<typeof vi.fn>;
+      update?: ReturnType<typeof vi.fn>;
     };
     $transaction: ReturnType<typeof vi.fn>;
   };
@@ -39,6 +65,9 @@ describe('PurchasesService', () => {
     };
 
     prisma = {
+      userWarehouse: {
+        findMany: vi.fn().mockResolvedValue([{ warehouseId: 'wh-central' }]),
+      },
       supplier: {
         findUnique: vi.fn(),
       },
@@ -54,16 +83,19 @@ describe('PurchasesService', () => {
         findMany: vi.fn(),
         findUnique: vi.fn(),
         upsert: vi.fn(),
+        update: vi.fn(),
       },
       purchaseDetail: {
         findMany: vi.fn(),
         create: vi.fn(),
+        update: vi.fn(),
       },
       purchase: {
         findMany: vi.fn(),
         findUnique: vi.fn(),
         count: vi.fn(),
         create: vi.fn(),
+        update: vi.fn(),
       },
       $transaction: vi.fn(),
     };
@@ -107,12 +139,40 @@ describe('PurchasesService', () => {
       expect(result.data).toEqual(mockPurchases);
       expect(result.meta.total).toBe(1);
     });
+
+    it('debe filtrar por almacenes autorizados si el usuario es WAREHOUSE_KEEPER', async () => {
+      prisma.purchase.count.mockResolvedValue(1);
+      prisma.purchase.findMany.mockResolvedValue([]);
+
+      await service.findAll(
+        { page: 1, limit: 10 },
+        { id: 'user-keeper', role: Role.WAREHOUSE_KEEPER },
+      );
+
+      expect(prisma.purchase.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            warehouseId: { in: ['wh-central'] },
+          }),
+        }),
+      );
+    });
+
+    it('debe lanzar ForbiddenException si WAREHOUSE_KEEPER filtra por un almacen no asignado', async () => {
+      await expect(
+        service.findAll(
+          { warehouseId: 'wh-otra-obra' },
+          { id: 'user-keeper', role: Role.WAREHOUSE_KEEPER },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
   });
 
   describe('findOne', () => {
     it('debe retornar el detalle de la compra si existe', async () => {
       const mockPurchase = {
         id: 'purch-1',
+        warehouseId: 'wh-central',
         invoiceSeries: 'F001-001',
         details: [],
         supplier: {},
@@ -123,6 +183,37 @@ describe('PurchasesService', () => {
 
       const result = await service.findOne('purch-1');
       expect(result).toEqual(mockPurchase);
+    });
+
+    it('debe permitir consultar a WAREHOUSE_KEEPER si la compra pertenece a su sede asignada', async () => {
+      const mockPurchase = {
+        id: 'purch-1',
+        warehouseId: 'wh-central',
+        invoiceSeries: 'F001-001',
+      };
+      prisma.purchase.findUnique.mockResolvedValue(mockPurchase);
+
+      const result = await service.findOne('purch-1', {
+        id: 'user-keeper',
+        role: Role.WAREHOUSE_KEEPER,
+      });
+      expect(result).toEqual(mockPurchase);
+    });
+
+    it('debe lanzar ForbiddenException si WAREHOUSE_KEEPER consulta una compra de otra sede', async () => {
+      const mockPurchase = {
+        id: 'purch-2',
+        warehouseId: 'wh-otra-obra',
+        invoiceSeries: 'F001-002',
+      };
+      prisma.purchase.findUnique.mockResolvedValue(mockPurchase);
+
+      await expect(
+        service.findOne('purch-2', {
+          id: 'user-keeper',
+          role: Role.WAREHOUSE_KEEPER,
+        }),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('debe lanzar NotFoundException si la compra no existe', async () => {
@@ -797,6 +888,224 @@ describe('PurchasesService', () => {
       expect(result.entries[0].unitCostBasePEN).toBe(26.0);
       expect(result.entries[0].notes).toBe('Lote A vence 2026-12');
       expect(result.entries[1].unitCostBasePEN).toBe(29.0);
+    });
+  });
+
+  describe('create - Compras con precio cero y rol WAREHOUSE_KEEPER', () => {
+    it('debe rechazar registro si WAREHOUSE_KEEPER no tiene asignado el almacen destino', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'sup-1' });
+      prisma.warehouse.findUnique.mockResolvedValue({
+        id: 'wh-ajeno',
+        isActive: true,
+      });
+
+      await expect(
+        service.create(
+          {
+            supplierId: 'sup-1',
+            warehouseId: 'wh-ajeno',
+            invoiceSeries: 'G001-001',
+            subtotalPEN: 0,
+            totalAmountPEN: 0,
+            hasIgv: false,
+            issueDate: '2026-09-22T10:00:00.000Z',
+            items: [],
+          } as any,
+          { id: 'user-keeper', role: Role.WAREHOUSE_KEEPER },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('debe preservar CPP previo cuando una compra ingresa a costo cero (guia de remision)', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'sup-1' });
+      prisma.warehouse.findUnique.mockResolvedValue({
+        id: 'wh-central',
+        isActive: true,
+      });
+      prisma.item.findMany.mockResolvedValue([
+        { id: 'item-cemento', sku: 'CEM-01', name: 'Cemento', baseUnit: 'BOLSA' },
+      ]);
+
+      const mockTx = {
+        purchase: {
+          create: vi.fn().mockResolvedValue({
+            id: 'purch-zero',
+            voucherType: 'GUIA',
+            hasIgv: false,
+          }),
+        },
+        purchaseDetail: {
+          create: vi.fn().mockResolvedValue({
+            id: 'detail-zero',
+            notes: null,
+          }),
+        },
+        stock: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: 'st-1',
+            physicalQty: 100,
+            averageCost: 28.5,
+          }),
+          upsert: vi.fn().mockResolvedValue({}),
+        },
+        movement: {
+          create: vi.fn().mockResolvedValue({
+            id: 'mov-1',
+            movementNumber: 'MOV-2026-00001',
+          }),
+        },
+      };
+
+      prisma.$transaction.mockImplementation(async (cb) => cb(mockTx));
+
+      const result = await service.create(
+        {
+          supplierId: 'sup-1',
+          warehouseId: 'wh-central',
+          invoiceSeries: 'GR-001',
+          voucherType: 'GUIA',
+          subtotalPEN: 0,
+          totalAmountPEN: 0,
+          hasIgv: false,
+          issueDate: '2026-09-22T10:00:00.000Z',
+          items: [
+            {
+              itemId: 'item-cemento',
+              purchaseUnit: 'BOLSA',
+              conversionFactor: 1,
+              purchaseQty: 50,
+              unitPriceOriginal: 0,
+            },
+          ],
+        } as any,
+        { id: 'user-keeper', role: Role.WAREHOUSE_KEEPER },
+      );
+
+      // Debe actualizar stock preservando averageCost en 28.5 (no diluido a 19.0)
+      expect(mockTx.stock.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: expect.objectContaining({
+            physicalQty: 150,
+            averageCost: 28.5,
+          }),
+        }),
+      );
+
+      // Para WAREHOUSE_KEEPER no debe exponer newWarehouseAverageCost en details
+      expect(result.details[0].newWarehouseAverageCost).toBeUndefined();
+      expect(result.details[0].newWarehousePhysicalQty).toBe(150);
+    });
+  });
+
+  describe('valuatePurchase', () => {
+    it('debe lanzar NotFoundException si la compra no existe', async () => {
+      prisma.purchase.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.valuatePurchase('p-inexistente', {
+          subtotalPEN: 100,
+          totalAmountPEN: 118,
+          items: [{ detailId: 'd-1', unitPriceOriginal: 10 }],
+        } as any),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('debe lanzar BadRequestException si la compra ya estaba completamente valorizada', async () => {
+      prisma.purchase.findUnique.mockResolvedValue({
+        id: 'p-1',
+        totalAmountPEN: 118,
+        details: [{ id: 'd-1', unitPriceOriginal: 10, subtotalPEN: 100 }],
+      });
+
+      await expect(
+        service.valuatePurchase('p-1', {
+          subtotalPEN: 100,
+          totalAmountPEN: 118,
+          items: [{ detailId: 'd-1', unitPriceOriginal: 10 }],
+        } as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('debe valorizar compra pendiente y recalcular averageCost en Stock sin duplicar stock fisico', async () => {
+      prisma.purchase.findUnique.mockResolvedValue({
+        id: 'p-zero',
+        invoiceSeries: 'GR-001',
+        voucherType: 'GUIA',
+        currency: Currency.PEN,
+        exchangeRate: 1.0,
+        hasIgv: false,
+        subtotalPEN: 0,
+        totalAmountPEN: 0,
+        warehouseId: 'wh-central',
+        details: [
+          {
+            id: 'd-zero',
+            itemId: 'item-cemento',
+            conversionFactor: 1,
+            baseQty: 50,
+            unitPriceOriginal: 0,
+            subtotalPEN: 0,
+          },
+        ],
+      });
+
+      const mockTx = {
+        purchase: {
+          update: vi.fn().mockResolvedValue({}),
+          findUnique: vi.fn().mockResolvedValue({
+            id: 'p-zero',
+            invoiceSeries: 'F001-00099',
+            voucherType: 'FACTURA',
+            totalAmountPEN: 1475,
+            details: [
+              {
+                id: 'd-zero',
+                unitPriceOriginal: 25,
+                unitCostBasePEN: 25,
+                subtotalPEN: 1250,
+              },
+            ],
+          }),
+        },
+        purchaseDetail: {
+          update: vi.fn().mockResolvedValue({}),
+        },
+        stock: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: 'st-1',
+            physicalQty: 150, // 100 previas a 28.5 + 50 que entraron en costo 0
+            averageCost: 28.5,
+          }),
+          update: vi.fn().mockResolvedValue({}),
+        },
+      };
+
+      prisma.$transaction.mockImplementation(async (cb) => cb(mockTx));
+
+      const result = await service.valuatePurchase('p-zero', {
+        invoiceSeries: 'F001-00099',
+        voucherType: 'FACTURA',
+        hasIgv: true,
+        subtotalPEN: 1250,
+        igvAmountPEN: 225,
+        totalAmountPEN: 1475,
+        items: [
+          {
+            detailId: 'd-zero',
+            unitPriceOriginal: 25,
+          },
+        ],
+      });
+
+      // Recalculo: (100 * 28.5 + 50 * 25) / 150 = (2850 + 1250) / 150 = 4100 / 150 = 27.3333
+      expect(mockTx.stock.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            averageCost: 27.3333,
+          }),
+        }),
+      );
+      expect(result.invoiceSeries).toBe('F001-00099');
     });
   });
 });

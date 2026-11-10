@@ -18,6 +18,9 @@ describe('DocumentsService', () => {
     getFileStream: ReturnType<typeof vi.fn>;
   };
   let prisma: {
+    userWarehouse: {
+      findMany: ReturnType<typeof vi.fn>;
+    };
     purchase: {
       findUnique: ReturnType<typeof vi.fn>;
     };
@@ -48,6 +51,9 @@ describe('DocumentsService', () => {
     };
 
     prisma = {
+      userWarehouse: {
+        findMany: vi.fn().mockResolvedValue([{ warehouseId: 'wh-1' }]),
+      },
       purchase: {
         findUnique: vi.fn(),
       },
@@ -376,14 +382,28 @@ describe('DocumentsService', () => {
   });
 
   describe('findAll', () => {
-    it('debe filtrar isConfidential false si el usuario es WAREHOUSE_KEEPER', async () => {
+    it('debe filtrar isConfidential false o compras de almacenes asignados si el usuario es WAREHOUSE_KEEPER', async () => {
+      prisma.userWarehouse.findMany.mockResolvedValue([{ warehouseId: 'wh-1' }]);
       prisma.documentAttachment.count.mockResolvedValue(1);
       prisma.documentAttachment.findMany.mockResolvedValue([]);
 
       await service.findAll({}, { id: 'u1', role: Role.WAREHOUSE_KEEPER });
 
       expect(prisma.documentAttachment.findMany).toHaveBeenCalledWith({
-        where: { isConfidential: false },
+        where: {
+          AND: [
+            {
+              OR: [
+                { isConfidential: false },
+                {
+                  purchase: {
+                    warehouseId: { in: ['wh-1'] },
+                  },
+                },
+              ],
+            },
+          ],
+        },
         skip: 0,
         take: 20,
         orderBy: { createdAt: 'desc' },
@@ -423,7 +443,7 @@ describe('DocumentsService', () => {
   });
 
   describe('findOne', () => {
-    it('debe lanzar ForbiddenException si el documento es confidencial y el usuario es almacenero', async () => {
+    it('debe lanzar ForbiddenException si el documento es confidencial y no es de compra o de otra sede para almacenero', async () => {
       prisma.documentAttachment.findUnique.mockResolvedValue({
         id: 'doc-conf',
         isConfidential: true,
@@ -445,6 +465,22 @@ describe('DocumentsService', () => {
         role: Role.ADMIN,
       });
       expect(res.id).toBe('doc-conf');
+    });
+
+    it('debe permitir descarga a WAREHOUSE_KEEPER si es un documento de compra de su sede asignada', async () => {
+      prisma.userWarehouse.findMany.mockResolvedValue([{ warehouseId: 'wh-1' }]);
+      prisma.documentAttachment.findUnique.mockResolvedValue({
+        id: 'doc-conf-pur',
+        isConfidential: true,
+        purchaseId: 'pur-1',
+        purchase: { warehouseId: 'wh-1' },
+      });
+
+      const res = await service.findOne('doc-conf-pur', {
+        id: 'k1',
+        role: Role.WAREHOUSE_KEEPER,
+      });
+      expect(res.id).toBe('doc-conf-pur');
     });
   });
 

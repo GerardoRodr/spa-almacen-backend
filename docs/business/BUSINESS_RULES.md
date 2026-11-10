@@ -95,6 +95,22 @@ Donde:
   - Todo stock inicial a costo cero queda claramente senalizado con el estado "Sin valorizar" para la administracion.
   - Se valoriza contablemente de manera transparente tan pronto se registre la primera compra formal con factura (mediante la regla de guarda $S_{\text{ant}} \le 0 \lor \text{CPP}_{\text{ant}} \le 0$), o mediante la actualizacion manual de valoracion por parte del Administrador.
 
+### 3.6. Descentralizacion de Compras, Recepcion a Precio Cero y Valorizacion Formal
+- **Facultades Operativas de Almaceneros (`WAREHOUSE_KEEPER`):**
+  - Los almaceneros de caseta y campo estan autorizados para registrar comprobantes de compra e ingreso directo de materiales (`POST /api/v1/purchases`) y crear nuevos proveedores comerciales (`POST /api/v1/suppliers`).
+  - **Segregacion por Sede Asignada:** El almacenero unicamente puede registrar compras y visualizar historiales (`GET /api/v1/purchases`, `GET /api/v1/purchases/:id`) para los almacenes u obras que tiene vinculados en la tabla `UserWarehouse`.
+- **Recepciones con Guia de Remision y Precio 0.00:**
+  - En situaciones de campo donde el material arriba solo con Guia de Remision del transportista o remision sin valorizar, el almacenero registra el ingreso con precio unitario `0.00`.
+  - **Regla de Proteccion de CPP frente a Precio Cero:** Si `unitCostBasePEN <= 0`, el algoritmo no diluye el CPP preexistente del insumo; se mantiene intacto el costo anterior:
+    $$\text{CPP}_{\text{nuevo}} = \text{CPP}_{\text{anterior}} > 0 ? \text{CPP}_{\text{anterior}} : 0$$
+- **Valorizacion Formal Exclusiva de Administracion:**
+  - Los comprobantes recepcionados con precio cero quedan identificados con el badge "Por Valorizar".
+  - Unicamente el rol `ADMIN` posee el permiso para formalizar contablemente la factura mediante `PATCH /api/v1/purchases/:id/valuation`.
+  - Esta regularizacion recalcula el costo promedio `Stock.averageCost` en el almacen destino incorporando el costo real de la compra, sin duplicar ni alterar la cantidad fisica en inventario ni emitir nuevos movimientos en Kardex.
+- **Privacidad Financiera Corporativa:**
+  - El Cuadro Comparativo de Precios (`GET /api/v1/purchases/price-comparison`) y el simulador de CPP son exclusivos de `ADMIN` (retornando `403 Forbidden` a `WAREHOUSE_KEEPER`).
+  - La edicion de datos maestros de proveedores (`PUT /api/v1/suppliers/:id`) permanece restringida exclusivamente a `ADMIN`.
+
 ---
 
 ## 4. Cadena de Suministro en Tres Etapas (De Presupuesto S10 a Consumo Real)

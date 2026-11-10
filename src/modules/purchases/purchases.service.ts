@@ -2,17 +2,20 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   Currency,
   MovementType,
   Prisma,
+  Role,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { SequenceGeneratorService } from '../../common/services/sequence-generator.service.js';
 import { CreatePurchaseDto } from './dto/create-purchase.dto.js';
 import { PurchaseFilterDto } from './dto/purchase-filter.dto.js';
 import { PriceComparisonQueryDto } from './dto/price-comparison-query.dto.js';
+import { ValuatePurchaseDto } from './dto/valuate-purchase.dto.js';
 
 @Injectable()
 export class PurchasesService {
@@ -21,19 +24,40 @@ export class PurchasesService {
     private readonly sequenceGenerator: SequenceGeneratorService,
   ) {}
 
+  // Helper para obtener almacenes autorizados para un usuario
+  private async getAllowedWarehouseIds(userId: string): Promise<string[]> {
+    const userWarehouses = await this.prisma.userWarehouse.findMany({
+      where: { userId },
+      select: { warehouseId: true },
+    });
+    return userWarehouses.map((uw) => uw.warehouseId);
+  }
+
   // Listar compras paginadas con filtros de proveedor, serie, fechas, almacen y producto
-  async findAll(filter: PurchaseFilterDto) {
+  async findAll(
+    filter: PurchaseFilterDto,
+    user?: { id: string; role: Role },
+  ) {
     const page = filter.page ?? 1;
     const limit = filter.limit ?? 20;
     const skip = (page - 1) * limit;
 
     const where: Prisma.PurchaseWhereInput = {};
 
-    if (filter.supplierId) {
-      where.supplierId = filter.supplierId;
-    }
-
-    if (filter.warehouseId && filter.warehouseId !== 'ALL') {
+    // Segregacion por rol: almacenero solo ve compras donde interviene su caseta asignada
+    if (user?.role === Role.WAREHOUSE_KEEPER) {
+      const allowedIds = await this.getAllowedWarehouseIds(user.id);
+      if (filter.warehouseId && filter.warehouseId !== 'ALL') {
+        if (!allowedIds.includes(filter.warehouseId)) {
+          throw new ForbiddenException(
+            'No tiene permisos para consultar compras de este almacen',
+          );
+        }
+        where.warehouseId = filter.warehouseId;
+      } else {
+        where.warehouseId = { in: allowedIds };
+      }
+    } else if (filter.warehouseId && filter.warehouseId !== 'ALL') {
       where.warehouseId = filter.warehouseId;
     }
 
@@ -133,7 +157,7 @@ export class PurchasesService {
   }
 
   // Obtener detalle completo de un comprobante de compra
-  async findOne(id: string) {
+  async findOne(id: string, user?: { id: string; role: Role }) {
     const purchase = await this.prisma.purchase.findUnique({
       where: { id },
       include: {
@@ -166,11 +190,26 @@ export class PurchasesService {
       throw new NotFoundException('Comprobante de compra no encontrado');
     }
 
+    if (user?.role === Role.WAREHOUSE_KEEPER) {
+      const allowedIds = await this.getAllowedWarehouseIds(user.id);
+      if (!purchase.warehouseId || !allowedIds.includes(purchase.warehouseId)) {
+        throw new ForbiddenException(
+          'No tiene permisos para consultar este comprobante de compra',
+        );
+      }
+    }
+
     return purchase;
   }
 
   // Registrar compra e ingreso a Almacen (Central o de Obra) con recalculo atomico de CPP
-  async create(dto: CreatePurchaseDto, userId: string) {
+  async create(
+    dto: CreatePurchaseDto,
+    user: { id: string; role: Role } | string,
+  ) {
+    const userId = typeof user === 'string' ? user : user.id;
+    const userRole = typeof user === 'string' ? Role.ADMIN : user.role;
+
     // 1. Validar existencia del proveedor
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: dto.supplierId },
@@ -185,6 +224,16 @@ export class PurchasesService {
       throw new BadRequestException(
         'Debe especificar el almacen de destino de la compra (warehouseId o centralWarehouseId)',
       );
+    }
+
+    // Segregacion por rol: almacenero solo puede ingresar compras en sus almacenes asignados
+    if (userRole === Role.WAREHOUSE_KEEPER) {
+      const allowedIds = await this.getAllowedWarehouseIds(userId);
+      if (!allowedIds.includes(targetWarehouseId)) {
+        throw new ForbiddenException(
+          'No tiene permisos para ingresar compras en este almacen',
+        );
+      }
     }
 
     // Validar que el almacen exista y este activo (puede ser CENTRAL o PROJECT_SITE)
@@ -323,9 +372,11 @@ export class PurchasesService {
         const prevCPP = existingStock ? Number(existingStock.averageCost) : 0;
 
         // Formula de Costo Promedio Ponderado (CPP / WAC)
-        // Si no habia stock fisico previo o su costo promedio era cero (stock inicial sin valorizar), nuevo CPP es unitCostBasePEN
+        // Si ingresa sin valorizar (unitCostBasePEN <= 0 ej. Guia de Remision a costo 0), se preserva el CPP previo
         let newCPP: number;
-        if (prevQty <= 0 || prevCPP <= 0) {
+        if (unitCostBasePEN <= 0) {
+          newCPP = prevCPP > 0 ? prevCPP : 0;
+        } else if (prevQty <= 0 || prevCPP <= 0) {
           newCPP = unitCostBasePEN;
         } else {
           const prevTotalVal = prevQty * prevCPP;
@@ -357,16 +408,19 @@ export class PurchasesService {
           },
         });
 
-        processedDetails.push({
+        const detailEntry: Record<string, unknown> = {
           id: detail.id,
           itemId: itemDto.itemId,
           purchaseQty,
           baseQty,
           unitCostBasePEN,
-          newWarehouseAverageCost: newCPP,
           newWarehousePhysicalQty: newPhysicalQty,
           notes: detail.notes,
-        });
+        };
+        if (userRole !== Role.WAREHOUSE_KEEPER) {
+          detailEntry.newWarehouseAverageCost = newCPP;
+        }
+        processedDetails.push(detailEntry);
 
         movementItemsData.push({
           itemId: itemDto.itemId,
@@ -544,21 +598,22 @@ export class PurchasesService {
       };
     });
 
-    // 4. Calcular metricas estadisticas de comparacion
+    // 4. Calcular metricas estadisticas de comparacion (solo sobre entradas valorizadas)
+    const valuedEntries = entries.filter((e) => e.unitCostBasePEN > 0);
     const totalPurchasesCount = entries.length;
     let minUnitCostPEN: number | null = null;
     let maxUnitCostPEN: number | null = null;
     let bestSupplierName: string | null = null;
     let bestSupplierTaxId: string | null = null;
 
-    if (totalPurchasesCount > 0) {
-      minUnitCostPEN = entries[0].unitCostBasePEN;
-      maxUnitCostPEN = entries.reduce(
+    if (valuedEntries.length > 0) {
+      minUnitCostPEN = valuedEntries[0].unitCostBasePEN;
+      maxUnitCostPEN = valuedEntries.reduce(
         (max, curr) => (curr.unitCostBasePEN > max ? curr.unitCostBasePEN : max),
-        entries[0].unitCostBasePEN,
+        valuedEntries[0].unitCostBasePEN,
       );
-      bestSupplierName = entries[0].supplierName;
-      bestSupplierTaxId = entries[0].supplierTaxId;
+      bestSupplierName = valuedEntries[0].supplierName;
+      bestSupplierTaxId = valuedEntries[0].supplierTaxId;
     }
 
     return {
@@ -581,5 +636,182 @@ export class PurchasesService {
       },
       entries,
     };
+  }
+
+  // Valorizar formalmente una compra ingresada a costo cero / guia de remision y recalcular CPP
+  async valuatePurchase(id: string, dto: ValuatePurchaseDto) {
+    const purchase = await this.prisma.purchase.findUnique({
+      where: { id },
+      include: {
+        details: true,
+        warehouse: true,
+      },
+    });
+
+    if (!purchase) {
+      throw new NotFoundException('Comprobante de compra no encontrado');
+    }
+
+    const hasUnvaluedDetail = purchase.details.some(
+      (d) => Number(d.unitPriceOriginal) === 0 || Number(d.subtotalPEN) === 0,
+    );
+    const isUnvaluedHeader = Number(purchase.totalAmountPEN) === 0;
+
+    if (!hasUnvaluedDetail && !isUnvaluedHeader) {
+      throw new BadRequestException(
+        'El comprobante ya se encuentra completamente valorizado',
+      );
+    }
+
+    const detailMap = new Map(purchase.details.map((d) => [d.id, d]));
+    for (const itemDto of dto.items) {
+      if (!detailMap.has(itemDto.detailId)) {
+        throw new BadRequestException(
+          `El detalle con ID ${itemDto.detailId} no pertenece a esta compra`,
+        );
+      }
+    }
+
+    const hasIgv = dto.hasIgv !== undefined ? dto.hasIgv : purchase.hasIgv;
+    let igvAmount = Number(dto.igvAmountPEN ?? 0);
+    const subtotal = Number(dto.subtotalPEN);
+    const total = Number(dto.totalAmountPEN);
+
+    if (!hasIgv) {
+      if (igvAmount > 0) {
+        throw new BadRequestException(
+          'En compras exoneradas o sin IGV, el monto de IGV debe ser 0',
+        );
+      }
+      if (Math.abs(total - subtotal) > 0.05) {
+        throw new BadRequestException(
+          'En compras exoneradas o sin IGV, el monto total debe ser igual al subtotal',
+        );
+      }
+      igvAmount = 0;
+    } else {
+      if (igvAmount === 0 && total > subtotal) {
+        igvAmount = Number((total - subtotal).toFixed(2));
+      }
+      if (Math.abs(total - (subtotal + igvAmount)) > 0.05) {
+        throw new BadRequestException(
+          'El monto total debe ser igual a la suma del subtotal y el IGV',
+        );
+      }
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.purchase.update({
+        where: { id },
+        data: {
+          invoiceSeries: dto.invoiceSeries?.trim() || purchase.invoiceSeries,
+          voucherType: dto.voucherType?.trim() || purchase.voucherType,
+          currency: dto.currency ?? purchase.currency,
+          exchangeRate: dto.exchangeRate ?? purchase.exchangeRate,
+          hasIgv,
+          subtotalPEN: dto.subtotalPEN,
+          igvAmountPEN: hasIgv ? igvAmount : 0,
+          totalAmountPEN: dto.totalAmountPEN,
+          notes:
+            dto.notes !== undefined
+              ? dto.notes
+                ? dto.notes.trim()
+                : null
+              : purchase.notes,
+        },
+      });
+
+      const exchangeRate = Number(dto.exchangeRate ?? purchase.exchangeRate);
+      const targetWarehouseId = purchase.warehouseId;
+
+      for (const itemDto of dto.items) {
+        const existingDetail = detailMap.get(itemDto.detailId)!;
+        const factor = Number(existingDetail.conversionFactor);
+        const baseQty = Number(existingDetail.baseQty);
+        const newUnitPriceOrig = Number(itemDto.unitPriceOriginal);
+        const newUnitCostBasePEN = Number(
+          ((newUnitPriceOrig * exchangeRate) / factor).toFixed(4),
+        );
+        const newDetailSubtotalPEN = Number(
+          (baseQty * newUnitCostBasePEN).toFixed(2),
+        );
+
+        await tx.purchaseDetail.update({
+          where: { id: itemDto.detailId },
+          data: {
+            unitPriceOriginal: newUnitPriceOrig,
+            unitCostBasePEN: newUnitCostBasePEN,
+            subtotalPEN: newDetailSubtotalPEN,
+            notes:
+              itemDto.notes !== undefined
+                ? itemDto.notes
+                  ? itemDto.notes.trim()
+                  : null
+                : existingDetail.notes,
+          },
+        });
+
+        if (targetWarehouseId) {
+          const stock = await tx.stock.findUnique({
+            where: {
+              warehouseId_itemId: {
+                warehouseId: targetWarehouseId,
+                itemId: existingDetail.itemId,
+              },
+            },
+          });
+
+          if (stock) {
+            const currentQty = Number(stock.physicalQty);
+            const currentCPP = Number(stock.averageCost);
+            let newCPP: number;
+            if (currentQty <= 0 || currentCPP <= 0 || currentQty <= baseQty) {
+              newCPP = newUnitCostBasePEN;
+            } else {
+              const priorQty = currentQty - baseQty;
+              newCPP = Number(
+                (
+                  (priorQty * currentCPP + baseQty * newUnitCostBasePEN) /
+                  currentQty
+                ).toFixed(4),
+              );
+            }
+
+            await tx.stock.update({
+              where: { id: stock.id },
+              data: { averageCost: newCPP },
+            });
+          }
+        }
+      }
+
+      return tx.purchase.findUnique({
+        where: { id },
+        include: {
+          supplier: true,
+          warehouse: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+            },
+          },
+          details: {
+            include: {
+              item: {
+                select: {
+                  id: true,
+                  sku: true,
+                  name: true,
+                  baseUnit: true,
+                  type: true,
+                },
+              },
+            },
+          },
+          documents: true,
+        },
+      });
+    });
   }
 }
