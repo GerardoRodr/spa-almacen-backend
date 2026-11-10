@@ -14,7 +14,7 @@ Este modulo implementa el libro mayor contable y operativo del inventario (Karde
   - `LOAN_DISPATCH`: Salida de herramienta para custodia temporal.
   - `LOAN_RETURN`: Retorno fisico de herramienta a caseta.
   - `SHRINKAGE_EXIT`: Perdida, merma en ruta o rotura no recuperable.
-  - `INVENTORY_ADJUSTMENT`: Regularizacion por toma fisica formal de inventario (exclusivo `ADMIN`).
+  - `INVENTORY_ADJUSTMENT`: Regularizacion por toma fisica o carga inicial de inventario (ADMIN o WAREHOUSE_KEEPER asignado).
 
 - **Ruta Base:** `/api/v1/movements`
 - **Entidades Vinculadas:** `Movement`, `MovementItem`, `Warehouse`, `Item`, `Project`, `User`, `DocumentAttachment`
@@ -178,7 +178,96 @@ Registra perdidas por rotura, vencimiento de quimicos o destruccion fortuita. Ex
 
 ---
 
-### 2.3 Registrar Ajuste de Inventario Fisico (`INVENTORY_ADJUSTMENT`)
+### 2.3 Registrar Carga de Stock Fisico Inicial en Almacen (`initial-stock`)
+Permite registrar tomas fisicas masivas o iniciales de existencias al momento de aperturar una caseta de obra o regularizar un almacen existente. Habilitado para Administradores y Almaceneros (`WAREHOUSE_KEEPER`) con sede asignada.
+
+- **Metodo:** `POST`
+- **Ruta:** `/api/v1/movements/initial-stock`
+- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado via `WarehouseAccessGuard`)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+
+#### Request Body (`CreateInitialStockDto`)
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `warehouseId` | string (UUID) | Si | Almacen o caseta de obra donde se levanta la toma fisica. |
+| `observation` | string | No | Justificacion o referencia de acta (max. 500 caracteres). |
+| `items` | array | Si | Listado de insumos y cantidades a registrar (minimo 1 item). |
+
+**Detalle de cada elemento en `items` (`InitialStockItemInputDto`):**
+- `itemId` (UUID, obligatorio): Identificador del insumo en catalogo maestro.
+- `quantity` (number, obligatorio > 0): Cantidad fisica contada en caseta.
+- `unitCost` (number, opcional >= 0): Costo unitario referencial. Solo evaluado para rol `ADMIN`. Para `WAREHOUSE_KEEPER`, el backend fuerza siempre `0.00` y enmascara los costos.
+
+**Reglas de Negocio:**
+1. **Politica de Costo Ciego para Caseta:** Los almaceneros no ingresan ni visualizan costos financieros en la pantalla movil o formulario web.
+2. **Asiento Inmutable:** Se genera un movimiento de Kardex de tipo `INVENTORY_ADJUSTMENT` con correlativo `MOV-YYYY-XXXXX`.
+3. **Regla de Calculo de CPP:**
+   - Si `prevQty <= 0 || prevCPP <= 0`, el nuevo costo unitario entrante (si fue enviado por un `ADMIN`) es adoptado directamente por el insumo.
+   - Si el ingreso lo realiza un `WAREHOUSE_KEEPER`, el costo unitario del snapshot se registra en `0.00` (o conserva el CPP previo si el item ya tenia costo promedio en esa sede), permitiendo su valorizacion posterior por administracion o mediante la primera compra formal.
+4. **Evidencias Fotograficas:** Una vez creado el movimiento, se pueden asociar fotografias de guias o actas de toma fisica mediante `POST /api/v1/attachments/movements/:id`.
+
+**Ejemplo de Peticion (Toma Fisica en Caseta por Almacenero):**
+```json
+{
+  "warehouseId": "44444444-4444-4444-4444-444444444444",
+  "observation": "Levantamiento de inventario fisico en caseta de obra sector Norte",
+  "items": [
+    {
+      "itemId": "item-uuid-cemento",
+      "quantity": 50
+    },
+    {
+      "itemId": "item-uuid-arena",
+      "quantity": 12.5
+    }
+  ]
+}
+```
+
+#### Respuestas
+**201 Created - Stock inicial asentado en Kardex:**
+```json
+{
+  "id": "mov-uuid-initial-stock-1",
+  "movementNumber": "MOV-2026-00008",
+  "type": "INVENTORY_ADJUSTMENT",
+  "originWarehouseId": "44444444-4444-4444-4444-444444444444",
+  "observation": "Levantamiento de inventario fisico en caseta de obra sector Norte",
+  "createdAt": "2026-11-09T22:35:00.000Z",
+  "items": [
+    {
+      "id": "mov-item-init-1",
+      "movementId": "mov-uuid-initial-stock-1",
+      "itemId": "item-uuid-cemento",
+      "quantity": "50.0000",
+      "unitCostSnapshot": "0.0000",
+      "totalCostSnapshot": "0.00",
+      "item": {
+        "id": "item-uuid-cemento",
+        "sku": "CEM-PORT-T1",
+        "name": "Cemento Portland Tipo I (Bolsa 42.5 kg)",
+        "baseUnit": "BOLSA",
+        "type": "CONSUMABLE"
+      }
+    }
+  ]
+}
+```
+
+**403 Forbidden - Sin autorizacion en el almacen:**
+```json
+{
+  "statusCode": 403,
+  "message": "No tiene permisos asignados para operar en el almacen indicado",
+  "error": "Forbidden"
+}
+```
+
+---
+
+### 2.4 Registrar Ajuste de Inventario Fisico (`INVENTORY_ADJUSTMENT`)
 Permite regularizar sobrantes (`INCREASE`) o faltantes (`DECREASE`) tras un inventario ciclico o general formal. Operacion reservada exclusivamente a la administracion.
 
 - **Metodo:** `POST`
@@ -249,7 +338,7 @@ Permite regularizar sobrantes (`INCREASE`) o faltantes (`DECREASE`) tras un inve
 
 ---
 
-### 2.4 Consultar Detalle de un Movimiento
+### 2.5 Consultar Detalle de un Movimiento
 Obtiene la ficha inmutable de un movimiento de inventario, con datos de almacenes, usuario ejecutor, detalle de insumos con snapshots de costo y documentos adjuntos.
 
 - **Metodo:** `GET`
@@ -314,7 +403,7 @@ Obtiene la ficha inmutable de un movimiento de inventario, con datos de almacene
 
 ---
 
-### 2.5 Consultar Kardex Historico Paginado
+### 2.6 Consultar Kardex Historico Paginado
 Consulta el libro de movimientos con filtros avanzados. Aplica `CostMaskingInterceptor` para ocultar los costos monetarios unitarios y totales (`unitCostSnapshot`, `totalCostSnapshot`) ante usuarios con rol `WAREHOUSE_KEEPER`.
 
 - **Metodo:** `GET`

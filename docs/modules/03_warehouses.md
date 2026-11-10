@@ -314,3 +314,76 @@ Determina y lista de manera reactiva todos los insumos cuyo stock fisico (`physi
   }
 ]
 ```
+
+---
+
+### 2.7 Actualizar Manualmente Valoracion de Stock (CPP)
+Permite al Administrador corporativo fijar o actualizar el Costo Promedio Ponderado (`averageCost`) de un insumo especifico en una sede determinada. Se utiliza para valorizar contablemente inventarios fisicos levantados en caseta a costo cero o para corregir desviaciones de costeo.
+
+- **Metodo:** `PATCH`
+- **Ruta:** `/api/v1/warehouses/:id/stock/:itemId/valuation`
+- **Acceso:** Protegido (`ADMIN` exclusivamente)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken_admin>`
+  - `Content-Type: application/json`
+
+#### Parametros de Ruta
+- `id` (URL Path): UUID del almacen.
+- `itemId` (URL Path): UUID del item cuyo CPP se desea valorizar.
+
+#### Request Body (`UpdateStockValuationDto`)
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `averageCost` | number | Si | Nuevo costo promedio ponderado en Soles (PEN) sin IGV (minimo 0). |
+
+**Reglas de Negocio:**
+- Exclusivo para administradores. Almaceneros de caseta no tienen acceso a esta operacion ni pueden alterar la valoracion contable.
+- Si el insumo no tiene registro de `Stock` preexistente en la sede, el sistema lo crea automaticamente con `physicalQty: 0`, `reservedQty: 0`, `loanedQty: 0` y el `averageCost` enviado.
+- No altera las existencias fisicas ni genera un movimiento de salida o entrada; actualiza directamente la capa de valoracion del stock para futuros calculos de CPP y consumos.
+
+**Ejemplo de Peticion:**
+```http
+PATCH /api/v1/warehouses/44444444-4444-4444-4444-444444444444/stock/item-uuid-arena-gruesa/valuation
+Content-Type: application/json
+
+{
+  "averageCost": 45.00
+}
+```
+
+#### Respuestas
+**200 OK - Valoracion de stock actualizada:**
+```json
+{
+  "id": "stock-uuid-arena",
+  "warehouseId": "44444444-4444-4444-4444-444444444444",
+  "itemId": "item-uuid-arena-gruesa",
+  "physicalQty": "18.5000",
+  "reservedQty": "0.0000",
+  "loanedQty": "0.0000",
+  "averageCost": "45.0000",
+  "createdAt": "2026-11-09T22:30:00.000Z",
+  "updatedAt": "2026-11-09T22:45:00.000Z"
+}
+```
+
+**400 Bad Request - Costo invalido:**
+```json
+{
+  "statusCode": 400,
+  "message": [
+    "El costo promedio no puede ser negativo",
+    "El costo promedio debe ser un valor numerico"
+  ],
+  "error": "Bad Request"
+}
+```
+
+**404 Not Found - Almacen o item no encontrado:**
+```json
+{
+  "statusCode": 404,
+  "message": "Almacen no encontrado",
+  "error": "Not Found"
+}
+```

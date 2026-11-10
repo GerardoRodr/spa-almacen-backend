@@ -328,9 +328,13 @@ Registra la factura o comprobante de compra, ingresa la mercaderia al Almacen Ce
 #### Logica de Calculo Ejecutada:
 1. `baseQty = purchaseQty * conversionFactor = 1000 * 1.0 = 1000`.
 2. `unitCostBasePEN = (unitPriceOriginal * exchangeRate) / conversionFactor = 28.50`.
-3. Se recupera el stock previo en Almacen Central: `S_ant = 500`, `CPP_ant = 27.00`.
-4. Nuevo CPP:
-   $$\text{CPP}_{\text{nuevo}} = \frac{(500 \times 27.00) + (1000 \times 28.50)}{500 + 1000} = \frac{13500 + 28500}{1500} = 28.00$$
+3. Se recupera el stock previo en el almacen destino: `S_ant` y `CPP_ant`.
+4. **Regla de Adopcion de Costo para Stock Inicial a Costo Cero:**
+   - Si `S_ant <= 0` o `CPP_ant <= 0` (caso habitual cuando un insumo ingreso mediante inventario fisico inicial en caseta a costo 0), el algoritmo no diluye el precio contra cero. En su lugar, el nuevo CPP adopta directamente el costo unitario de la compra:
+     $$\text{CPP}_{\text{nuevo}} = C_{\text{unitPEN}} = 28.50$$
+     Esto garantiza que las unidades preexistentes en el almacen sin valorizar pasen a quedar valorizadas contablemente al costo real de adquisicion.
+   - Si `S_ant > 0` y `CPP_ant > 0` (ejemplo con `S_ant = 500` y `CPP_ant = 27.00`):
+     $$\text{CPP}_{\text{nuevo}} = \frac{(500 \times 27.00) + (1000 \times 28.50)}{500 + 1000} = \frac{13500 + 28500}{1500} = 28.00$$
 5. Se actualiza `Stock.physicalQty = 1500` y `Stock.averageCost = 28.0000`.
 6. Se crea el movimiento inmutable `Movement` con codigo correlativo `MOV-2026-00001` y tipo `PURCHASE_ENTRY`.
 

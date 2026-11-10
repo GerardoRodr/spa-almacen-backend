@@ -69,7 +69,7 @@ $$\text{CPP}_{\text{nuevo}} = \frac{(S_{\text{ant}} \times \text{CPP}_{\text{ant
 
 Donde:
 - $S_{\text{ant}}$: `Stock.physicalQty` en el almacen de destino previo al ingreso.
-- $\text{CPP}_{\text{ant}}$: `Stock.averageCost` en el almacen de destino previo al ingreso. Si $S_{\text{ant}} \le 0$, entonces $\text{CPP}_{\text{nuevo}} = C_{\text{unitPEN}}$.
+- $\text{CPP}_{\text{ant}}$: `Stock.averageCost` en el almacen de destino previo al ingreso. Si $S_{\text{ant}} \le 0$ o $\text{CPP}_{\text{ant}} \le 0$, entonces $\text{CPP}_{\text{nuevo}} = C_{\text{unitPEN}}$ (regla de adopcion directa que evita dilucion contra cero cuando existia inventario inicial no valorizado).
 - $Q_{\text{ing}}$: Cantidad ingresada expresada en la Unidad Base (`baseQty = purchaseQty \times conversionFactor`).
 - $C_{\text{unitPEN}}$: Costo unitario neto en Soles por unidad base:
   $$C_{\text{unitPEN}} = \frac{\text{unitPriceOriginalNeto} \times \text{exchangeRate}}{\text{conversionFactor}}$$
@@ -80,6 +80,20 @@ Donde:
 ### 3.3. Snapshot de Costo en Movimientos
 - Cada transferencia despachada a obra o salida de consumo congela el `averageCost` vigente de ese momento en `MovementItem.unitCostSnapshot`.
 - Esto garantiza que los informes financieros y valorizaciones de obra posteriores no se alteren cuando ingresen nuevas compras a precios diferentes en el Almacen Central.
+
+### 3.4. Valorizacion Manual Administrativa de Stock
+- En escenarios donde un insumo ingresa al inventario mediante toma fisica en caseta o carga inicial con costo cero (`averageCost = 0.0000`), el Administrador corporativo puede valorizarlo o actualizar el CPP de cualquier sede directamente mediante `PATCH /api/v1/warehouses/:id/stock/:itemId/valuation`.
+- Esta operacion no modifica las cantidades fisicas existentes, unicamente actualiza la base monetaria de costeo promedio para imputaciones futuras de salida por consumo y transferencias.
+
+### 3.5. Alta Agilizada de Insumos y Toma de Stock Inicial Ciego
+- **Descentralizacion Operativa:** Para eliminar la friccion burocratica en frentes de obra y permitir compras rapidas de insumos no catalogados, el rol `WAREHOUSE_KEEPER` esta facultado para registrar nuevos items en el catalogo maestro directamente desde caseta o dispositivos moviles.
+- **Autogeneracion Estandarizada de SKU:** Los codigos de inventario se autogeneran de forma correlativa por clasificacion (`MAT-XXXX`, `HER-XXXX`, `EQU-XXXX`, `MAQ-XXXX`) mediante `SequenceGeneratorService`, evitando colisiones o codificaciones arbitrarias.
+- **Principio de Costo Ciego:**
+  - El personal de caseta y almaceneros operan bajo un esquema estrictamente fisico, sin acceso a costos de compra, margenes o precios de venta.
+  - Al dar de alta un insumo con stock inicial o al registrar una toma fisica en caseta (`POST /api/v1/movements/initial-stock`), el sistema fuerza el costo a `0.00` y `CostMaskingInterceptor` enmascara cualquier atributo financiero en las respuestas.
+- **Ruta de Convergencia Contable:**
+  - Todo stock inicial a costo cero queda claramente senalizado con el estado "Sin valorizar" para la administracion.
+  - Se valoriza contablemente de manera transparente tan pronto se registre la primera compra formal con factura (mediante la regla de guarda $S_{\text{ant}} \le 0 \lor \text{CPP}_{\text{ant}} \le 0$), o mediante la actualizacion manual de valoracion por parte del Administrador.
 
 ---
 

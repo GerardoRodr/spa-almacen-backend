@@ -72,20 +72,56 @@ GET /api/v1/items?page=1&limit=10&search=fierro&type=CONSUMABLE&isPerishable=fal
 
 ---
 
-### 2.2 Registrar Nuevo Item en Catalogo Maestro
-Crea un nuevo SKU corporativo oficial. Restringido exclusivamente al administrador corporativo.
+### 2.2 Previsualizar Siguiente SKU Sugerido
+Calcula y retorna el siguiente codigo correlativo disponible para un tipo de item dado (`MAT`, `HER`, `EQU`, `MAQ`).
+
+- **Metodo:** `GET`
+- **Ruta:** `/api/v1/items/next-sku`
+- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+
+#### Parametros Query
+| Parametro | Tipo | Por Defecto | Descripcion |
+|---|---|---|---|
+| `type` | `CONSUMABLE` \| `TOOL` \| `EQUIPMENT` \| `MACHINERY` | `CONSUMABLE` | Clasificacion del recurso para determinar el prefijo. |
+
+**Prefijos Estandarizados:**
+- `CONSUMABLE` -> `MAT-XXXX` (Materiales e insumos directos)
+- `TOOL` -> `HER-XXXX` (Herramientas menores)
+- `EQUIPMENT` -> `EQU-XXXX` (Equipos y herramientas de poder)
+- `MACHINERY` -> `MAQ-XXXX` (Maquinaria pesada o equipos con medidor)
+
+**Ejemplo de Peticion:**
+```http
+GET /api/v1/items/next-sku?type=CONSUMABLE
+```
+
+#### Respuestas
+**200 OK - SKU sugerido obtenido:**
+```json
+{
+  "sku": "MAT-0042",
+  "prefix": "MAT"
+}
+```
+
+---
+
+### 2.3 Registrar Nuevo Item en Catalogo Maestro (con Stock Inicial Opcional)
+Crea un nuevo SKU corporativo oficial. Habilitado tanto para el Administrador como para el Almacenero (`WAREHOUSE_KEEPER`) para agilizar el ingreso en obra. Permite la autogeneracion de SKU y el registro atomico de stock fisico inicial en un almacen o caseta.
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/items`
-- **Acceso:** Protegido (`ADMIN`)
+- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
-  - `Authorization: Bearer <accessToken_admin>`
+  - `Authorization: Bearer <accessToken>`
   - `Content-Type: application/json`
 
 #### Request Body (`CreateItemDto`)
 | Campo | Tipo | Obligatorio | Descripcion |
 |---|---|---|---|
-| `sku` | string | Si | Codigo unico de inventario (ej. `CEM-PORT-T1` o `EQU-ROT-001`). |
+| `sku` | string | No | Codigo de inventario. Si se omite, se autogenera mediante `SequenceGeneratorService` segun el `type`. |
 | `name` | string | Si | Nombre formal del producto o herramienta. |
 | `description` | string | No | Ficha o especificacion tecnica resumida. |
 | `baseUnit` | string | Si | Unidad de medida base de control (ej. `UND`, `KG`, `M3`, `BOLSA`, `VARILLA`). |
@@ -94,34 +130,55 @@ Crea un nuevo SKU corporativo oficial. Restringido exclusivamente al administrad
 | `categoryId` | string (UUID) | No | Identificador UUID de la clasificacion personalizada asignada. |
 | `isPerishable` | boolean | No | Indica si el insumo es perecible y sujeto a caducidad (por defecto: `false`). |
 | `minStockAlert` | number | No | Cantidad minima para alerta de reposicion (por defecto: `0`). |
+| `initialStock` | object (`InitialStockOnCreateDto`) | No | Sub-objeto para asentar inventario fisico inicial en una sola transaccion atomica. |
 
-**Ejemplo de Peticion:**
+#### Estructura de `initialStock` (`InitialStockOnCreateDto`)
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `warehouseId` | string (UUID) | Si | Identificador del almacen o caseta donde ingresa el stock fisico inicial. |
+| `quantity` | number | Si | Cantidad fisica inicial a registrar (mayor a 0). |
+| `unitCost` | number | No | Costo unitario referencial en Soles (solo procesado para `ADMIN`; forzado a `0` para `WAREHOUSE_KEEPER`). |
+| `observation` | string | No | Observacion o sustento de la toma fisica inicial (max 500 caracteres). |
+
+**Reglas de Negocio en Alta con Stock Inicial:**
+1. **Control de Acceso a Sede:** Si un `WAREHOUSE_KEEPER` envia `initialStock`, se valida que tenga asignacion formal al `warehouseId` receptor. De lo contrario, se deniega con error 403 Forbidden.
+2. **Ocultamiento de Costos (Costo Ciego):** Para `WAREHOUSE_KEEPER`, el costo unitario se fija obligatoriamente en `0.00` y `CostMaskingInterceptor` enmascara los campos de costo financiero.
+3. **Transaccion Atomica e Inmutabilidad de Kardex:** Cuando se proporciona `initialStock`, el backend en una transaccion Prisma unica:
+   - Crea el registro maestro `Item`.
+   - Crea o actualiza el registro en `Stock` con `physicalQty`.
+   - Genera el asiento inmutable en `Movement` con tipo `INVENTORY_ADJUSTMENT`, correlativo autogenerado y el snapshot de costo.
+   - Retorna la propiedad `initialMovementId` con el UUID del movimiento registrado.
+
+**Ejemplo de Peticion (Autogeneracion de SKU y Stock Inicial en Caseta):**
 ```json
 {
-  "sku": "EQU-ROT-001",
-  "name": "Rotomartillo Bosch GBH 2-28 D 850W",
-  "description": "Equipo electro-neumatico con encastre SDS Plus para perforacion en concreto",
-  "baseUnit": "UNIDAD",
-  "type": "EQUIPMENT",
-  "isPerishable": false,
-  "minStockAlert": 2
+  "name": "Arena Gruesa Seleccionada para Mezcla",
+  "baseUnit": "M3",
+  "type": "CONSUMABLE",
+  "minStockAlert": 10,
+  "initialStock": {
+    "warehouseId": "44444444-4444-4444-4444-444444444444",
+    "quantity": 18.5,
+    "observation": "Carga inicial fisica al aperturar caseta de obra"
+  }
 }
 ```
 
 #### Respuestas
-**201 Created - Item registrado:**
+**201 Created - Item registrado con stock inicial:**
 ```json
 {
-  "id": "item-uuid-rotomartillo",
-  "sku": "EQU-ROT-001",
-  "name": "Rotomartillo Bosch GBH 2-28 D 850W",
-  "description": "Equipo electro-neumatico con encastre SDS Plus para perforacion en concreto",
-  "baseUnit": "UNIDAD",
-  "type": "EQUIPMENT",
-  "minStockAlert": "2.0000",
+  "id": "item-uuid-arena-gruesa",
+  "sku": "MAT-0043",
+  "name": "Arena Gruesa Seleccionada para Mezcla",
+  "description": null,
+  "baseUnit": "M3",
+  "type": "CONSUMABLE",
+  "minStockAlert": "10.0000",
   "isPerishable": false,
-  "createdAt": "2026-09-23T12:15:00.000Z",
-  "updatedAt": "2026-09-23T12:15:00.000Z"
+  "createdAt": "2026-11-09T22:30:00.000Z",
+  "updatedAt": "2026-11-09T22:30:00.000Z",
+  "initialMovementId": "mov-uuid-adjustment-init-1"
 }
 ```
 
@@ -129,14 +186,14 @@ Crea un nuevo SKU corporativo oficial. Restringido exclusivamente al administrad
 ```json
 {
   "statusCode": 409,
-  "message": "Ya existe un item registrado con el SKU EQU-ROT-001",
+  "message": "Ya existe un item registrado con el SKU MAT-0043",
   "error": "Conflict"
 }
 ```
 
 ---
 
-### 2.3 Listar Alertas de Insumos Perecibles con Stock Activo
+### 2.4 Listar Alertas de Insumos Perecibles con Stock Activo
 Retorna todos los insumos catalogados como perecibles (`isPerishable: true`) que mantienen existencias fisicas activas (`physicalQty > 0`) en almacenes, detallando el stock por sede, la fecha del ultimo ingreso por compra y los dias transcurridos en almacenamiento.
 
 - **Metodo:** `GET`
@@ -183,7 +240,7 @@ Retorna todos los insumos catalogados como perecibles (`isPerishable: true`) que
 
 ---
 
-### 2.4 Obtener Detalle y Consolidado Corporativo de Stock
+### 2.5 Obtener Detalle y Consolidado Corporativo de Stock
 Obtiene la ficha del item junto con el desglose de existencias por almacen, calculando los totales fisicos, reservados y prestados a nivel de toda la empresa.
 
 - **Metodo:** `GET`
@@ -317,7 +374,7 @@ Obtiene la ficha del item junto con el desglose de existencias por almacen, calc
 
 ---
 
-### 2.4 Actualizar Item
+### 2.6 Actualizar Item
 Modifica datos descriptivos, unidad base o limite de alerta de un SKU maestro.
 
 - **Metodo:** `PUT`
@@ -387,7 +444,7 @@ Modifica datos descriptivos, unidad base o limite de alerta de un SKU maestro.
 
 ---
 
-### 2.5 Registrar Alias S10 de Equivalencia
+### 2.7 Registrar Alias S10 de Equivalencia
 Crea una regla de traduccion para nombres sin estandarizar leidos en presupuestos S10, vinculandolos a un SKU maestro con un factor de conversion.
 Formula de conversion: `Cantidad_Item_Base = Cantidad_S10 * conversionFactor`.
 
@@ -442,7 +499,7 @@ Formula de conversion: `Cantidad_Item_Base = Cantidad_S10 * conversionFactor`.
 
 ---
 
-### 2.6 Eliminar Alias S10
+### 2.8 Eliminar Alias S10
 Elimina un mapeo de equivalencia de S10 existente sin alterar el registro maestro del item.
 
 - **Metodo:** `DELETE`
