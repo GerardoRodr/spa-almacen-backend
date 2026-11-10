@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
-import { Role } from '@prisma/client';
+import { Role, Prisma } from '@prisma/client';
 
 // Lista de propiedades financieras confidenciales a enmascarar para almaceneros
 const FINANCIAL_KEYS = new Set([
@@ -50,8 +50,19 @@ function purgeFinancialData(data: unknown): unknown {
   }
 
   if (data !== null && typeof data === 'object') {
-    // Preservar instancias de Date y objetos especiales
+    // Preservar instancias de Date y Prisma.Decimal (o equivalentes con toJSON/toNumber)
     if (data instanceof Date) {
+      return data;
+    }
+
+    if (
+      Prisma.Decimal.isDecimal(data) ||
+      (typeof data === 'object' &&
+        data !== null &&
+        ('_isDecimal' in data ||
+          (typeof (data as Record<string, unknown>).toNumber === 'function' &&
+            Array.isArray((data as Record<string, unknown>).d))))
+    ) {
       return data;
     }
 

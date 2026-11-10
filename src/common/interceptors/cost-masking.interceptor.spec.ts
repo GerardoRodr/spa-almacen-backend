@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { ExecutionContext, CallHandler } from '@nestjs/common';
 import { of } from 'rxjs';
-import { Role } from '@prisma/client';
+import { Role, Prisma } from '@prisma/client';
 import { CostMaskingInterceptor } from './cost-masking.interceptor.js';
 
 describe('CostMaskingInterceptor', () => {
@@ -55,6 +55,40 @@ describe('CostMaskingInterceptor', () => {
       expect(result.physicalQty).toBe(100);
       expect(result.reservedQty).toBe(20);
       expect(result.item.sku).toBe('CEM-01');
+    });
+  });
+
+  it('debe preservar instancias de Prisma.Decimal en campos de stock sin destruirlos en objetos { d, e, s }', async () => {
+    const rawData = {
+      id: 'stock-decimal',
+      warehouseId: 'wh-1',
+      physicalQty: new Prisma.Decimal(150.5),
+      reservedQty: new Prisma.Decimal(25.0),
+      loanedQty: new Prisma.Decimal(0),
+      averageCost: new Prisma.Decimal(34.8),
+    };
+
+    const context = createMockContext(Role.WAREHOUSE_KEEPER);
+    const handler = createMockHandler(rawData);
+
+    interceptor.intercept(context, handler).subscribe((result: any) => {
+      // averageCost debe haber sido purgado
+      expect(result.averageCost).toBeUndefined();
+
+      // physicalQty debe ser un Prisma.Decimal valido
+      expect(Prisma.Decimal.isDecimal(result.physicalQty)).toBe(true);
+      expect(result.physicalQty.toNumber()).toBe(150.5);
+
+      // reservedQty debe ser un Prisma.Decimal valido
+      expect(Prisma.Decimal.isDecimal(result.reservedQty)).toBe(true);
+      expect(result.reservedQty.toNumber()).toBe(25.0);
+
+      // Al serializar a JSON (lo que hace Express/NestJS), no debe emitir { d: [...] }
+      const serialized = JSON.parse(JSON.stringify(result));
+      expect(serialized.averageCost).toBeUndefined();
+      expect(Number(serialized.physicalQty)).toBe(150.5);
+      expect(Number(serialized.reservedQty)).toBe(25.0);
+      expect(typeof serialized.physicalQty).not.toBe('object');
     });
   });
 
