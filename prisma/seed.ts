@@ -79,29 +79,27 @@ async function main() {
 
   // 1. Limpieza total de tablas en orden inverso de dependencias FK
   console.log('[Seed] Limpiando datos existentes en la base de datos...');
-  await prisma.$transaction(async (tx) => {
-    await tx.documentSequence.deleteMany();
-    await tx.documentAttachment.deleteMany();
-    await tx.machineryShiftLog.deleteMany();
-    await tx.movementItem.deleteMany();
-    await tx.movement.deleteMany();
-    await tx.transferItem.deleteMany();
-    await tx.transfer.deleteMany();
-    await tx.toolCustody.deleteMany();
-    await tx.purchaseDetail.deleteMany();
-    await tx.purchase.deleteMany();
-    await tx.stock.deleteMany();
-    await tx.projectRequirement.deleteMany();
-    await tx.itemAlias.deleteMany();
-    await tx.item.deleteMany();
-    await tx.itemCategory.deleteMany();
-    await tx.measurementUnit.deleteMany();
-    await tx.userWarehouse.deleteMany();
-    await tx.supplier.deleteMany();
-    await tx.warehouse.deleteMany();
-    await tx.project.deleteMany();
-    await tx.user.deleteMany();
-  });
+  await prisma.documentSequence.deleteMany();
+  await prisma.documentAttachment.deleteMany();
+  await prisma.machineryShiftLog.deleteMany();
+  await prisma.movementItem.deleteMany();
+  await prisma.movement.deleteMany();
+  await prisma.transferItem.deleteMany();
+  await prisma.transfer.deleteMany();
+  await prisma.toolCustody.deleteMany();
+  await prisma.purchaseDetail.deleteMany();
+  await prisma.purchase.deleteMany();
+  await prisma.stock.deleteMany();
+  await prisma.projectRequirement.deleteMany();
+  await prisma.itemAlias.deleteMany();
+  await prisma.item.deleteMany();
+  await prisma.itemCategory.deleteMany();
+  await prisma.measurementUnit.deleteMany();
+  await prisma.userWarehouse.deleteMany();
+  await prisma.supplier.deleteMany();
+  await prisma.warehouse.deleteMany();
+  await prisma.project.deleteMany();
+  await prisma.user.deleteMany();
 
   // 2. Creacion del Almacen Central unico inicial
   console.log('[Seed] Creando almacen central principal...');
