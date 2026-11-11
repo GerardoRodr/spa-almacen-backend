@@ -16,7 +16,7 @@ export class WarehousesService {
 
   // Listar almacenes accesibles segun el rol del usuario
   async findAll(user: { id: string; role: Role }) {
-    if (user.role === Role.ADMIN) {
+    if (user.role === Role.ADMIN || user.role === Role.MODERATOR) {
       return this.prisma.warehouse.findMany({
         include: {
           project: {

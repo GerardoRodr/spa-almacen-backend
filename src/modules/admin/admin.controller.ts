@@ -23,7 +23,7 @@ import { Roles } from '../../common/decorators/roles.decorator.js';
 @ApiTags('Administracion y Mantenimiento')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(Role.ADMIN)
+@Roles(Role.ADMIN, Role.MODERATOR)
 @Controller('admin')
 export class AdminController {
   constructor(private readonly backupService: BackupService) {}

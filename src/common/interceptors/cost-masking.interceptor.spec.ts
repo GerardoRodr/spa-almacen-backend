@@ -114,6 +114,28 @@ describe('CostMaskingInterceptor', () => {
     });
   });
 
+  it('debe mantener campos de costo intactos si el usuario es MODERATOR', async () => {
+    const rawData = {
+      id: 'stock-1',
+      physicalQty: 100,
+      averageCost: 45.5,
+      inventoryValuationPEN: 4550.0,
+      toolsInvestmentPEN: 1200.0,
+      igvAmountPEN: 819.0,
+    };
+
+    const context = createMockContext(Role.MODERATOR);
+    const handler = createMockHandler(rawData);
+
+    interceptor.intercept(context, handler).subscribe((result: any) => {
+      expect(result.averageCost).toBe(45.5);
+      expect(result.inventoryValuationPEN).toBe(4550.0);
+      expect(result.toolsInvestmentPEN).toBe(1200.0);
+      expect(result.igvAmountPEN).toBe(819.0);
+      expect(result.physicalQty).toBe(100);
+    });
+  });
+
   it('debe purgar metricas de valorizacion e inversion en dashboard para WAREHOUSE_KEEPER', async () => {
     const rawData = {
       totalActiveSkus: 42,

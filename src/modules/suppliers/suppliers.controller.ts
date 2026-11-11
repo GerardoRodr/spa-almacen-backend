@@ -39,7 +39,7 @@ export class SuppliersController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.WAREHOUSE_KEEPER)
+  @Roles(Role.ADMIN, Role.MODERATOR, Role.WAREHOUSE_KEEPER)
   @ApiOperation({ summary: 'Registrar nuevo proveedor comercial con RUC de 11 digitos' })
   @ApiResponse({ status: 201, description: 'Proveedor registrado exitosamente' })
   @ApiResponse({ status: 409, description: 'Numero de RUC ya registrado' })
@@ -57,7 +57,7 @@ export class SuppliersController {
 
   @Put(':id')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({ summary: 'Actualizar informacion de un proveedor' })
   @ApiResponse({ status: 200, description: 'Proveedor actualizado exitosamente' })
   @ApiResponse({ status: 404, description: 'Proveedor no encontrado' })

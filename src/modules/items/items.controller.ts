@@ -52,7 +52,7 @@ export class ItemsController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.WAREHOUSE_KEEPER)
+  @Roles(Role.ADMIN, Role.MODERATOR, Role.WAREHOUSE_KEEPER)
   @UseInterceptors(CostMaskingInterceptor)
   @ApiOperation({ summary: 'Registrar un nuevo insumo o herramienta en catalogo maestro (con stock inicial opcional)' })
   @ApiResponse({ status: 201, description: 'Item registrado exitosamente' })
@@ -90,7 +90,7 @@ export class ItemsController {
 
   @Put(':id')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({ summary: 'Actualizar informacion maestra de un item' })
   @ApiResponse({ status: 200, description: 'Item actualizado exitosamente' })
   update(@Param('id') id: string, @Body() dto: UpdateItemDto) {
@@ -99,7 +99,7 @@ export class ItemsController {
 
   @Post('aliases')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({ summary: 'Registrar equivalencia cruda de S10 (ItemAlias) con factor de conversion' })
   @ApiResponse({ status: 201, description: 'Alias de S10 registrado exitosamente' })
   @ApiResponse({ status: 409, description: 'Nombre crudo de S10 ya registrado' })
@@ -109,7 +109,7 @@ export class ItemsController {
 
   @Delete('aliases/:id')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({ summary: 'Eliminar una equivalencia de alias S10' })
   @ApiResponse({ status: 200, description: 'Alias eliminado exitosamente' })
   @ApiResponse({ status: 404, description: 'Alias no encontrado' })

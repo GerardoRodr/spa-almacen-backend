@@ -18,8 +18,8 @@ export class WarehouseAccessGuard implements CanActivate {
       throw new ForbiddenException('Usuario no autenticado');
     }
 
-    // Administradores poseen acceso global irrestricto
-    if (user.role === Role.ADMIN) {
+    // Administradores y moderadores poseen acceso global irrestricto
+    if (user.role === Role.ADMIN || user.role === Role.MODERATOR) {
       return true;
     }
 

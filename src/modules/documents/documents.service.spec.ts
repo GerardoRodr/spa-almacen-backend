@@ -467,6 +467,19 @@ describe('DocumentsService', () => {
       expect(res.id).toBe('doc-conf');
     });
 
+    it('debe permitir descarga de documento confidencial si el usuario es MODERATOR', async () => {
+      prisma.documentAttachment.findUnique.mockResolvedValue({
+        id: 'doc-conf',
+        isConfidential: true,
+      });
+
+      const res = await service.findOne('doc-conf', {
+        id: 'm1',
+        role: Role.MODERATOR,
+      });
+      expect(res.id).toBe('doc-conf');
+    });
+
     it('debe permitir descarga a WAREHOUSE_KEEPER si es un documento de compra de su sede asignada', async () => {
       prisma.userWarehouse.findMany.mockResolvedValue([{ warehouseId: 'wh-1' }]);
       prisma.documentAttachment.findUnique.mockResolvedValue({

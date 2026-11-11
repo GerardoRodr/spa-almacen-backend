@@ -41,6 +41,32 @@ describe('Guards de Seguridad', () => {
       expect(guard.canActivate(context)).toBe(true);
     });
 
+    it('debe permitir acceso a MODERATOR si el endpoint incluye Role.MODERATOR', () => {
+      reflector.getAllAndOverride = () => [Role.ADMIN, Role.MODERATOR];
+      const context = {
+        getHandler: () => ({}),
+        getClass: () => ({}),
+        switchToHttp: () => ({
+          getRequest: () => ({ user: { role: Role.MODERATOR } }),
+        }),
+      } as unknown as ExecutionContext;
+
+      expect(guard.canActivate(context)).toBe(true);
+    });
+
+    it('debe denegar acceso a MODERATOR si el endpoint es exclusivo de ADMIN', () => {
+      reflector.getAllAndOverride = () => [Role.ADMIN];
+      const context = {
+        getHandler: () => ({}),
+        getClass: () => ({}),
+        switchToHttp: () => ({
+          getRequest: () => ({ user: { role: Role.MODERATOR } }),
+        }),
+      } as unknown as ExecutionContext;
+
+      expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
+    });
+
     it('debe lanzar ForbiddenException si el usuario no tiene el rol requerido', () => {
       reflector.getAllAndOverride = () => [Role.ADMIN];
       const context = {
@@ -67,6 +93,22 @@ describe('Guards de Seguridad', () => {
         switchToHttp: () => ({
           getRequest: () => ({
             user: { role: Role.ADMIN },
+            headers: {},
+            params: {},
+            query: {},
+            body: {},
+          }),
+        }),
+      } as unknown as ExecutionContext;
+
+      expect(guard.canActivate(context)).toBe(true);
+    });
+
+    it('debe otorgar bypass directo a usuarios con rol MODERATOR', () => {
+      const context = {
+        switchToHttp: () => ({
+          getRequest: () => ({
+            user: { role: Role.MODERATOR },
             headers: {},
             params: {},
             query: {},

@@ -13,6 +13,7 @@ generator client {
 
 enum Role {
   ADMIN
+  MODERATOR
   WAREHOUSE_KEEPER
 }
 

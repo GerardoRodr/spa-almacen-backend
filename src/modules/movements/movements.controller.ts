@@ -160,10 +160,10 @@ export class MovementsController {
 
   @Post('adjustment')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({
     summary:
-      'Registrar regularizacion formal de inventario fisico (INVENTORY_ADJUSTMENT - Exclusivo ADMIN)',
+      'Registrar regularizacion formal de inventario fisico (INVENTORY_ADJUSTMENT - Exclusivo ADMIN y MODERATOR)',
   })
   @ApiResponse({
     status: 201,

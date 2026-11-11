@@ -52,7 +52,7 @@ export class ItemCategoriesController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({
     summary: 'Crear una nueva clasificacion personalizada de insumos',
   })
@@ -70,7 +70,7 @@ export class ItemCategoriesController {
 
   @Patch(':id')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({
     summary: 'Actualizar nombre, codigo, descripcion o estado de una clasificacion',
   })
@@ -92,7 +92,7 @@ export class ItemCategoriesController {
 
   @Delete(':id')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({
     summary: 'Eliminar clasificacion si no tiene items asociados o desactivar si tiene dependencias',
   })

@@ -271,10 +271,10 @@ export class DocumentsController {
 
   @Delete(':id')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({
     summary:
-      'Eliminar documento adjunto y su archivo fisico en disco (Exclusivo ADMIN)',
+      'Eliminar documento adjunto y su archivo fisico en disco (Exclusivo ADMIN y MODERATOR)',
   })
   @ApiResponse({
     status: 200,

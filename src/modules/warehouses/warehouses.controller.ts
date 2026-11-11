@@ -47,7 +47,7 @@ export class WarehousesController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({ summary: 'Crear un nuevo almacen Central o Almacen de Obra temporal' })
   @ApiResponse({ status: 201, description: 'Almacen creado exitosamente' })
   @ApiResponse({ status: 409, description: 'Nombre de almacen o proyecto ya ocupado' })
@@ -66,7 +66,7 @@ export class WarehousesController {
 
   @Put(':id')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({ summary: 'Actualizar informacion basica del almacen' })
   @ApiResponse({ status: 200, description: 'Almacen actualizado exitosamente' })
   update(@Param('id') id: string, @Body() dto: UpdateWarehouseDto) {
@@ -97,7 +97,7 @@ export class WarehousesController {
 
   @Patch(':id/stock/:itemId/valuation')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({ summary: 'Actualizar manualmente el CPP o valoracion de un item en un almacen' })
   @ApiResponse({ status: 200, description: 'Valoracion de stock actualizada exitosamente' })
   updateStockValuation(

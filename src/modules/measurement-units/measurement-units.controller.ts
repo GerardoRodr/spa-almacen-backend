@@ -70,9 +70,9 @@ export class MeasurementUnitsController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({
-    summary: 'Crear una nueva unidad de medida maestra (Solo ADMIN)',
+    summary: 'Crear una nueva unidad de medida maestra (Solo ADMIN y MODERATOR)',
   })
   @ApiResponse({
     status: 201,
@@ -88,9 +88,9 @@ export class MeasurementUnitsController {
 
   @Patch(':id')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({
-    summary: 'Actualizar nombre, descripcion o estado de una unidad de medida (Solo ADMIN)',
+    summary: 'Actualizar nombre, descripcion o estado de una unidad de medida (Solo ADMIN y MODERATOR)',
   })
   @ApiResponse({
     status: 200,
@@ -113,9 +113,9 @@ export class MeasurementUnitsController {
 
   @Delete(':id')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({
-    summary: 'Eliminar unidad de medida si no tiene items asociados o desactivar si tiene dependencias (Solo ADMIN)',
+    summary: 'Eliminar unidad de medida si no tiene items asociados o desactivar si tiene dependencias (Solo ADMIN y MODERATOR)',
   })
   @ApiResponse({
     status: 200,

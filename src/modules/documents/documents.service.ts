@@ -313,7 +313,7 @@ export class DocumentsService {
       throw new NotFoundException('Documento no encontrado');
     }
 
-    if (doc.isConfidential && user.role !== Role.ADMIN) {
+    if (doc.isConfidential && user.role !== Role.ADMIN && user.role !== Role.MODERATOR) {
       if (doc.purchaseId && doc.purchase?.warehouseId) {
         const allowedIds = await this.getAllowedWarehouseIds(user.id);
         if (!allowedIds.includes(doc.purchase.warehouseId)) {

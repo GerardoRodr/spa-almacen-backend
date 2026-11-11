@@ -33,7 +33,7 @@ export class PurchasesController {
   constructor(private readonly purchasesService: PurchasesService) {}
 
   @Get()
-  @Roles(Role.ADMIN, Role.WAREHOUSE_KEEPER)
+  @Roles(Role.ADMIN, Role.MODERATOR, Role.WAREHOUSE_KEEPER)
   @ApiOperation({
     summary:
       'Listar comprobantes de compra paginados con filtros por proveedor, serie, fechas, almacen y producto',
@@ -50,7 +50,7 @@ export class PurchasesController {
   }
 
   @Get('price-comparison')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({
     summary:
       'Obtener cuadro comparativo de precios historicos de compras y proveedores por insumo',
@@ -72,7 +72,7 @@ export class PurchasesController {
   }
 
   @Post()
-  @Roles(Role.ADMIN, Role.WAREHOUSE_KEEPER)
+  @Roles(Role.ADMIN, Role.MODERATOR, Role.WAREHOUSE_KEEPER)
   @ApiOperation({
     summary:
       'Registrar factura de compra e ingreso a Almacen Central o de Obra con recalculo atomico de CPP',
@@ -97,7 +97,7 @@ export class PurchasesController {
   }
 
   @Get(':id')
-  @Roles(Role.ADMIN, Role.WAREHOUSE_KEEPER)
+  @Roles(Role.ADMIN, Role.MODERATOR, Role.WAREHOUSE_KEEPER)
   @ApiOperation({
     summary: 'Obtener detalle completo de un comprobante de compra por identificador',
   })
@@ -117,7 +117,7 @@ export class PurchasesController {
   }
 
   @Patch(':id/valuation')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({
     summary:
       'Valorizar formalmente una compra ingresada a costo cero / guia de remision y recalcular CPP',

@@ -63,7 +63,7 @@ export class ProjectsController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({
     summary: 'Registrar un nuevo proyecto civil y su almacen de obra temporal asociado',
   })
@@ -102,7 +102,7 @@ export class ProjectsController {
 
   @Put(':id')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({
     summary: 'Actualizar informacion general y estado del proyecto civil',
   })
@@ -120,7 +120,7 @@ export class ProjectsController {
 
   @Post(':id/ingest-s10')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({
     summary:
       'Ingesta de presupuesto S10 via payload estructurado JSON con resolucion de alias',
@@ -139,7 +139,7 @@ export class ProjectsController {
 
   @Post(':id/s10-import')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -196,7 +196,7 @@ export class ProjectsController {
 
   @Post(':id/allocate-stock')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({
     summary:
       'Reservar existencias fisicas en Almacen Central a favor del proyecto (Opcion A)',
@@ -218,7 +218,7 @@ export class ProjectsController {
 
   @Post(':id/release-stock')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({
     summary:
       'Liberar existencias reservadas en Almacen Central y retornarlas al stock disponible',
@@ -240,7 +240,7 @@ export class ProjectsController {
 
   @Post(':id/liquidate')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({
     summary:
       'Ejecutar protocolo de liquidacion formal y cierre del almacen de obra',
