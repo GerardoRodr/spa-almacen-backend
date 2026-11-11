@@ -90,21 +90,22 @@ Toda la infraestructura se aloja en una unica instancia VPS KVM 2 (100 GB SSD NV
 
 ## 3. Matriz de Control de Acceso por Roles (RBAC)
 
-| Modulo / Funcionalidad | Rol `ADMIN` (Arquitecto / Residente) | Rol `WAREHOUSE_KEEPER` (Almacenero Obra/Central) |
-| :--- | :---: | :---: |
-| **Selector de Almacen Activo** | Acceso Global a Todos los Almacenes | Solo Almacenes Asignados (`UserWarehouse`) con soporte multisede |
-| **Catalogo Maestro (Crear / Editar SKU)** | Total (edicion completa y confirmacion) | Alta Rapida Descentralizada (SKU automatico, sin edicion maestra) |
-| **Gestion de Alias S10 (`ItemAlias`)** | Total | Acceso Denegado |
-| **Visualizacion de Costos, Precios y CPP** | **Visible** | **Bloqueado / Ciego** |
-| **Registro de Compras a Proveedores** | Total (con costos, IGV, facturas y valorizacion) | Registro Operativo Descentralizado (recepcion directa, precio cero y proveedores) |
-| **Despacho de Transferencias (Fase 1)** | Autorizacion / Auditoria | Registro Operativo (Almacen Origen) |
-| **Recepcion de Transferencias (Fase 2)** | Auditoria de Discrepancias | Conteo Fisico y Confirmacion (Almacen Destino) |
-| **Salida por Consumo en Obra** | Auditoria por Partida/Frente | Registro Diario de Entrega a Capataces |
-| **Vales de Custodia de Herramientas** | Auditoria General | Prestamo y Retorno con DNI y Calificacion |
-| **Presupuestos S10 y Matriz de Brechas** | Carga CSV, Mapeo y Reserva Logica | Acceso Denegado |
-| **Aprobacion de Mermas y Ajustes** | Exclusivo (Aprobacion y Cierre) | Solo Solicitud con Evidencia Fotografica |
-| **Cierre y Liquidacion de Obra** | Exclusivo | Acceso Denegado |
-| **Descarga de Copias de Seguridad** | Exclusivo (1 Clic) | Acceso Denegado |
+| Modulo / Funcionalidad | Rol `ADMIN` (Arquitecto / Residente) | Rol `MODERATOR` (Moderador Operativo) | Rol `WAREHOUSE_KEEPER` (Almacenero Obra/Central) |
+| :--- | :---: | :---: | :---: |
+| **Administracion de Usuarios (`/users`)** | **Total (Gestion, Altas, Bajas y Roles)** | **Bloqueado (403 Forbidden)** | **Bloqueado (403 Forbidden)** |
+| **Selector de Almacen Activo** | Acceso Global a Todos los Almacenes | Acceso Global a Todos los Almacenes | Solo Almacenes Asignados (`UserWarehouse`) con soporte multisede |
+| **Catalogo Maestro (Crear / Editar SKU)** | Total (edicion completa y confirmacion) | Total (edicion completa y confirmacion) | Alta Rapida Descentralizada (SKU automatico, sin edicion maestra) |
+| **Gestion de Alias S10 (`ItemAlias`)** | Total | Total | Acceso Denegado |
+| **Visualizacion de Costos, Precios y CPP** | **Visible** | **Visible** | **Bloqueado / Ciego** |
+| **Registro de Compras a Proveedores** | Total (con costos, IGV, facturas y valorizacion) | Total (con costos, IGV, facturas y valorizacion) | Registro Operativo Descentralizado (recepcion directa, precio cero y proveedores) |
+| **Despacho de Transferencias (Fase 1)** | Autorizacion / Auditoria | Autorizacion / Auditoria | Registro Operativo (Almacen Origen) |
+| **Recepcion de Transferencias (Fase 2)** | Auditoria de Discrepancias | Auditoria de Discrepancias | Conteo Fisico y Confirmacion (Almacen Destino) |
+| **Salida por Consumo en Obra** | Auditoria por Partida/Frente | Auditoria por Partida/Frente | Registro Diario de Entrega a Capataces |
+| **Vales de Custodia de Herramientas** | Auditoria General | Auditoria General | Prestamo y Retorno con DNI y Calificacion |
+| **Presupuestos S10 y Matriz de Brechas** | Carga CSV, Mapeo y Reserva Logica | Carga CSV, Mapeo y Reserva Logica | Acceso Denegado |
+| **Aprobacion de Mermas y Ajustes** | Exclusivo (Aprobacion y Cierre) | Exclusivo (Aprobacion y Cierre) | Solo Solicitud con Evidencia Fotografica |
+| **Cierre y Liquidacion de Obra** | Exclusivo | Exclusivo | Acceso Denegado |
+| **Descarga de Copias de Seguridad** | Exclusivo (1 Clic) | Exclusivo (1 Clic) | Acceso Denegado |
 
 ---
 
@@ -126,6 +127,7 @@ generator client {
 
 enum Role {
   ADMIN
+  MODERATOR
   WAREHOUSE_KEEPER
 }
 

@@ -46,7 +46,7 @@ Este documento constituye la **Fuente Unica de Verdad (Single Source of Truth - 
 
 ### 2.2. Ajustes de Inventario y Mermas
 - Cualquier descuadre fisico detectado en toma de inventario se regulariza mediante un `Movement` de tipo `INVENTORY_ADJUSTMENT` o `SHRINKAGE_EXIT`.
-- Exige obligatoriamente motivo justificado, evidencia fotografica adjunta y aprobacion exclusiva del rol `ADMIN`.
+- Exige obligatoriamente motivo justificado, evidencia fotografica adjunta y aprobacion de los roles `ADMIN` o `MODERATOR`.
 
 ### 2.3. Transacciones Atomicas
 - Toda operacion que modifique simultaneamente stocks (`physicalQty`, `reservedQty`, `loanedQty`), recalcule costos promedio o liquide transferencias debe ejecutarse dentro de un bloque transaccional atomico (`prisma.$transaction`).
@@ -103,13 +103,13 @@ Donde:
   - En situaciones de campo donde el material arriba solo con Guia de Remision del transportista o remision sin valorizar, el almacenero registra el ingreso con precio unitario `0.00`.
   - **Regla de Proteccion de CPP frente a Precio Cero:** Si `unitCostBasePEN <= 0`, el algoritmo no diluye el CPP preexistente del insumo; se mantiene intacto el costo anterior:
     $$\text{CPP}_{\text{nuevo}} = \text{CPP}_{\text{anterior}} > 0 ? \text{CPP}_{\text{anterior}} : 0$$
-- **Valorizacion Formal Exclusiva de Administracion:**
+- **Valorizacion Formal Administrativa:**
   - Los comprobantes recepcionados con precio cero quedan identificados con el badge "Por Valorizar".
-  - Unicamente el rol `ADMIN` posee el permiso para formalizar contablemente la factura mediante `PATCH /api/v1/purchases/:id/valuation`.
+  - Los roles `ADMIN` y `MODERATOR` poseen el permiso para formalizar contablemente la factura mediante `PATCH /api/v1/purchases/:id/valuation`.
   - Esta regularizacion recalcula el costo promedio `Stock.averageCost` en el almacen destino incorporando el costo real de la compra, sin duplicar ni alterar la cantidad fisica en inventario ni emitir nuevos movimientos en Kardex.
 - **Privacidad Financiera Corporativa:**
-  - El Cuadro Comparativo de Precios (`GET /api/v1/purchases/price-comparison`) y el simulador de CPP son exclusivos de `ADMIN` (retornando `403 Forbidden` a `WAREHOUSE_KEEPER`).
-  - La edicion de datos maestros de proveedores (`PUT /api/v1/suppliers/:id`) permanece restringida exclusivamente a `ADMIN`.
+  - El Cuadro Comparativo de Precios (`GET /api/v1/purchases/price-comparison`) y el simulador de CPP son exclusivos de `ADMIN` y `MODERATOR` (retornando `403 Forbidden` a `WAREHOUSE_KEEPER`).
+  - La edicion de datos maestros de proveedores (`PUT /api/v1/suppliers/:id`) permanece restringida a `ADMIN` y `MODERATOR`.
 
 ---
 
@@ -242,8 +242,20 @@ Un almacen de obra (`PROJECT_SITE`) se liquida formalmente (`isActive = false`, 
 - Visibilidad completa de precios unitarios, subtotal, IGV, CPP, valorizaciones y presupuesto S10.
 - Aprobacion de ajustes de inventario, bajas de herramientas, creacion de SKUs y liquidacion de obras.
 - Generacion y descarga de copias de seguridad de la base de datos (.sql/.tar.gz).
+- Administracion total de cuentas de usuarios, altas, asignacion de sedes, cambio de roles y desactivacion/baja.
 
-### 8.2. Rol `WAREHOUSE_KEEPER` (Almacenero de Obra / Caseta)
+### 8.2. Rol `MODERATOR` (Moderador Operativo)
+- Facultades administrativas operativas equivalentes al rol `ADMIN` en todos los modulos:
+  - Bypass global e irrestricto a todos los almacenes del sistema en `WarehouseAccessGuard` y `WarehousesService`.
+  - Visibilidad financiera completa de costos unitarios, precios, valorizaciones, CPP y comparativa de compras (`CostMaskingInterceptor` no enmascara costos).
+  - Gestion completa de proyectos S10, reservas de stock, catalogos maestros, clasificaciones y unidades de medida.
+  - Generacion, descarga y eliminacion de copias de seguridad de PostgreSQL.
+  - Aprobacion de ajustes de inventario fisico en Kardex y descarga de documentos confidenciales.
+- **Aislamiento Estricto del Modulo de Usuarios:**
+  - Bloqueo total (HTTP 403 Forbidden) en todos los endpoints de `UsersController` (`/api/v1/users`).
+  - No puede consultar, crear, modificar, promover a ADMIN ni dar de baja/desactivar ningun colaborador.
+
+### 8.3. Rol `WAREHOUSE_KEEPER` (Almacenero de Obra / Caseta)
 - Asignado a uno o mas almacenes mediante la tabla `UserWarehouse`. En la interfaz solo visualiza y opera los almacenes a los que tiene permiso activo.
 - **Acceso Ciego a Finanzas (Data Masking Estricto):**
   - Los endpoints de la API filtran y omiten todo campo financiero (`averageCost`, `unitPriceOriginal`, `subtotalPEN`, `totalAmountPEN`, `unitCostSnapshot`, `s10UnitPrice`, `minHistoricalUnitCost`, `weightedAverageCost`, `s10BudgetUnitPrice`).
@@ -259,7 +271,7 @@ Un almacen de obra (`PROJECT_SITE`) se liquida formalmente (`isActive = false`, 
 ### 9.1. Catalogo Maestro de Unidades de Medida (`MeasurementUnit`)
 - Las unidades de medida base constituyen un catalogo maestro corporativo persistido en la tabla `MeasurementUnit`.
 - Cada registro contiene un codigo abreviado unico en mayusculas (`code`, ej. `UND`, `BOLSA`, `KG`, `M3`, `VARILLA`), nombre descriptivo (`name`), descripcion opcional y estado (`isActive`).
-- Los endpoints CRUD de administracion (`/measurement-units`) estan restringidos al rol `ADMIN` para creacion, edicion y baja.
+- Los endpoints CRUD de administracion (`/measurement-units`) estan restringidos a los roles `ADMIN` y `MODERATOR` para creacion, edicion y baja.
 - El listado de unidades activas (`GET /measurement-units`) esta disponible para todos los roles autenticados para alimentar selectores en la interfaz.
 
 ### 9.2. Politica de Eliminacion de Unidades de Medida

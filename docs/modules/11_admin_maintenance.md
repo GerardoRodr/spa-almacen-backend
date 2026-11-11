@@ -7,7 +7,7 @@ Este modulo agrupa las utilidades de gobernanza del sistema, continuidad operati
 - Mantenimiento programado y auditoria tecnica.
 
 - **Ruta Base:** `/api/v1/admin` y `/api/v1/health`
-- **Control de Acceso:** Restringido exclusivamente al rol `ADMIN`.
+- **Control de Acceso:** Endpoints de administracion y respaldos autorizados para roles `ADMIN` y `MODERATOR`. Endpoint de health check publico o monitor.
 
 ---
 
@@ -59,9 +59,9 @@ Ejecuta la orden de extraccion `pg_dump` sobre la base de datos `almacen_erp` en
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/admin/backups`
-- **Acceso:** Protegido (`ADMIN`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR`)
 - **Cabeceras:**
-  - `Authorization: Bearer <accessToken_admin>`
+  - `Authorization: Bearer <accessToken_admin_o_moderador>`
 
 #### Respuestas
 **201 Created - Respaldo generado:**
@@ -82,9 +82,9 @@ Retorna el historial de archivos de backup existentes en el servidor ordenados p
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/admin/backups`
-- **Acceso:** Protegido (`ADMIN`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR`)
 - **Cabeceras:**
-  - `Authorization: Bearer <accessToken_admin>`
+  - `Authorization: Bearer <accessToken_admin_o_moderador>`
 
 #### Respuestas
 **200 OK - Listado obtenido:**
@@ -110,9 +110,9 @@ Descarga el archivo `.dump` binario para custodia off-site en streaming.
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/admin/backups/:fileName/download`
-- **Acceso:** Protegido (`ADMIN`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR`)
 - **Cabeceras:**
-  - `Authorization: Bearer <accessToken_admin>`
+  - `Authorization: Bearer <accessToken_admin_o_moderador>`
 
 #### Parametros
 - `fileName` (URL Path): Nombre del archivo (ej. `almacen_erp_20260923_123500.dump`).
@@ -131,9 +131,9 @@ Elimina un archivo de respaldo especifico del disco del servidor.
 
 - **Metodo:** `DELETE`
 - **Ruta:** `/api/v1/admin/backups/:fileName`
-- **Acceso:** Protegido (`ADMIN`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR`)
 - **Cabeceras:**
-  - `Authorization: Bearer <accessToken_admin>`
+  - `Authorization: Bearer <accessToken_admin_o_moderador>`
 
 #### Parametros
 - `fileName` (URL Path): Nombre del archivo a eliminar.

@@ -1,11 +1,11 @@
 # Modulo 02 - Usuarios y Acceso Multi-Almacen (Users)
 
 ## 1. Descripcion General
-El modulo de administracion de usuarios permite gestionar las cuentas del personal, roles de acceso (`ADMIN` y `WAREHOUSE_KEEPER`) y la vinculacion explicita a uno o varios almacenes fisicos mediante la entidad `UserWarehouse`.
+El modulo de administracion de usuarios permite gestionar las cuentas del personal, roles de acceso (`ADMIN`, `MODERATOR` y `WAREHOUSE_KEEPER`) y la vinculacion explicita a uno o varios almacenes fisicos mediante la entidad `UserWarehouse`.
 
 - **Ruta Base:** `/api/v1/users`
 - **Entidades Vinculadas:** `User`, `UserWarehouse`, `Warehouse`
-- **Control de Acceso:** Todos los endpoints de este modulo requieren obligatoriamente rol de administrador (`ADMIN`).
+- **Control de Acceso:** Todos los endpoints de este modulo requieren obligatoriamente rol de administrador (`ADMIN`). Los usuarios con rol `MODERATOR` o `WAREHOUSE_KEEPER` tienen el acceso denegado (HTTP 403 Forbidden), garantizando que no puedan listar, crear, modificar ni desactivar colaboradores.
 
 ---
 
@@ -83,7 +83,7 @@ Registra un nuevo usuario en la base de datos con contrasena encriptada mediante
 | `email` | string | Si | Correo electronico unico del usuario. |
 | `password` | string | Si | Contrasena inicial (minimo 6 caracteres). |
 | `fullName` | string | Si | Nombres y apellidos completos. |
-| `role` | `ADMIN` \| `WAREHOUSE_KEEPER` | No | Rol del sistema (por defecto: `WAREHOUSE_KEEPER`). |
+| `role` | `ADMIN` \| `MODERATOR` \| `WAREHOUSE_KEEPER` | No | Rol del sistema (por defecto: `WAREHOUSE_KEEPER`). |
 | `isActive` | boolean | No | Estado de activacion de la cuenta (por defecto: `true`). |
 | `warehouseIds` | string[] | No | Lista de identificadores UUID de almacenes autorizados. |
 | `defaultWarehouseId` | string | No | UUID del almacen activo predeterminado. |
@@ -203,7 +203,7 @@ Permite modificar datos personales, rol o estado activo/inactivo de una cuenta.
 |---|---|---|---|
 | `fullName` | string | No | Nombres y apellidos actualizados. |
 | `password` | string | No | Nueva contrasena si se desea cambiar (minimo 6 caracteres). |
-| `role` | `ADMIN` \| `WAREHOUSE_KEEPER` | No | Nuevo rol asignado. |
+| `role` | `ADMIN` \| `MODERATOR` \| `WAREHOUSE_KEEPER` | No | Nuevo rol asignado. |
 | `isActive` | boolean | No | Desactivar o reactivar acceso. |
 
 **Ejemplo de Peticion:**

@@ -31,6 +31,14 @@
       "fullName": "Miguel Angel Torres",
       "role": "WAREHOUSE_KEEPER",
       "isActive": true
+    },
+    {
+      "id": "a0000000-0000-4000-8000-000000000005",
+      "email": "moderador@almacen.com",
+      "password": "Moderador1234!",
+      "fullName": "Lucia Fernandez - Moderadora Operativa",
+      "role": "MODERATOR",
+      "isActive": true
     }
   ],
   "projects": [
@@ -179,6 +187,12 @@
       "userId": "a0000000-0000-4000-8000-000000000004",
       "warehouseId": "b0000000-0000-4000-8000-000000000001",
       "isDefault": false
+    },
+    {
+      "id": "80000000-0000-4000-8000-000000000010",
+      "userId": "a0000000-0000-4000-8000-000000000005",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "isDefault": true
     }
   ],
   "suppliers": [
