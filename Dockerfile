@@ -29,11 +29,17 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# openssl requerido por Prisma engine, postgresql-client por BackupService para pg_dump
+# openssl requerido por Prisma engine, curl por HEALTHCHECK y postgresql-client-18 por BackupService
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl \
-    postgresql-client \
     curl \
+    ca-certificates \
+    gnupg \
+    && install -d /usr/share/postgresql-common/pgdg \
+    && curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends postgresql-client-18 \
     && rm -rf /var/lib/apt/lists/*
 
 # Crear directorios para almacenamiento persistente con propiedad de usuario node
