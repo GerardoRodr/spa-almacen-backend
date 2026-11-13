@@ -51,6 +51,8 @@ enum MovementType {
   LOAN_RETURN          // Retorno de herramienta a caseta
   SHRINKAGE_EXIT       // Merma fisica, perdida en transporte o rotura
   INVENTORY_ADJUSTMENT // Ajuste manual por inventario fisico formal
+  REVERSAL_ENTRY       // Contra-asiento de ingreso (revierte una salida previa)
+  REVERSAL_EXIT        // Contra-asiento de salida (revierte un ingreso previo)
 }
 
 enum ToolCondition {
@@ -90,8 +92,13 @@ model User {
   movements          Movement[]
   dispatchedTransfers Transfer[]     @relation("DispatchedTransfers")
   receivedTransfers   Transfer[]     @relation("ReceivedTransfers")
-  dispatchedLoans    ToolCustody[]   @relation("DispatchedLoans")
-  receivedLoans      ToolCustody[]   @relation("ReceivedLoans")
+  dispatchedLoans         ToolCustody[]       @relation("DispatchedLoans")
+  receivedLoans           ToolCustody[]       @relation("ReceivedLoans")
+  revertedMovements       Movement[]          @relation("RevertedMovements")
+  revertedPurchases       Purchase[]          @relation("RevertedPurchases")
+  cancelledTransfers      Transfer[]          @relation("CancelledTransfers")
+  revertedToolCustodies   ToolCustody[]       @relation("RevertedToolCustodies")
+  revertedMachineryShifts MachineryShiftLog[] @relation("RevertedMachineryShifts")
   
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
@@ -300,9 +307,16 @@ model Purchase {
   igvAmountPEN   Decimal              @default(0) @db.Decimal(14, 2) // IGV 18% para cotejo contable
   totalAmountPEN Decimal              @db.Decimal(14, 2)
   notes          String?              @db.Text // Observaciones generales de compra / fechas de caducidad
+  isReverted          Boolean         @default(false)
+  revertedAt          DateTime?
+  revertedById        String?
+  reversalReason      String?         @db.Text
+  reversalMovementId  String?
+  replacedById        String?         @unique
   
   supplier       Supplier             @relation(fields: [supplierId], references: [id])
   warehouse      Warehouse?           @relation(fields: [warehouseId], references: [id])
+  revertedBy     User?                @relation("RevertedPurchases", fields: [revertedById], references: [id])
   details        PurchaseDetail[]
   documents      DocumentAttachment[]
   
@@ -312,6 +326,7 @@ model Purchase {
   @@index([warehouseId])
   @@index([issueDate])
   @@index([createdAt])
+  @@index([isReverted])
 }
 
 model PurchaseDetail {
@@ -352,12 +367,17 @@ model Transfer {
   receivedAt        DateTime?
   dispatchNotes     String?
   receptionNotes    String?
+  cancelledAt       DateTime?
+  cancelledById     String?
+  cancellationReason String?       @db.Text
+  replacedById      String?        @unique
   
   originWarehouse   Warehouse      @relation("OriginTransfers", fields: [originWarehouseId], references: [id])
   destWarehouse     Warehouse      @relation("DestTransfers", fields: [destWarehouseId], references: [id])
   project           Project?       @relation(fields: [projectId], references: [id])
   dispatchedBy      User           @relation("DispatchedTransfers", fields: [dispatchedById], references: [id])
   receivedBy        User?          @relation("ReceivedTransfers", fields: [receivedById], references: [id])
+  cancelledBy       User?          @relation("CancelledTransfers", fields: [cancelledById], references: [id])
   
   items             TransferItem[]
   movements         Movement[]
@@ -406,12 +426,21 @@ model Movement {
   recipientDni      String?              // DNI del operario
   shrinkageReason   String?              // Requerido en SHRINKAGE_EXIT
   observation       String?
+  isReverted         Boolean             @default(false)
+  revertedAt         DateTime?
+  revertedById       String?
+  reversalReason     String?             @db.Text
+  reversesMovementId String?             @unique
+  replacedById       String?             @unique
   
-  originWarehouse   Warehouse?           @relation("MovementOriginWarehouse", fields: [originWarehouseId], references: [id])
-  destWarehouse     Warehouse?           @relation("MovementDestWarehouse", fields: [destWarehouseId], references: [id])
-  project           Project?             @relation(fields: [projectId], references: [id])
-  user              User                 @relation(fields: [userId], references: [id])
-  transfer          Transfer?            @relation(fields: [transferId], references: [id])
+  originWarehouse    Warehouse?          @relation("MovementOriginWarehouse", fields: [originWarehouseId], references: [id])
+  destWarehouse      Warehouse?          @relation("MovementDestWarehouse", fields: [destWarehouseId], references: [id])
+  project            Project?            @relation(fields: [projectId], references: [id])
+  user               User                @relation(fields: [userId], references: [id])
+  transfer           Transfer?           @relation(fields: [transferId], references: [id])
+  revertedBy         User?               @relation("RevertedMovements", fields: [revertedById], references: [id])
+  reversesMovement   Movement?           @relation("MovementReversal", fields: [reversesMovementId], references: [id])
+  reversedByMovement Movement?           @relation("MovementReversal")
   
   items             MovementItem[]
   documents         DocumentAttachment[]
@@ -425,6 +454,7 @@ model Movement {
   @@index([transferId])
   @@index([type])
   @@index([createdAt])
+  @@index([isReverted])
 }
 
 model MovementItem {
@@ -466,11 +496,17 @@ model ToolCustody {
   conditionOnReturn   ToolCondition?
   notes               String?
   returnNotes         String?
+  isReverted          Boolean        @default(false)
+  revertedAt          DateTime?
+  revertedById        String?
+  reversalReason      String?        @db.Text
+  replacedById        String?        @unique
   
   item                Item           @relation(fields: [itemId], references: [id])
   warehouse           Warehouse      @relation(fields: [warehouseId], references: [id])
   dispatchedBy        User           @relation("DispatchedLoans", fields: [dispatchedById], references: [id])
   receivedBy          User?          @relation("ReceivedLoans", fields: [receivedById], references: [id])
+  revertedBy          User?          @relation("RevertedToolCustodies", fields: [revertedById], references: [id])
   documents           DocumentAttachment[]
   
   createdAt           DateTime       @default(now())
@@ -481,6 +517,7 @@ model ToolCustody {
   @@index([assignedToDni])
   @@index([returnDate])
   @@index([dispatchDate])
+  @@index([isReverted])
 }
 
 // --------------------------------------------------------
@@ -534,14 +571,20 @@ model MachineryShiftLog {
   endPhotoId     String?
   fuelPhotoId    String?
   notes          String?
+  isReverted     Boolean   @default(false)
+  revertedAt     DateTime?
+  revertedById   String?
+  reversalReason String?   @db.Text
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   item           Item      @relation(fields: [itemId], references: [id])
   warehouse      Warehouse @relation(fields: [warehouseId], references: [id])
+  revertedBy     User?     @relation("RevertedMachineryShifts", fields: [revertedById], references: [id])
 
   @@index([itemId])
   @@index([warehouseId])
+  @@index([isReverted])
 }
 
 // --------------------------------------------------------

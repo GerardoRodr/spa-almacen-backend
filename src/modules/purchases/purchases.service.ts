@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import {
   Currency,
@@ -16,6 +17,9 @@ import { CreatePurchaseDto } from './dto/create-purchase.dto.js';
 import { PurchaseFilterDto } from './dto/purchase-filter.dto.js';
 import { PriceComparisonQueryDto } from './dto/price-comparison-query.dto.js';
 import { ValuatePurchaseDto } from './dto/valuate-purchase.dto.js';
+import { RevertPurchaseDto } from './dto/revert-purchase.dto.js';
+import { UpdatePurchaseMetadataDto } from './dto/update-purchase-metadata.dto.js';
+import { ReplacePurchaseDto } from './dto/replace-purchase.dto.js';
 
 @Injectable()
 export class PurchasesService {
@@ -78,6 +82,10 @@ export class PurchasesService {
       }
     }
 
+    if (filter.includeReverted === false) {
+      where.isReverted = false;
+    }
+
     // Filtros por insumo (itemId o busqueda por SKU / nombre del item)
     if (filter.itemId || filter.itemSearch) {
       const detailConditions: Prisma.PurchaseDetailWhereInput = {};
@@ -121,6 +129,12 @@ export class PurchasesService {
               id: true,
               name: true,
               type: true,
+            },
+          },
+          revertedBy: {
+            select: {
+              id: true,
+              fullName: true,
             },
           },
           details: {
@@ -169,6 +183,12 @@ export class PurchasesService {
             type: true,
           },
         },
+        revertedBy: {
+          select: {
+            id: true,
+            fullName: true,
+          },
+        },
         details: {
           include: {
             item: {
@@ -202,8 +222,8 @@ export class PurchasesService {
     return purchase;
   }
 
-  // Registrar compra e ingreso a Almacen (Central o de Obra) con recalculo atomico de CPP
-  async create(
+  // Validar datos y autorizaciones de una nueva compra antes de iniciar transaccion
+  private async validateCreatePayload(
     dto: CreatePurchaseDto,
     user: { id: string; role: Role } | string,
   ) {
@@ -290,182 +310,205 @@ export class PurchasesService {
       }
     }
 
-    // 5. Ejecutar transaccion atomica
-    return this.prisma.$transaction(async (tx) => {
-      // Generar correlativo inmutable para el movimiento de inventario MOV-YYYY-NNNNN
-      const movementNumber = await this.sequenceGenerator.getNextCode(
-        tx,
-        'MOV',
+    return { userId, userRole, targetWarehouseId, hasIgv, igvAmount };
+  }
+
+  // Persistir compra y recalcular CPP dentro de una transaccion activa
+  private async createInTransaction(
+    tx: Prisma.TransactionClient,
+    dto: CreatePurchaseDto,
+    params: {
+      userId: string;
+      userRole: Role;
+      targetWarehouseId: string;
+      hasIgv: boolean;
+      igvAmount: number;
+    },
+  ) {
+    const { userId, userRole, targetWarehouseId, hasIgv, igvAmount } = params;
+
+    // Generar correlativo inmutable para el movimiento de inventario MOV-YYYY-NNNNN
+    const movementNumber = await this.sequenceGenerator.getNextCode(tx, 'MOV');
+
+    // Crear encabezado de Purchase con warehouseId y notes
+    const purchase = await tx.purchase.create({
+      data: {
+        supplierId: dto.supplierId,
+        warehouseId: targetWarehouseId,
+        invoiceSeries: dto.invoiceSeries.trim(),
+        voucherType: dto.voucherType?.trim() || 'FACTURA',
+        hasIgv,
+        currency: dto.currency ?? Currency.PEN,
+        exchangeRate: dto.exchangeRate ?? 1.0,
+        issueDate: new Date(dto.issueDate),
+        subtotalPEN: dto.subtotalPEN,
+        igvAmountPEN: hasIgv ? igvAmount : 0,
+        totalAmountPEN: dto.totalAmountPEN,
+        notes: dto.notes ? dto.notes.trim() : null,
+      },
+      include: {
+        warehouse: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+          },
+        },
+      },
+    });
+
+    const processedDetails = [];
+    const movementItemsData = [];
+
+    for (const itemDto of dto.items) {
+      const factor = Number(itemDto.conversionFactor ?? 1.0);
+      const purchaseQty = Number(itemDto.purchaseQty);
+      const baseQty = Number((purchaseQty * factor).toFixed(4));
+      const rate = Number(dto.exchangeRate ?? 1.0);
+      const unitPriceOrig = Number(itemDto.unitPriceOriginal);
+
+      // Costo unitario neto por unidad base en Soles:
+      // C_unitPEN = (unitPriceOriginal * exchangeRate) / conversionFactor
+      const unitCostBasePEN = Number(
+        ((unitPriceOrig * rate) / factor).toFixed(4),
       );
+      const detailSubtotalPEN = Number((baseQty * unitCostBasePEN).toFixed(2));
 
-      // Crear encabezado de Purchase con warehouseId y notes
-      const purchase = await tx.purchase.create({
+      // Insertar PurchaseDetail con notes
+      const detail = await tx.purchaseDetail.create({
         data: {
-          supplierId: dto.supplierId,
-          warehouseId: targetWarehouseId,
-          invoiceSeries: dto.invoiceSeries.trim(),
-          voucherType: dto.voucherType?.trim() || 'FACTURA',
-          hasIgv,
-          currency: dto.currency ?? Currency.PEN,
-          exchangeRate: dto.exchangeRate ?? 1.0,
-          issueDate: new Date(dto.issueDate),
-          subtotalPEN: dto.subtotalPEN,
-          igvAmountPEN: hasIgv ? igvAmount : 0,
-          totalAmountPEN: dto.totalAmountPEN,
-          notes: dto.notes ? dto.notes.trim() : null,
-        },
-        include: {
-          warehouse: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
-            },
-          },
-        },
-      });
-
-      const processedDetails = [];
-      const movementItemsData = [];
-
-      for (const itemDto of dto.items) {
-        const factor = Number(itemDto.conversionFactor ?? 1.0);
-        const purchaseQty = Number(itemDto.purchaseQty);
-        const baseQty = Number((purchaseQty * factor).toFixed(4));
-        const rate = Number(dto.exchangeRate ?? 1.0);
-        const unitPriceOrig = Number(itemDto.unitPriceOriginal);
-
-        // Costo unitario neto por unidad base en Soles:
-        // C_unitPEN = (unitPriceOriginal * exchangeRate) / conversionFactor
-        const unitCostBasePEN = Number(
-          ((unitPriceOrig * rate) / factor).toFixed(4),
-        );
-        const detailSubtotalPEN = Number((baseQty * unitCostBasePEN).toFixed(2));
-
-        // Insertar PurchaseDetail con notes
-        const detail = await tx.purchaseDetail.create({
-          data: {
-            purchaseId: purchase.id,
-            itemId: itemDto.itemId,
-            purchaseUnit: itemDto.purchaseUnit.trim(),
-            conversionFactor: factor,
-            purchaseQty,
-            baseQty,
-            unitPriceOriginal: unitPriceOrig,
-            unitCostBasePEN,
-            subtotalPEN: detailSubtotalPEN,
-            notes: itemDto.notes ? itemDto.notes.trim() : null,
-          },
-        });
-
-        // Recuperar stock previo en el almacen de destino de la compra
-        const existingStock = await tx.stock.findUnique({
-          where: {
-            warehouseId_itemId: {
-              warehouseId: targetWarehouseId,
-              itemId: itemDto.itemId,
-            },
-          },
-        });
-
-        const prevQty = existingStock ? Number(existingStock.physicalQty) : 0;
-        const prevCPP = existingStock ? Number(existingStock.averageCost) : 0;
-
-        // Formula de Costo Promedio Ponderado (CPP / WAC)
-        // Si ingresa sin valorizar (unitCostBasePEN <= 0 ej. Guia de Remision a costo 0), se preserva el CPP previo
-        let newCPP: number;
-        if (unitCostBasePEN <= 0) {
-          newCPP = prevCPP > 0 ? prevCPP : 0;
-        } else if (prevQty <= 0 || prevCPP <= 0) {
-          newCPP = unitCostBasePEN;
-        } else {
-          const prevTotalVal = prevQty * prevCPP;
-          const incomingVal = baseQty * unitCostBasePEN;
-          newCPP = Number(
-            ((prevTotalVal + incomingVal) / (prevQty + baseQty)).toFixed(4),
-          );
-        }
-
-        const newPhysicalQty = Number((prevQty + baseQty).toFixed(4));
-
-        // Actualizar o crear registro de Stock en el almacen de destino
-        await tx.stock.upsert({
-          where: {
-            warehouseId_itemId: {
-              warehouseId: targetWarehouseId,
-              itemId: itemDto.itemId,
-            },
-          },
-          update: {
-            physicalQty: newPhysicalQty,
-            averageCost: newCPP,
-          },
-          create: {
-            warehouseId: targetWarehouseId,
-            itemId: itemDto.itemId,
-            physicalQty: newPhysicalQty,
-            averageCost: newCPP,
-          },
-        });
-
-        const detailEntry: Record<string, unknown> = {
-          id: detail.id,
+          purchaseId: purchase.id,
           itemId: itemDto.itemId,
+          purchaseUnit: itemDto.purchaseUnit.trim(),
+          conversionFactor: factor,
           purchaseQty,
           baseQty,
+          unitPriceOriginal: unitPriceOrig,
           unitCostBasePEN,
-          newWarehousePhysicalQty: newPhysicalQty,
-          notes: detail.notes,
-        };
-        if (userRole !== Role.WAREHOUSE_KEEPER) {
-          detailEntry.newWarehouseAverageCost = newCPP;
-        }
-        processedDetails.push(detailEntry);
+          subtotalPEN: detailSubtotalPEN,
+          notes: itemDto.notes ? itemDto.notes.trim() : null,
+        },
+      });
 
-        movementItemsData.push({
-          itemId: itemDto.itemId,
-          quantity: baseQty,
-          unitCostSnapshot: unitCostBasePEN,
-          totalCostSnapshot: detailSubtotalPEN,
-        });
-      }
-
-      // Crear movimiento inmutable de Kardex tipo PURCHASE_ENTRY
-      const movement = await tx.movement.create({
-        data: {
-          movementNumber,
-          type: MovementType.PURCHASE_ENTRY,
-          originWarehouseId: null,
-          destWarehouseId: targetWarehouseId,
-          userId,
-          observation: `Ingreso por compra segun ${purchase.voucherType} ${dto.invoiceSeries.trim()}${
-            dto.notes ? ` - ${dto.notes.trim()}` : ''
-          }`,
-          items: {
-            create: movementItemsData,
+      // Recuperar stock previo en el almacen de destino de la compra
+      const existingStock = await tx.stock.findUnique({
+        where: {
+          warehouseId_itemId: {
+            warehouseId: targetWarehouseId,
+            itemId: itemDto.itemId,
           },
         },
       });
 
-      return {
-        id: purchase.id,
-        supplierId: purchase.supplierId,
-        warehouseId: purchase.warehouseId,
-        warehouse: purchase.warehouse,
-        invoiceSeries: purchase.invoiceSeries,
-        voucherType: purchase.voucherType,
-        hasIgv: purchase.hasIgv,
-        currency: purchase.currency,
-        exchangeRate: purchase.exchangeRate,
-        issueDate: purchase.issueDate,
-        subtotalPEN: purchase.subtotalPEN,
-        igvAmountPEN: purchase.igvAmountPEN,
-        totalAmountPEN: purchase.totalAmountPEN,
-        notes: purchase.notes,
-        movementId: movement.id,
-        movementNumber: movement.movementNumber,
-        details: processedDetails,
+      const prevQty = existingStock ? Number(existingStock.physicalQty) : 0;
+      const prevCPP = existingStock ? Number(existingStock.averageCost) : 0;
+
+      // Formula de Costo Promedio Ponderado (CPP / WAC)
+      // Si ingresa sin valorizar (unitCostBasePEN <= 0 ej. Guia de Remision a costo 0), se preserva el CPP previo
+      let newCPP: number;
+      if (unitCostBasePEN <= 0) {
+        newCPP = prevCPP > 0 ? prevCPP : 0;
+      } else if (prevQty <= 0 || prevCPP <= 0) {
+        newCPP = unitCostBasePEN;
+      } else {
+        const prevTotalVal = prevQty * prevCPP;
+        const incomingVal = baseQty * unitCostBasePEN;
+        newCPP = Number(
+          ((prevTotalVal + incomingVal) / (prevQty + baseQty)).toFixed(4),
+        );
+      }
+
+      const newPhysicalQty = Number((prevQty + baseQty).toFixed(4));
+
+      // Actualizar o crear registro de Stock en el almacen de destino
+      await tx.stock.upsert({
+        where: {
+          warehouseId_itemId: {
+            warehouseId: targetWarehouseId,
+            itemId: itemDto.itemId,
+          },
+        },
+        update: {
+          physicalQty: newPhysicalQty,
+          averageCost: newCPP,
+        },
+        create: {
+          warehouseId: targetWarehouseId,
+          itemId: itemDto.itemId,
+          physicalQty: newPhysicalQty,
+          averageCost: newCPP,
+        },
+      });
+
+      const detailEntry: Record<string, unknown> = {
+        id: detail.id,
+        itemId: itemDto.itemId,
+        purchaseQty,
+        baseQty,
+        unitCostBasePEN,
+        newWarehousePhysicalQty: newPhysicalQty,
+        notes: detail.notes,
       };
+      if (userRole !== Role.WAREHOUSE_KEEPER) {
+        detailEntry.newWarehouseAverageCost = newCPP;
+      }
+      processedDetails.push(detailEntry);
+
+      movementItemsData.push({
+        itemId: itemDto.itemId,
+        quantity: baseQty,
+        unitCostSnapshot: unitCostBasePEN,
+        totalCostSnapshot: detailSubtotalPEN,
+      });
+    }
+
+    // Crear movimiento inmutable de Kardex tipo PURCHASE_ENTRY
+    const movement = await tx.movement.create({
+      data: {
+        movementNumber,
+        type: MovementType.PURCHASE_ENTRY,
+        originWarehouseId: null,
+        destWarehouseId: targetWarehouseId,
+        userId,
+        observation: `Ingreso por compra segun ${purchase.voucherType} ${dto.invoiceSeries.trim()}${
+          dto.notes ? ` - ${dto.notes.trim()}` : ''
+        }`,
+        items: {
+          create: movementItemsData,
+        },
+      },
+    });
+
+    return {
+      id: purchase.id,
+      supplierId: purchase.supplierId,
+      warehouseId: purchase.warehouseId,
+      warehouse: purchase.warehouse,
+      invoiceSeries: purchase.invoiceSeries,
+      voucherType: purchase.voucherType,
+      hasIgv: purchase.hasIgv,
+      currency: purchase.currency,
+      exchangeRate: purchase.exchangeRate,
+      issueDate: purchase.issueDate,
+      subtotalPEN: purchase.subtotalPEN,
+      igvAmountPEN: purchase.igvAmountPEN,
+      totalAmountPEN: purchase.totalAmountPEN,
+      notes: purchase.notes,
+      movementId: movement.id,
+      movementNumber: movement.movementNumber,
+      details: processedDetails,
+    };
+  }
+
+  // Registrar compra e ingreso a Almacen (Central o de Obra) con recalculo atomico de CPP
+  async create(
+    dto: CreatePurchaseDto,
+    user: { id: string; role: Role } | string,
+  ) {
+    const validated = await this.validateCreatePayload(dto, user);
+
+    return this.prisma.$transaction(async (tx) => {
+      return this.createInTransaction(tx, dto, validated);
     });
   }
 
@@ -542,15 +585,16 @@ export class PurchasesService {
       currentWeightedAverageCostPEN = Number(stocks[0].averageCost);
     }
 
-    // 3. Consultar historico de compras para este insumo
+    // 3. Consultar historico de compras activas para este insumo (excluyendo anuladas)
     const detailWhere: Prisma.PurchaseDetailWhereInput = {
       itemId: item.id,
+      purchase: {
+        isReverted: false,
+        ...(query.warehouseId && query.warehouseId !== 'ALL'
+          ? { warehouseId: query.warehouseId }
+          : {}),
+      },
     };
-    if (query.warehouseId && query.warehouseId !== 'ALL') {
-      detailWhere.purchase = {
-        warehouseId: query.warehouseId,
-      };
-    }
 
     const purchaseDetails = await this.prisma.purchaseDetail.findMany({
       where: detailWhere,
@@ -650,6 +694,12 @@ export class PurchasesService {
 
     if (!purchase) {
       throw new NotFoundException('Comprobante de compra no encontrado');
+    }
+
+    if (purchase.isReverted) {
+      throw new BadRequestException(
+        'No se puede valorizar un comprobante de compra anulado',
+      );
     }
 
     const hasUnvaluedDetail = purchase.details.some(
@@ -796,6 +846,12 @@ export class PurchasesService {
               type: true,
             },
           },
+          revertedBy: {
+            select: {
+              id: true,
+              fullName: true,
+            },
+          },
           details: {
             include: {
               item: {
@@ -812,6 +868,367 @@ export class PurchasesService {
           documents: true,
         },
       });
+    });
+  }
+
+  // Logica interna de reversion de compra reutilizable en revertPurchase y replacePurchase
+  private async revertInTransaction(
+    tx: Prisma.TransactionClient,
+    id: string,
+    reversalReason: string,
+    user: { id: string; role: Role },
+  ) {
+    const purchase = await tx.purchase.findUnique({
+      where: { id },
+      include: {
+        details: {
+          include: {
+            item: {
+              select: { id: true, sku: true, name: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!purchase) {
+      throw new NotFoundException('Comprobante de compra no encontrado');
+    }
+
+    if (purchase.isReverted) {
+      throw new ConflictException('La compra ya fue anulada previamente');
+    }
+
+    const warehouseId = purchase.warehouseId;
+    if (!warehouseId) {
+      throw new BadRequestException(
+        'La compra no tiene un almacen asociado para revertir existencias',
+      );
+    }
+
+    if (user.role === Role.WAREHOUSE_KEEPER) {
+      const allowedIds = await this.getAllowedWarehouseIds(user.id);
+      if (!allowedIds.includes(warehouseId)) {
+        throw new ForbiddenException(
+          'No tiene permisos para anular compras de este almacen',
+        );
+      }
+    }
+
+    const reasonTrimmed = reversalReason.trim();
+    const now = new Date();
+    const reversalItemsData = [];
+
+    for (const detail of purchase.details) {
+      const stock = await tx.stock.findUnique({
+        where: {
+          warehouseId_itemId: {
+            warehouseId,
+            itemId: detail.itemId,
+          },
+        },
+      });
+
+      const sAct = stock ? Number(stock.physicalQty) : 0;
+      const reservedQty = stock ? Number(stock.reservedQty) : 0;
+      const loanedQty = stock ? Number(stock.loanedQty) : 0;
+      const availableForExit = Number(
+        (sAct - reservedQty - loanedQty).toFixed(4),
+      );
+      const qRev = Number(detail.baseQty);
+      const cRev = Number(detail.unitCostBasePEN);
+
+      if (!stock || availableForExit < qRev) {
+        throw new BadRequestException(
+          `No se puede anular la compra: el insumo ${detail.item.sku} solo tiene ${availableForExit} unidades libres en almacen y se requieren retirar ${qRev}. Revierta primero los consumos, prestamos o transferencias posteriores.`,
+        );
+      }
+
+      const cppAct = Number(stock.averageCost);
+      const sNew = Math.max(0, Number((sAct - qRev).toFixed(4)));
+      let cppNew: number;
+
+      if (sNew <= 0) {
+        cppNew = 0;
+      } else if (cRev <= 0) {
+        cppNew = cppAct;
+      } else {
+        const remainingVal = sAct * cppAct - qRev * cRev;
+        if (remainingVal > 0) {
+          cppNew = Number((remainingVal / sNew).toFixed(4));
+        } else {
+          const priorDetail = await tx.purchaseDetail.findFirst({
+            where: {
+              itemId: detail.itemId,
+              unitCostBasePEN: { gt: 0 },
+              purchase: {
+                isReverted: false,
+                warehouseId,
+                id: { not: purchase.id },
+              },
+            },
+            orderBy: [{ purchase: { issueDate: 'desc' } }, { id: 'desc' }],
+            select: { unitCostBasePEN: true },
+          });
+          cppNew = priorDetail ? Number(priorDetail.unitCostBasePEN) : 0;
+        }
+      }
+
+      await tx.stock.update({
+        where: {
+          warehouseId_itemId: {
+            warehouseId,
+            itemId: detail.itemId,
+          },
+        },
+        data: {
+          physicalQty: sNew,
+          averageCost: cppNew,
+        },
+      });
+
+      reversalItemsData.push({
+        itemId: detail.itemId,
+        quantity: qRev,
+        unitCostSnapshot: cRev,
+        totalCostSnapshot: Number((qRev * cRev).toFixed(2)),
+      });
+    }
+
+    // Buscar movimiento PURCHASE_ENTRY original para marcarlo como revertido
+    let originalMovement = await tx.movement.findFirst({
+      where: {
+        type: MovementType.PURCHASE_ENTRY,
+        destWarehouseId: warehouseId,
+        isReverted: false,
+        observation: {
+          startsWith: `Ingreso por compra segun ${purchase.voucherType} ${purchase.invoiceSeries}`,
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!originalMovement && purchase.createdAt) {
+      const windowStart = new Date(purchase.createdAt.getTime() - 5000);
+      const windowEnd = new Date(purchase.createdAt.getTime() + 5000);
+      originalMovement = await tx.movement.findFirst({
+        where: {
+          type: MovementType.PURCHASE_ENTRY,
+          destWarehouseId: warehouseId,
+          isReverted: false,
+          createdAt: { gte: windowStart, lte: windowEnd },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+
+    if (originalMovement) {
+      await tx.movement.update({
+        where: { id: originalMovement.id },
+        data: {
+          isReverted: true,
+          revertedAt: now,
+          revertedById: user.id,
+          reversalReason: reasonTrimmed,
+        },
+      });
+    }
+
+    const movementNumber = await this.sequenceGenerator.getNextCode(tx, 'MOV');
+    const reversalMovement = await tx.movement.create({
+      data: {
+        movementNumber,
+        type: MovementType.REVERSAL_EXIT,
+        originWarehouseId: warehouseId,
+        destWarehouseId: null,
+        userId: user.id,
+        reversesMovementId: originalMovement?.id ?? null,
+        observation: `Anulacion de compra ${purchase.invoiceSeries}: ${reasonTrimmed}`,
+        items: {
+          create: reversalItemsData,
+        },
+      },
+    });
+
+    const updatedPurchase = await tx.purchase.update({
+      where: { id: purchase.id },
+      data: {
+        isReverted: true,
+        revertedAt: now,
+        revertedById: user.id,
+        reversalReason: reasonTrimmed,
+        reversalMovementId: reversalMovement.id,
+      },
+      include: {
+        supplier: true,
+        warehouse: {
+          select: { id: true, name: true, type: true },
+        },
+        revertedBy: {
+          select: { id: true, fullName: true },
+        },
+        details: {
+          include: {
+            item: {
+              select: {
+                id: true,
+                sku: true,
+                name: true,
+                baseUnit: true,
+                type: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return {
+      ...updatedPurchase,
+      reversalMovement: {
+        id: reversalMovement.id,
+        movementNumber: reversalMovement.movementNumber,
+        type: reversalMovement.type,
+      },
+    };
+  }
+
+  // Nivel 1: Anular / revertir una compra, restaurar stock, CPP y asentar contra-asiento
+  async revertPurchase(
+    id: string,
+    dto: RevertPurchaseDto,
+    user: { id: string; role: Role },
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      return this.revertInTransaction(tx, id, dto.reversalReason, user);
+    });
+  }
+
+  // Nivel 2: Editar metadatos no contables de cabecera y notas por renglon
+  async updateMetadata(
+    id: string,
+    dto: UpdatePurchaseMetadataDto,
+    user: { id: string; role: Role },
+  ) {
+    const purchase = await this.prisma.purchase.findUnique({
+      where: { id },
+      include: { details: true },
+    });
+
+    if (!purchase) {
+      throw new NotFoundException('Comprobante de compra no encontrado');
+    }
+
+    if (purchase.isReverted) {
+      throw new BadRequestException(
+        'No se pueden editar metadatos de una compra anulada',
+      );
+    }
+
+    if (user.role === Role.WAREHOUSE_KEEPER) {
+      const allowedIds = await this.getAllowedWarehouseIds(user.id);
+      if (!purchase.warehouseId || !allowedIds.includes(purchase.warehouseId)) {
+        throw new ForbiddenException(
+          'No tiene permisos para editar compras de este almacen',
+        );
+      }
+    }
+
+    if (dto.supplierId) {
+      const supplier = await this.prisma.supplier.findUnique({
+        where: { id: dto.supplierId },
+      });
+      if (!supplier) {
+        throw new NotFoundException('Proveedor no encontrado');
+      }
+    }
+
+    if (dto.itemNotes?.length) {
+      const detailIds = new Set(purchase.details.map((d) => d.id));
+      for (const noteItem of dto.itemNotes) {
+        if (!detailIds.has(noteItem.detailId)) {
+          throw new BadRequestException(
+            `El detalle con ID ${noteItem.detailId} no pertenece a esta compra`,
+          );
+        }
+      }
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.purchase.update({
+        where: { id },
+        data: {
+          supplierId: dto.supplierId ?? undefined,
+          invoiceSeries: dto.invoiceSeries
+            ? dto.invoiceSeries.trim()
+            : undefined,
+          voucherType: dto.voucherType ? dto.voucherType.trim() : undefined,
+          issueDate: dto.issueDate ? new Date(dto.issueDate) : undefined,
+          notes:
+            dto.notes !== undefined
+              ? dto.notes.trim() || null
+              : undefined,
+        },
+      });
+
+      if (dto.itemNotes?.length) {
+        for (const noteItem of dto.itemNotes) {
+          await tx.purchaseDetail.update({
+            where: { id: noteItem.detailId },
+            data: {
+              notes: noteItem.notes.trim() || null,
+            },
+          });
+        }
+      }
+
+      return tx.purchase.findUnique({
+        where: { id },
+        include: {
+          supplier: true,
+          warehouse: {
+            select: { id: true, name: true, type: true },
+          },
+          revertedBy: {
+            select: { id: true, fullName: true },
+          },
+          details: {
+            include: {
+              item: {
+                select: {
+                  id: true,
+                  sku: true,
+                  name: true,
+                  baseUnit: true,
+                  type: true,
+                },
+              },
+            },
+          },
+          documents: true,
+        },
+      });
+    });
+  }
+
+  // Nivel 3: Revertir compra original y registrar reemplazo atomico
+  async replacePurchase(
+    id: string,
+    dto: ReplacePurchaseDto,
+    user: { id: string; role: Role },
+  ) {
+    const validated = await this.validateCreatePayload(dto, user);
+
+    return this.prisma.$transaction(async (tx) => {
+      await this.revertInTransaction(tx, id, dto.reversalReason, user);
+      const newPurchase = await this.createInTransaction(tx, dto, validated);
+
+      await tx.purchase.update({
+        where: { id },
+        data: { replacedById: newPurchase.id },
+      });
+
+      return newPurchase;
     });
   }
 }

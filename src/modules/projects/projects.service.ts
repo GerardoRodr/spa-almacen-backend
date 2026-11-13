@@ -539,9 +539,12 @@ export class ProjectsService {
 
     const itemIds = requirements.map((r) => r.itemId);
 
-    // 1. Consultar menor costo unitario historico de compra en PurchaseDetail
+    // 1. Consultar menor costo unitario historico de compra activa en PurchaseDetail
     const purchaseDetails = await this.prisma.purchaseDetail.findMany({
-      where: { itemId: { in: itemIds } },
+      where: {
+        itemId: { in: itemIds },
+        purchase: { isReverted: false },
+      },
       select: { itemId: true, unitCostBasePEN: true },
     });
 

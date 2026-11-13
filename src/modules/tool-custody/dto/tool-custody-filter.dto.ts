@@ -63,4 +63,22 @@ export class ToolCustodyFilterDto {
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean({ message: 'onlyPending debe ser un booleano' })
   onlyPending?: boolean;
+
+  @ApiPropertyOptional({
+    example: true,
+    default: true,
+    description: 'Si es false, excluye vales anulados (isReverted = true)',
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'false' || value === false || value === '0' || value === 0) {
+      return false;
+    }
+    if (value === 'true' || value === true || value === '1' || value === 1) {
+      return true;
+    }
+    return value;
+  })
+  @IsBoolean({ message: 'includeReverted debe ser booleano' })
+  includeReverted?: boolean = true;
 }

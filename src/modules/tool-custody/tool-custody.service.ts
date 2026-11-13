@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ItemType,
@@ -15,6 +16,9 @@ import { SequenceGeneratorService } from '../../common/services/sequence-generat
 import { DispatchToolCustodyDto } from './dto/dispatch-tool-custody.dto.js';
 import { ReturnToolCustodyDto } from './dto/return-tool-custody.dto.js';
 import { ToolCustodyFilterDto } from './dto/tool-custody-filter.dto.js';
+import { RevertCustodyDto } from './dto/revert-custody.dto.js';
+import { UpdateToolCustodyMetadataDto } from './dto/update-tool-custody-metadata.dto.js';
+import { ReplaceToolCustodyDto } from './dto/replace-tool-custody.dto.js';
 
 @Injectable()
 export class ToolCustodyService {
@@ -67,6 +71,9 @@ export class ToolCustodyService {
 
     if (filter.onlyPending) {
       where.returnDate = null;
+      where.isReverted = false;
+    } else if (filter.includeReverted === false) {
+      where.isReverted = false;
     }
 
     const [total, data] = await Promise.all([
@@ -181,34 +188,11 @@ export class ToolCustodyService {
 
   // Despachar herramienta en prestamo (LOAN_DISPATCH)
   async dispatch(dto: DispatchToolCustodyDto, userId: string) {
-    // 1. Validar existencia y estado del almacen
-    const warehouse = await this.prisma.warehouse.findUnique({
-      where: { id: dto.warehouseId },
-    });
-    if (!warehouse) {
-      throw new NotFoundException('Almacen no encontrado');
-    }
-    if (!warehouse.isActive) {
-      throw new BadRequestException('El almacen no se encuentra activo');
-    }
-
-    // 2. Validar que el item exista y sea TOOL o EQUIPMENT
-    const item = await this.prisma.item.findUnique({
-      where: { id: dto.itemId },
-    });
-    if (!item) {
-      throw new NotFoundException('Item no encontrado');
-    }
-    const allowedCustodyTypes: ItemType[] = [ItemType.TOOL, ItemType.EQUIPMENT];
-    if (!allowedCustodyTypes.includes(item.type)) {
-      throw new BadRequestException(
-        'Solo los items clasificados como TOOL o EQUIPMENT pueden ser despachados en prestamo y custodia',
-      );
-    }
+    await this.validateDispatchStatic(dto);
 
     const qty = Number(dto.quantity ?? 1);
 
-    // 3. Validar disponibilidad de stock en caseta: physicalQty - loanedQty >= qty
+    // Validar disponibilidad de stock en caseta: physicalQty - loanedQty >= qty
     const stock = await this.prisma.stock.findUnique({
       where: {
         warehouseId_itemId: {
@@ -234,95 +218,10 @@ export class ToolCustodyService {
       );
     }
 
-    // 4. Ejecutar transaccion atomica
-    return this.prisma.$transaction(async (tx) => {
-      // Generar correlativos inmutables atomicos
-      const custodyNumber = await this.sequenceGenerator.getNextCode(
-        tx,
-        'VALE',
-      );
-      const movementNumber = await this.sequenceGenerator.getNextCode(
-        tx,
-        'MOV',
-      );
-
-      // Incrementar Stock.loanedQty
-      const newLoanedQty = Number((loanedQty + qty).toFixed(4));
-      await tx.stock.update({
-        where: {
-          warehouseId_itemId: {
-            warehouseId: dto.warehouseId,
-            itemId: dto.itemId,
-          },
-        },
-        data: {
-          loanedQty: newLoanedQty,
-        },
-      });
-
-      // Crear registro de custodia
-      const custody = await tx.toolCustody.create({
-        data: {
-          custodyNumber,
-          itemId: dto.itemId,
-          warehouseId: dto.warehouseId,
-          quantity: qty,
-          serialOrCode: dto.serialOrCode ? dto.serialOrCode.trim() : null,
-          assignedToName: dto.assignedToName.trim(),
-          assignedToDni: dto.assignedToDni.trim(),
-          dispatchedById: userId,
-          expectedReturnDate: dto.expectedReturnDate
-            ? new Date(dto.expectedReturnDate)
-            : null,
-          conditionOnDispatch: dto.conditionOnDispatch ?? ToolCondition.OPERATIVE,
-          notes: dto.notes ? dto.notes.trim() : null,
-        },
-        include: {
-          item: { select: { sku: true, name: true, baseUnit: true } },
-          warehouse: { select: { name: true } },
-        },
-      });
-
-      // Registrar movimiento inmutable LOAN_DISPATCH
-      const unitCost = Number(stock.averageCost);
-      await tx.movement.create({
-        data: {
-          movementNumber,
-          type: MovementType.LOAN_DISPATCH,
-          originWarehouseId: dto.warehouseId,
-          destWarehouseId: null,
-          userId,
-          recipientName: dto.assignedToName.trim(),
-          recipientDni: dto.assignedToDni.trim(),
-          observation: `Prestamo en custodia segun vale ${custodyNumber}${
-            dto.serialOrCode ? ` - Serie: ${dto.serialOrCode.trim()}` : ''
-          }`,
-          items: {
-            create: [
-              {
-                itemId: dto.itemId,
-                quantity: qty,
-                unitCostSnapshot: unitCost,
-                totalCostSnapshot: Number((qty * unitCost).toFixed(2)),
-              },
-            ],
-          },
-        },
-      });
-
-      return {
-        id: custody.id,
-        custodyNumber: custody.custodyNumber,
-        movementNumber,
-        assignedToName: custody.assignedToName,
-        assignedToDni: custody.assignedToDni,
-        quantity: custody.quantity,
-        dispatchDate: custody.dispatchDate,
-        conditionOnDispatch: custody.conditionOnDispatch,
-        item: custody.item,
-        warehouse: custody.warehouse,
-      };
-    });
+    // Ejecutar transaccion atomica
+    return this.prisma.$transaction((tx) =>
+      this.executeDispatchInTx(tx, dto, userId, stock),
+    );
   }
 
   // Procesar devolucion y calificacion fisica de herramienta
@@ -338,6 +237,12 @@ export class ToolCustodyService {
 
     if (!custody) {
       throw new NotFoundException('Vale de custodia no encontrado');
+    }
+
+    if (custody.isReverted) {
+      throw new BadRequestException(
+        'No se puede registrar devolucion de un vale anulado',
+      );
     }
 
     if (custody.returnDate !== null) {
@@ -491,6 +396,7 @@ export class ToolCustodyService {
       where: {
         assignedToDni: dni.trim(),
         returnDate: null,
+        isReverted: false,
       },
       include: {
         item: {
@@ -527,5 +433,593 @@ export class ToolCustodyService {
         warehouse: loan.warehouse,
       })),
     };
+  }
+
+  // Nivel 1A: Anular despacho de vale de custodia sin devolucion registrada
+  async revertDispatch(
+    id: string,
+    dto: RevertCustodyDto,
+    user: { id: string; role: Role },
+  ) {
+    const custody = await this.prisma.toolCustody.findUnique({
+      where: { id },
+    });
+
+    if (!custody) {
+      throw new NotFoundException('Vale de custodia no encontrado');
+    }
+
+    if (custody.isReverted) {
+      throw new BadRequestException('Este vale de custodia ya fue anulado');
+    }
+
+    if (custody.returnDate !== null) {
+      throw new BadRequestException(
+        'No se puede anular el despacho porque ya existe una devolucion registrada; revierta primero la devolucion',
+      );
+    }
+
+    await this.assertCustodyWarehouseAccess(user, custody.warehouseId);
+
+    return this.prisma.$transaction((tx) =>
+      this.revertDispatchInTx(tx, custody, user.id, dto.reason),
+    );
+  }
+
+  // Nivel 1B: Revertir devolucion registrada en vale de custodia (conforme o baja patrimonial)
+  async revertReturn(
+    id: string,
+    dto: RevertCustodyDto,
+    user: { id: string; role: Role },
+  ) {
+    const custody = await this.prisma.toolCustody.findUnique({
+      where: { id },
+    });
+
+    if (!custody) {
+      throw new NotFoundException('Vale de custodia no encontrado');
+    }
+
+    if (custody.isReverted) {
+      throw new BadRequestException(
+        'No se puede revertir la devolucion de un vale anulado',
+      );
+    }
+
+    if (custody.returnDate === null || custody.conditionOnReturn === null) {
+      throw new BadRequestException(
+        'El vale de custodia no tiene una devolucion registrada para revertir',
+      );
+    }
+
+    await this.assertCustodyWarehouseAccess(user, custody.warehouseId);
+
+    const reason = dto.reason.trim();
+    const now = new Date();
+    const qty = Number(custody.quantity);
+
+    const wasConforming =
+      custody.conditionOnReturn === ToolCondition.NEW ||
+      custody.conditionOnReturn === ToolCondition.OPERATIVE ||
+      custody.conditionOnReturn === ToolCondition.DAMAGED_USABLE ||
+      custody.conditionOnReturn === ToolCondition.MAINTENANCE_REQUIRED;
+
+    return this.prisma.$transaction(async (tx) => {
+      const stock = await tx.stock.findUnique({
+        where: {
+          warehouseId_itemId: {
+            warehouseId: custody.warehouseId,
+            itemId: custody.itemId,
+          },
+        },
+      });
+
+      if (!stock) {
+        throw new NotFoundException(
+          'No se encontro registro de stock para revertir la devolucion del vale',
+        );
+      }
+
+      const unitCost = Number(stock.averageCost);
+      const currentLoaned = Number(stock.loanedQty);
+      const currentPhysical = Number(stock.physicalQty);
+
+      if (wasConforming) {
+        const availableForLoan =
+          currentPhysical - Number(stock.reservedQty) - currentLoaned;
+        if (availableForLoan < qty) {
+          throw new BadRequestException(
+            `Stock disponible insuficiente para reabrir el prestamo del vale ${custody.custodyNumber}. Disponible: ${availableForLoan}, Requerido: ${qty}`,
+          );
+        }
+
+        await tx.stock.update({
+          where: {
+            warehouseId_itemId: {
+              warehouseId: custody.warehouseId,
+              itemId: custody.itemId,
+            },
+          },
+          data: {
+            loanedQty: Number((currentLoaned + qty).toFixed(4)),
+          },
+        });
+
+        const returnMov = await tx.movement.findFirst({
+          where: {
+            type: MovementType.LOAN_RETURN,
+            destWarehouseId: custody.warehouseId,
+            isReverted: false,
+            observation: { contains: custody.custodyNumber },
+          },
+        });
+
+        if (returnMov) {
+          await tx.movement.update({
+            where: { id: returnMov.id },
+            data: {
+              isReverted: true,
+              revertedAt: now,
+              revertedById: user.id,
+              reversalReason: reason,
+            },
+          });
+        }
+
+        const movCode = await this.sequenceGenerator.getNextCode(tx, 'MOV');
+        await tx.movement.create({
+          data: {
+            movementNumber: movCode,
+            type: MovementType.REVERSAL_EXIT,
+            originWarehouseId: custody.warehouseId,
+            userId: user.id,
+            reversesMovementId: returnMov?.id ?? null,
+            observation: `Reversion de devolucion ${custody.custodyNumber}: ${reason}`,
+            items: {
+              create: [
+                {
+                  itemId: custody.itemId,
+                  quantity: qty,
+                  unitCostSnapshot: unitCost,
+                  totalCostSnapshot: Number((qty * unitCost).toFixed(2)),
+                },
+              ],
+            },
+          },
+        });
+      } else {
+        // Devolucion por perdida o dano irreparable habia descontado physicalQty y loanedQty
+        await tx.stock.update({
+          where: {
+            warehouseId_itemId: {
+              warehouseId: custody.warehouseId,
+              itemId: custody.itemId,
+            },
+          },
+          data: {
+            physicalQty: Number((currentPhysical + qty).toFixed(4)),
+            loanedQty: Number((currentLoaned + qty).toFixed(4)),
+          },
+        });
+
+        const shrinkageMov = await tx.movement.findFirst({
+          where: {
+            type: MovementType.SHRINKAGE_EXIT,
+            originWarehouseId: custody.warehouseId,
+            isReverted: false,
+            observation: { contains: custody.custodyNumber },
+          },
+        });
+
+        if (shrinkageMov) {
+          await tx.movement.update({
+            where: { id: shrinkageMov.id },
+            data: {
+              isReverted: true,
+              revertedAt: now,
+              revertedById: user.id,
+              reversalReason: reason,
+            },
+          });
+        }
+
+        const movCode = await this.sequenceGenerator.getNextCode(tx, 'MOV');
+        await tx.movement.create({
+          data: {
+            movementNumber: movCode,
+            type: MovementType.REVERSAL_ENTRY,
+            destWarehouseId: custody.warehouseId,
+            userId: user.id,
+            reversesMovementId: shrinkageMov?.id ?? null,
+            observation: `Reversion de baja patrimonial ${custody.custodyNumber}: ${reason}`,
+            items: {
+              create: [
+                {
+                  itemId: custody.itemId,
+                  quantity: qty,
+                  unitCostSnapshot: unitCost,
+                  totalCostSnapshot: Number((qty * unitCost).toFixed(2)),
+                },
+              ],
+            },
+          },
+        });
+      }
+
+      return tx.toolCustody.update({
+        where: { id: custody.id },
+        data: {
+          returnDate: null,
+          conditionOnReturn: null,
+          receivedById: null,
+          returnNotes: null,
+        },
+      });
+    });
+  }
+
+  // Nivel 2: Editar metadatos no contables del vale de custodia
+  async updateMetadata(
+    id: string,
+    dto: UpdateToolCustodyMetadataDto,
+    user: { id: string; role: Role },
+  ) {
+    const custody = await this.prisma.toolCustody.findUnique({
+      where: { id },
+    });
+
+    if (!custody) {
+      throw new NotFoundException('Vale de custodia no encontrado');
+    }
+
+    if (custody.isReverted) {
+      throw new BadRequestException(
+        'No se pueden editar metadatos de un vale anulado',
+      );
+    }
+
+    if (dto.returnNotes !== undefined && custody.returnDate === null) {
+      throw new BadRequestException(
+        'No se pueden editar notas de devolucion en un vale aun pendiente',
+      );
+    }
+
+    await this.assertCustodyWarehouseAccess(user, custody.warehouseId);
+
+    const data: Prisma.ToolCustodyUpdateInput = {};
+    if (dto.assignedToName !== undefined) {
+      data.assignedToName = dto.assignedToName.trim();
+    }
+    if (dto.assignedToDni !== undefined) {
+      data.assignedToDni = dto.assignedToDni.trim();
+    }
+    if (dto.serialOrCode !== undefined) {
+      data.serialOrCode = dto.serialOrCode.trim();
+    }
+    if (dto.expectedReturnDate !== undefined) {
+      data.expectedReturnDate = new Date(dto.expectedReturnDate);
+    }
+    if (dto.notes !== undefined) {
+      data.notes = dto.notes.trim();
+    }
+    if (dto.returnNotes !== undefined) {
+      data.returnNotes = dto.returnNotes.trim();
+    }
+
+    return this.prisma.toolCustody.update({
+      where: { id },
+      data,
+    });
+  }
+
+  // Nivel 3: Reemplazar atomicamente un vale de custodia pendiente sin devolucion
+  async replace(
+    id: string,
+    dto: ReplaceToolCustodyDto,
+    user: { id: string; role: Role },
+  ) {
+    const custody = await this.prisma.toolCustody.findUnique({
+      where: { id },
+    });
+
+    if (!custody) {
+      throw new NotFoundException('Vale de custodia no encontrado');
+    }
+
+    if (custody.isReverted) {
+      throw new BadRequestException('Este vale de custodia ya fue anulado');
+    }
+
+    if (custody.returnDate !== null) {
+      throw new BadRequestException(
+        'No se puede reemplazar un vale que ya tiene devolucion registrada',
+      );
+    }
+
+    await this.assertCustodyWarehouseAccess(user, custody.warehouseId);
+    if (dto.warehouseId !== custody.warehouseId) {
+      await this.assertCustodyWarehouseAccess(user, dto.warehouseId);
+    }
+
+    await this.validateDispatchStatic(dto);
+
+    return this.prisma.$transaction(async (tx) => {
+      const revertedCustody = await this.revertDispatchInTx(
+        tx,
+        custody,
+        user.id,
+        dto.reversalReason,
+      );
+
+      const replacementCustody = await this.executeDispatchInTx(
+        tx,
+        dto,
+        user.id,
+      );
+
+      await tx.toolCustody.update({
+        where: { id: custody.id },
+        data: { replacedById: replacementCustody.id },
+      });
+
+      return {
+        revertedCustody,
+        replacementCustody,
+      };
+    });
+  }
+
+  private async assertCustodyWarehouseAccess(
+    user: { id: string; role: Role },
+    warehouseId: string,
+  ) {
+    if (user.role !== Role.WAREHOUSE_KEEPER) {
+      return;
+    }
+
+    const userWarehouses = await this.prisma.userWarehouse.findMany({
+      where: { userId: user.id },
+      select: { warehouseId: true },
+    });
+    const allowedIds = userWarehouses.map((w) => w.warehouseId);
+    if (!allowedIds.includes(warehouseId)) {
+      throw new ForbiddenException(
+        'No tiene autorizacion para operar sobre vales de este almacen',
+      );
+    }
+  }
+
+  private async validateDispatchStatic(dto: DispatchToolCustodyDto) {
+    const warehouse = await this.prisma.warehouse.findUnique({
+      where: { id: dto.warehouseId },
+    });
+    if (!warehouse) {
+      throw new NotFoundException('Almacen no encontrado');
+    }
+    if (!warehouse.isActive) {
+      throw new BadRequestException('El almacen no se encuentra activo');
+    }
+
+    const item = await this.prisma.item.findUnique({
+      where: { id: dto.itemId },
+    });
+    if (!item) {
+      throw new NotFoundException('Item no encontrado');
+    }
+    const allowedCustodyTypes: ItemType[] = [ItemType.TOOL, ItemType.EQUIPMENT];
+    if (!allowedCustodyTypes.includes(item.type)) {
+      throw new BadRequestException(
+        'Solo los items clasificados como TOOL o EQUIPMENT pueden ser despachados en prestamo y custodia',
+      );
+    }
+  }
+
+  private async executeDispatchInTx(
+    tx: Prisma.TransactionClient,
+    dto: DispatchToolCustodyDto,
+    userId: string,
+    preloadedStock?: NonNullable<
+      Awaited<ReturnType<PrismaService['stock']['findUnique']>>
+    >,
+  ) {
+    const qty = Number(dto.quantity ?? 1);
+    const stock =
+      preloadedStock ??
+      (await tx.stock.findUnique({
+        where: {
+          warehouseId_itemId: {
+            warehouseId: dto.warehouseId,
+            itemId: dto.itemId,
+          },
+        },
+      }));
+
+    if (!stock) {
+      throw new BadRequestException(
+        'No existe stock registrado para este item en el almacen especificado',
+      );
+    }
+
+    const physicalQty = Number(stock.physicalQty);
+    const loanedQty = Number(stock.loanedQty);
+    const available = physicalQty - loanedQty;
+
+    if (available < qty) {
+      throw new BadRequestException(
+        `Stock insuficiente disponible para prestamo en caseta. Disponibles: ${available}, Solicitados: ${qty}`,
+      );
+    }
+
+    const custodyNumber = await this.sequenceGenerator.getNextCode(tx, 'VALE');
+    const movementNumber = await this.sequenceGenerator.getNextCode(tx, 'MOV');
+
+    const newLoanedQty = Number((loanedQty + qty).toFixed(4));
+    await tx.stock.update({
+      where: {
+        warehouseId_itemId: {
+          warehouseId: dto.warehouseId,
+          itemId: dto.itemId,
+        },
+      },
+      data: {
+        loanedQty: newLoanedQty,
+      },
+    });
+
+    const custody = await tx.toolCustody.create({
+      data: {
+        custodyNumber,
+        itemId: dto.itemId,
+        warehouseId: dto.warehouseId,
+        quantity: qty,
+        serialOrCode: dto.serialOrCode ? dto.serialOrCode.trim() : null,
+        assignedToName: dto.assignedToName.trim(),
+        assignedToDni: dto.assignedToDni.trim(),
+        dispatchedById: userId,
+        expectedReturnDate: dto.expectedReturnDate
+          ? new Date(dto.expectedReturnDate)
+          : null,
+        conditionOnDispatch: dto.conditionOnDispatch ?? ToolCondition.OPERATIVE,
+        notes: dto.notes ? dto.notes.trim() : null,
+      },
+      include: {
+        item: { select: { sku: true, name: true, baseUnit: true } },
+        warehouse: { select: { name: true } },
+      },
+    });
+
+    const unitCost = Number(stock.averageCost);
+    await tx.movement.create({
+      data: {
+        movementNumber,
+        type: MovementType.LOAN_DISPATCH,
+        originWarehouseId: dto.warehouseId,
+        destWarehouseId: null,
+        userId,
+        recipientName: dto.assignedToName.trim(),
+        recipientDni: dto.assignedToDni.trim(),
+        observation: `Prestamo en custodia segun vale ${custodyNumber}${
+          dto.serialOrCode ? ` - Serie: ${dto.serialOrCode.trim()}` : ''
+        }`,
+        items: {
+          create: [
+            {
+              itemId: dto.itemId,
+              quantity: qty,
+              unitCostSnapshot: unitCost,
+              totalCostSnapshot: Number((qty * unitCost).toFixed(2)),
+            },
+          ],
+        },
+      },
+    });
+
+    return {
+      id: custody.id,
+      custodyNumber: custody.custodyNumber,
+      movementNumber,
+      assignedToName: custody.assignedToName,
+      assignedToDni: custody.assignedToDni,
+      quantity: custody.quantity,
+      dispatchDate: custody.dispatchDate,
+      conditionOnDispatch: custody.conditionOnDispatch,
+      item: custody.item,
+      warehouse: custody.warehouse,
+    };
+  }
+
+  private async revertDispatchInTx(
+    tx: Prisma.TransactionClient,
+    custody: {
+      id: string;
+      custodyNumber: string;
+      warehouseId: string;
+      itemId: string;
+      quantity: Prisma.Decimal | number;
+    },
+    userId: string,
+    rawReason: string,
+  ) {
+    const reason = rawReason.trim();
+    const now = new Date();
+    const qty = Number(custody.quantity);
+
+    const stock = await tx.stock.findUnique({
+      where: {
+        warehouseId_itemId: {
+          warehouseId: custody.warehouseId,
+          itemId: custody.itemId,
+        },
+      },
+    });
+
+    const unitCost = stock ? Number(stock.averageCost) : 0;
+    if (stock) {
+      const currentLoaned = Number(stock.loanedQty);
+      await tx.stock.update({
+        where: {
+          warehouseId_itemId: {
+            warehouseId: custody.warehouseId,
+            itemId: custody.itemId,
+          },
+        },
+        data: {
+          loanedQty: Math.max(0, Number((currentLoaned - qty).toFixed(4))),
+        },
+      });
+    }
+
+    const dispatchMov = await tx.movement.findFirst({
+      where: {
+        type: MovementType.LOAN_DISPATCH,
+        originWarehouseId: custody.warehouseId,
+        isReverted: false,
+        observation: { contains: custody.custodyNumber },
+      },
+    });
+
+    if (dispatchMov) {
+      await tx.movement.update({
+        where: { id: dispatchMov.id },
+        data: {
+          isReverted: true,
+          revertedAt: now,
+          revertedById: userId,
+          reversalReason: reason,
+        },
+      });
+    }
+
+    const movCode = await this.sequenceGenerator.getNextCode(tx, 'MOV');
+    await tx.movement.create({
+      data: {
+        movementNumber: movCode,
+        type: MovementType.REVERSAL_ENTRY,
+        destWarehouseId: custody.warehouseId,
+        userId,
+        reversesMovementId: dispatchMov?.id ?? null,
+        observation: `Anulacion de prestamo ${custody.custodyNumber}: ${reason}`,
+        items: {
+          create: [
+            {
+              itemId: custody.itemId,
+              quantity: qty,
+              unitCostSnapshot: unitCost,
+              totalCostSnapshot: Number((qty * unitCost).toFixed(2)),
+            },
+          ],
+        },
+      },
+    });
+
+    return tx.toolCustody.update({
+      where: { id: custody.id },
+      data: {
+        isReverted: true,
+        revertedAt: now,
+        revertedById: userId,
+        reversalReason: reason,
+      },
+    });
   }
 }

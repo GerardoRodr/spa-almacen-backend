@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
@@ -8,7 +9,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { MovementType } from '@prisma/client';
 
 export class MovementFilterDto {
@@ -89,4 +90,22 @@ export class MovementFilterDto {
     { message: 'La fecha final debe tener un formato ISO 8601 valido' },
   )
   endDate?: string;
+
+  @ApiPropertyOptional({
+    example: true,
+    default: true,
+    description: 'Si es false, excluye movimientos revertidos (isReverted = true)',
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'false' || value === false || value === '0' || value === 0) {
+      return false;
+    }
+    if (value === 'true' || value === true || value === '1' || value === 1) {
+      return true;
+    }
+    return value;
+  })
+  @IsBoolean({ message: 'includeReverted debe ser booleano' })
+  includeReverted?: boolean = true;
 }

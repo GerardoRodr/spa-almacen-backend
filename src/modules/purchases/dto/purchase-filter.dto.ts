@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsDateString,
   IsInt,
   IsOptional,
@@ -6,7 +7,7 @@ import {
   IsUUID,
   Min,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class PurchaseFilterDto {
@@ -85,4 +86,22 @@ export class PurchaseFilterDto {
   @IsOptional()
   @IsDateString({}, { message: 'La fecha de fin debe ser una fecha ISO valida' })
   endDate?: string;
+
+  @ApiPropertyOptional({
+    example: true,
+    default: true,
+    description: 'Si es false, excluye comprobantes de compra anulados (isReverted = true)',
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'false' || value === false || value === '0' || value === 0) {
+      return false;
+    }
+    if (value === 'true' || value === true || value === '1' || value === 1) {
+      return true;
+    }
+    return undefined;
+  })
+  @IsBoolean({ message: 'includeReverted debe ser un valor booleano' })
+  includeReverted?: boolean = true;
 }

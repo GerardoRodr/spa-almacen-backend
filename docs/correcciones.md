@@ -205,9 +205,9 @@ Para garantizar que ningun agente quede bloqueado por falta de endpoints o model
 - [x] **Modulo de Clasificaciones de Insumos (`/api/v1/item-categories` e `/api/v1/items`)**:
   - [x] Crear controlador y servicio (o subruta en `ItemsModule`) con endpoints:
     - `GET /api/v1/item-categories`: listar clasificaciones activas.
-    - `POST /api/v1/item-categories`: crear nueva clasificacion (solo `ADMIN`).
-    - `PATCH /api/v1/item-categories/:id`: actualizar nombre/descripcion/estado (solo `ADMIN`).
-    - `DELETE /api/v1/item-categories/:id`: eliminar o desactivar si no tiene items asociados (solo `ADMIN`).
+    - `POST /api/v1/item-categories`: crear nueva clasificacion (`ADMIN` o `MODERATOR`).
+    - `PATCH /api/v1/item-categories/:id`: actualizar nombre/descripcion/estado (`ADMIN` o `MODERATOR`).
+    - `DELETE /api/v1/item-categories/:id`: eliminar o desactivar si no tiene items asociados (`ADMIN` o `MODERATOR`).
   - [x] En `CreateItemDto`, `UpdateItemDto` e `ItemFilterDto`: aceptar `categoryId` opcional e incluir `category` en las respuestas de `ItemsService`.
 
 ### Fase 3: Compras Multi-Almacen, Observaciones y Cuadro Comparativo
@@ -342,3 +342,12 @@ Utiliza este espacio para registrar decisiones de diseno, hashes de commits rele
       - En `create()` y `update()`: auto-registro de unidades nuevas en `MeasurementUnit` y validacion de unidades inactivas.
     - Pruebas unitarias: 9 tests en `measurement-units.service.spec.ts` y 20 tests en `items.service.spec.ts` (279/279 tests totales del proyecto pasando al 100%) y compilacion `nest build` limpia.
     - Documentacion tecnica creada en `docs/modules/14_measurement_units.md` y actualizada en `docs/modules/04_items.md`, `docs/modules/README.md`, `docs/business/ARCHITECTURE.md`, `docs/business/BUSINESS_RULES.md` y `docs/todo.md`.
+  * **2026-11-13 (Fase 8 - Reversion Contable, Edicion de Metadatos, Reemplazo Atomico y Rol MODERATOR)**:
+    - En base de datos (`prisma/schema.prisma`):
+      - Agregados `REVERSAL_ENTRY` y `REVERSAL_EXIT` al enum `MovementType` y campos de auditoria/reemplazo (`isReverted`, `revertedAt`, `revertedById`, `reversalReason`, `replacedById`, `reversesMovementId`) mediante migracion `20261113031521_add_transaction_reversals_and_audit`.
+    - En los 5 modulos transaccionales (`purchases`, `transfers`, `movements`, `tool-custody`, `machinery`):
+      - Implementados 19 endpoints de reversion (`POST .../revert`, `cancel`, `revert-reception`, `revert-dispatch`, `revert-return`), edicion de metadatos (`PATCH .../:id`), reemplazo atomico (`POST .../:id/replace`, `replace-consumption`, `replace-shrinkage`) y filtros `includeReverted` / `warehouseId` / `itemId` / `itemSearch`.
+    - En RBAC y reportes:
+      - Habilitado el rol `MODERATOR` con acceso administrativo/operativo completo y costos visibles (conservando `/api/v1/users` exclusivo para `ADMIN` y el aislamiento en `WAREHOUSE_KEEPER`).
+      - Excluidos registros anulados (`isReverted = true`) en alertas de perecibles, `minHistoricalUnitCost` de brechas S10, deuda de herramientas y `toolsInField` del Dashboard.
+    - Documentacion integral sincronizada en `README.md`, `docs/modules/*`, `docs/business/*`, `docs/correcciones.md` y `docs/todo.md`.

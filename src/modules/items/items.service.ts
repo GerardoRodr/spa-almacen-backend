@@ -516,6 +516,11 @@ export class ItemsService {
           },
         },
         purchaseDetails: {
+          where: {
+            purchase: {
+              isReverted: false,
+            },
+          },
           orderBy: {
             purchase: {
               issueDate: 'desc',

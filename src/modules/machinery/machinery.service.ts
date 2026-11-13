@@ -9,6 +9,8 @@ import { PrismaService } from '../../prisma/prisma.service.js';
 import { StartMachineryShiftDto } from './dto/start-machinery-shift.dto.js';
 import { EndMachineryShiftDto } from './dto/end-machinery-shift.dto.js';
 import { MachineryShiftFilterDto } from './dto/machinery-shift-filter.dto.js';
+import { UpdateMachineryShiftDto } from './dto/update-machinery-shift.dto.js';
+import { RevertMachineryShiftDto } from './dto/revert-machinery-shift.dto.js';
 
 @Injectable()
 export class MachineryService {
@@ -118,6 +120,7 @@ export class MachineryService {
       where: {
         itemId: dto.itemId,
         endDateTime: null,
+        isReverted: false,
       },
     });
     if (activeShift) {
@@ -135,6 +138,7 @@ export class MachineryService {
       where: {
         itemId: dto.itemId,
         endDateTime: { not: null },
+        isReverted: false,
       },
       orderBy: { endDateTime: 'desc' },
     });
@@ -231,7 +235,13 @@ export class MachineryService {
       }
     }
 
-    // 2. Validar que el turno no este cerrado previamente
+    // 2. Validar que el turno no este anulado ni cerrado previamente
+    if (shift.isReverted) {
+      throw new BadRequestException(
+        'No se puede cerrar una jornada que ha sido anulada',
+      );
+    }
+
     if (shift.endDateTime !== null || shift.endMeter !== null) {
       throw new BadRequestException(
         'Esta jornada de trabajo ya ha sido cerrada anteriormente',
@@ -362,6 +372,9 @@ export class MachineryService {
 
     if (filter.onlyOpen) {
       where.endDateTime = null;
+      where.isReverted = false;
+    } else if (filter.includeReverted === false) {
+      where.isReverted = false;
     }
 
     if (filter.startDate || filter.endDate) {
@@ -467,7 +480,7 @@ export class MachineryService {
 
     const [activeShift, lastClosedShift] = await Promise.all([
       this.prisma.machineryShiftLog.findFirst({
-        where: { itemId, endDateTime: null },
+        where: { itemId, endDateTime: null, isReverted: false },
         include: {
           warehouse: { select: { id: true, name: true, type: true } },
           item: {
@@ -483,7 +496,7 @@ export class MachineryService {
         },
       }),
       this.prisma.machineryShiftLog.findFirst({
-        where: { itemId, endDateTime: { not: null } },
+        where: { itemId, endDateTime: { not: null }, isReverted: false },
         orderBy: { endDateTime: 'desc' },
       }),
     ]);
@@ -502,5 +515,239 @@ export class MachineryService {
       lastMeter: lastClosedShift ? Number(lastClosedShift.endMeter) : null,
       lastShiftEndDateTime: lastClosedShift ? lastClosedShift.endDateTime : null,
     };
+  }
+
+  // Nivel 2: Corregir metadatos y lecturas de una jornada de maquinaria validando continuidad
+  async updateShift(
+    id: string,
+    dto: UpdateMachineryShiftDto,
+    user: { id: string; role: Role },
+  ) {
+    const shift = await this.prisma.machineryShiftLog.findUnique({
+      where: { id },
+      include: { item: true },
+    });
+
+    if (!shift) {
+      throw new NotFoundException('Jornada de maquinaria no encontrada');
+    }
+
+    if (shift.isReverted) {
+      throw new BadRequestException(
+        'No se puede editar una jornada que ha sido anulada',
+      );
+    }
+
+    if (user.role === Role.WAREHOUSE_KEEPER) {
+      const userWarehouse = await this.prisma.userWarehouse.findUnique({
+        where: {
+          userId_warehouseId: {
+            userId: user.id,
+            warehouseId: shift.warehouseId,
+          },
+        },
+      });
+      if (!userWarehouse) {
+        throw new ForbiddenException(
+          'No tiene autorizacion para operar en este almacen u obra',
+        );
+      }
+    }
+
+    const isClosed = shift.endDateTime !== null;
+    if (
+      (dto.endMeter !== undefined ||
+        dto.endPhotoId !== undefined ||
+        dto.fuelPhotoId !== undefined) &&
+      !isClosed
+    ) {
+      throw new BadRequestException(
+        'No se pueden editar lecturas o fotos de cierre mientras la jornada sigue abierta',
+      );
+    }
+
+    const photoIdsToCheck = [
+      dto.startPhotoId,
+      dto.endPhotoId,
+      dto.fuelPhotoId,
+    ].filter((pid): pid is string => pid !== undefined);
+
+    if (photoIdsToCheck.length > 0) {
+      const foundPhotos = await this.prisma.documentAttachment.findMany({
+        where: { id: { in: photoIdsToCheck } },
+        select: { id: true },
+      });
+      if (foundPhotos.length !== new Set(photoIdsToCheck).size) {
+        throw new NotFoundException(
+          'Una o mas fotografias especificadas no fueron encontradas en el sistema',
+        );
+      }
+    }
+
+    const meterType =
+      shift.meterType ?? shift.item?.meterType ?? MeterType.HOUR_METER;
+    const meterLabel =
+      meterType === MeterType.KILOMETER ? 'kilometraje' : 'horometro';
+
+    const newStartMeter =
+      dto.startMeter !== undefined
+        ? Number(dto.startMeter)
+        : Number(shift.startMeter);
+    const newEndMeter =
+      dto.endMeter !== undefined
+        ? Number(dto.endMeter)
+        : shift.endMeter !== null
+          ? Number(shift.endMeter)
+          : null;
+
+    if (newEndMeter !== null && newEndMeter < newStartMeter) {
+      throw new BadRequestException(
+        `El ${meterLabel} final (${newEndMeter}) no puede ser menor al ${meterLabel} inicial (${newStartMeter})`,
+      );
+    }
+
+    if (dto.startMeter !== undefined) {
+      const prevShift = await this.prisma.machineryShiftLog.findFirst({
+        where: {
+          itemId: shift.itemId,
+          isReverted: false,
+          id: { not: shift.id },
+          endDateTime: { not: null },
+          startDateTime: { lt: shift.startDateTime },
+        },
+        orderBy: { startDateTime: 'desc' },
+      });
+
+      if (
+        prevShift &&
+        prevShift.endMeter !== null &&
+        newStartMeter < Number(prevShift.endMeter)
+      ) {
+        throw new BadRequestException(
+          `El ${meterLabel} inicial (${newStartMeter}) no puede ser menor al ${meterLabel} final de la jornada anterior (${String(prevShift.endMeter)})`,
+        );
+      }
+    }
+
+    if (dto.endMeter !== undefined && newEndMeter !== null) {
+      const nextShift = await this.prisma.machineryShiftLog.findFirst({
+        where: {
+          itemId: shift.itemId,
+          isReverted: false,
+          id: { not: shift.id },
+          startDateTime: { gt: shift.startDateTime },
+        },
+        orderBy: { startDateTime: 'asc' },
+      });
+
+      if (nextShift && newEndMeter > Number(nextShift.startMeter)) {
+        throw new BadRequestException(
+          `El ${meterLabel} final (${newEndMeter}) no puede superar al ${meterLabel} inicial de la jornada posterior (${String(nextShift.startMeter)})`,
+        );
+      }
+    }
+
+    const data: Prisma.MachineryShiftLogUpdateInput = {};
+    if (dto.operatorName !== undefined) {
+      data.operatorName = dto.operatorName.trim();
+    }
+    if (dto.operatorDni !== undefined) {
+      data.operatorDni = dto.operatorDni.trim();
+    }
+    if (dto.notes !== undefined) {
+      data.notes = dto.notes.trim();
+    }
+    if (dto.startMeter !== undefined) {
+      data.startMeter = newStartMeter;
+    }
+    if (dto.endMeter !== undefined) {
+      data.endMeter = newEndMeter;
+    }
+    if (dto.startPhotoId !== undefined) {
+      data.startPhotoId = dto.startPhotoId;
+    }
+    if (dto.endPhotoId !== undefined) {
+      data.endPhotoId = dto.endPhotoId;
+    }
+    if (dto.fuelPhotoId !== undefined) {
+      data.fuelPhotoId = dto.fuelPhotoId;
+    }
+    if (
+      (dto.startMeter !== undefined || dto.endMeter !== undefined) &&
+      newEndMeter !== null
+    ) {
+      data.totalUsage = Number((newEndMeter - newStartMeter).toFixed(2));
+    }
+
+    const updatedShift = await this.prisma.machineryShiftLog.update({
+      where: { id },
+      data,
+      include: {
+        item: {
+          select: {
+            id: true,
+            sku: true,
+            name: true,
+            baseUnit: true,
+            type: true,
+            meterType: true,
+          },
+        },
+        warehouse: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+          },
+        },
+      },
+    });
+
+    return this.enrichShiftPhotos(updatedShift);
+  }
+
+  // Nivel 1: Anular jornada de maquinaria por error operativo (soft-void sin borrar historial)
+  async revertShift(
+    id: string,
+    dto: RevertMachineryShiftDto,
+    user: { id: string; role: Role },
+  ) {
+    const shift = await this.prisma.machineryShiftLog.findUnique({
+      where: { id },
+    });
+
+    if (!shift) {
+      throw new NotFoundException('Jornada de maquinaria no encontrada');
+    }
+
+    if (shift.isReverted) {
+      throw new BadRequestException('Esta jornada ya fue anulada');
+    }
+
+    if (user.role === Role.WAREHOUSE_KEEPER) {
+      const userWarehouse = await this.prisma.userWarehouse.findUnique({
+        where: {
+          userId_warehouseId: {
+            userId: user.id,
+            warehouseId: shift.warehouseId,
+          },
+        },
+      });
+      if (!userWarehouse) {
+        throw new ForbiddenException(
+          'No tiene autorizacion para operar en este almacen u obra',
+        );
+      }
+    }
+
+    return this.prisma.machineryShiftLog.update({
+      where: { id },
+      data: {
+        isReverted: true,
+        revertedAt: new Date(),
+        revertedById: user.id,
+        reversalReason: dto.reason.trim(),
+      },
+    });
   }
 }

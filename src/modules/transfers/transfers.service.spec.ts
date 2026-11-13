@@ -5,10 +5,11 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
-import { Role, TransferStatus } from '@prisma/client';
+import { MovementType, Role, TransferStatus } from '@prisma/client';
 import { TransfersService } from './transfers.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { SequenceGeneratorService } from '../../common/services/sequence-generator.service.js';
+import { RevertReceptionMode } from './dto/revert-transfer-reception.dto.js';
 
 describe('TransfersService', () => {
   let service: TransfersService;
@@ -572,6 +573,192 @@ describe('TransfersService', () => {
       expect(result.shrinkageMovementNumber).toBe('MOV-2026-00002');
       expect(result.items[0].receivedQty).toBe(95);
       expect(result.items[0].discrepancyQty).toBe(5);
+    });
+  });
+
+  describe('cancel, revertReception, updateMetadata, replace y findAll', () => {
+    it('cancel debe restaurar stock en origen, reserva de proyecto y generar REVERSAL_ENTRY', async () => {
+      prisma.transfer.findUnique.mockResolvedValue({
+        id: 'tr-1',
+        transferNumber: 'TR-2026-00001',
+        originWarehouseId: 'wh-central',
+        destWarehouseId: 'wh-obra',
+        projectId: 'proj-1',
+        status: TransferStatus.IN_TRANSIT,
+        items: [
+          { itemId: 'item-1', dispatchedQty: 40, unitCostSnapshot: 25 },
+        ],
+      });
+
+      const mockTx = {
+        stock: {
+          findUnique: vi.fn().mockResolvedValue({
+            physicalQty: 60,
+            averageCost: 25,
+            reservedQty: 10,
+          }),
+          upsert: vi.fn().mockResolvedValue({}),
+        },
+        projectRequirement: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: 'req-1',
+            requiredQty: 100,
+            allocatedQty: 10,
+            consumedQty: 0,
+          }),
+          update: vi.fn().mockResolvedValue({}),
+        },
+        movement: {
+          findFirst: vi.fn().mockResolvedValue({ id: 'mov-disp-1' }),
+          update: vi.fn().mockResolvedValue({}),
+          create: vi.fn().mockResolvedValue({}),
+        },
+        transfer: {
+          update: vi.fn().mockResolvedValue({
+            id: 'tr-1',
+            status: TransferStatus.CANCELLED,
+            cancellationReason: 'Camion no salio',
+          }),
+        },
+      };
+
+      prisma.$transaction.mockImplementation(async (cb) => cb(mockTx));
+
+      const result = await service.cancel(
+        'tr-1',
+        { cancellationReason: 'Camion no salio', restoreProjectAllocation: true },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(result.status).toBe(TransferStatus.CANCELLED);
+      expect(mockTx.stock.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: expect.objectContaining({
+            physicalQty: 100,
+            averageCost: 25,
+            reservedQty: 50,
+          }),
+        }),
+      );
+      expect(mockTx.movement.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: MovementType.REVERSAL_ENTRY,
+            destWarehouseId: 'wh-central',
+            reversesMovementId: 'mov-disp-1',
+          }),
+        }),
+      );
+    });
+
+    it('revertReception en modo BACK_TO_TRANSIT debe descontar stock en destino y reabrir guia', async () => {
+      prisma.transfer.findUnique.mockResolvedValue({
+        id: 'tr-1',
+        transferNumber: 'TR-2026-00001',
+        originWarehouseId: 'wh-central',
+        destWarehouseId: 'wh-obra',
+        projectId: null,
+        status: TransferStatus.COMPLETED,
+        items: [
+          {
+            id: 'tri-1',
+            itemId: 'item-1',
+            dispatchedQty: 50,
+            receivedQty: 50,
+            discrepancyQty: 0,
+            unitCostSnapshot: 20,
+          },
+        ],
+      });
+
+      const mockTx = {
+        stock: {
+          findUnique: vi.fn().mockResolvedValue({
+            physicalQty: 50,
+            reservedQty: 0,
+            loanedQty: 0,
+            averageCost: 20,
+          }),
+          update: vi.fn().mockResolvedValue({}),
+        },
+        transferItem: {
+          update: vi.fn().mockResolvedValue({}),
+        },
+        movement: {
+          findFirst: vi.fn().mockResolvedValue({ id: 'mov-rec-1' }),
+          update: vi.fn().mockResolvedValue({}),
+          create: vi.fn().mockResolvedValue({}),
+        },
+        transfer: {
+          update: vi.fn().mockResolvedValue({
+            id: 'tr-1',
+            status: TransferStatus.IN_TRANSIT,
+          }),
+        },
+      };
+
+      prisma.$transaction.mockImplementation(async (cb) => cb(mockTx));
+
+      const result = await service.revertReception(
+        'tr-1',
+        {
+          reversalReason: 'Error de conteo en caseta',
+          mode: RevertReceptionMode.BACK_TO_TRANSIT,
+        },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(result.status).toBe(TransferStatus.IN_TRANSIT);
+      expect(mockTx.stock.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { physicalQty: 0, averageCost: 0 },
+        }),
+      );
+      expect(mockTx.movement.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: MovementType.REVERSAL_EXIT,
+            originWarehouseId: 'wh-obra',
+          }),
+        }),
+      );
+    });
+
+    it('updateMetadata debe rechazar receptionNotes mientras transferencia este IN_TRANSIT', async () => {
+      prisma.transfer.findUnique.mockResolvedValue({
+        id: 'tr-1',
+        originWarehouseId: 'wh-1',
+        destWarehouseId: 'wh-2',
+        status: TransferStatus.IN_TRANSIT,
+      });
+
+      await expect(
+        service.updateMetadata(
+          'tr-1',
+          { receptionNotes: 'Recibido ok' },
+          { id: 'admin-1', role: Role.ADMIN },
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('findAll con includeReverted = false debe excluir CANCELLED', async () => {
+      prisma.transfer.count.mockResolvedValue(0);
+      prisma.transfer.findMany.mockResolvedValue([]);
+
+      await service.findAll(
+        { page: 1, limit: 10, includeReverted: false },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(prisma.transfer.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            AND: expect.arrayContaining([
+              { status: { not: TransferStatus.CANCELLED } },
+            ]),
+          }),
+        }),
+      );
     });
   });
 });

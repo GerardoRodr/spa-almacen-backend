@@ -451,7 +451,7 @@ describe('MachineryService', () => {
       expect(res.data).toHaveLength(1);
       expect(prisma.machineryShiftLog.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { endDateTime: null },
+          where: { endDateTime: null, isReverted: false },
           skip: 0,
           take: 10,
         }),
@@ -547,6 +547,128 @@ describe('MachineryService', () => {
       await expect(service.getStatus('cemento', adminUser)).rejects.toThrow(
         BadRequestException,
       );
+    });
+  });
+
+  describe('updateShift', () => {
+    const baseClosedShift = {
+      id: 'shift-1',
+      itemId: 'maq-1',
+      warehouseId: 'wh-1',
+      operatorName: 'Carlos Perez',
+      operatorDni: '45678912',
+      meterType: MeterType.HOUR_METER,
+      startMeter: 100,
+      endMeter: 110,
+      totalUsage: 10,
+      startPhotoId: 'photo-1',
+      endPhotoId: 'photo-2',
+      fuelPhotoId: null,
+      startDateTime: new Date('2026-10-10T08:00:00Z'),
+      endDateTime: new Date('2026-10-10T18:00:00Z'),
+      notes: 'Original',
+      isReverted: false,
+      item: { id: 'maq-1', meterType: MeterType.HOUR_METER },
+    };
+
+    it('debe recalcular totalUsage al corregir endMeter respetando continuidad cronologica', async () => {
+      prisma.machineryShiftLog.findUnique.mockResolvedValue(baseClosedShift);
+      prisma.machineryShiftLog.findFirst.mockResolvedValueOnce({
+        id: 'shift-2',
+        startMeter: 120,
+      });
+      prisma.machineryShiftLog.update.mockResolvedValue({
+        ...baseClosedShift,
+        endMeter: 115,
+        totalUsage: 15,
+      });
+      prisma.documentAttachment.findMany.mockResolvedValue([]);
+
+      const result = await service.updateShift(
+        'shift-1',
+        { endMeter: 115, notes: 'Lectura corregida' },
+        adminUser,
+      );
+
+      expect(result.totalUsage).toBe(15);
+      expect(prisma.machineryShiftLog.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            endMeter: 115,
+            totalUsage: 15,
+            notes: 'Lectura corregida',
+          }),
+        }),
+      );
+    });
+
+    it('debe lanzar BadRequestException si endMeter supera startMeter del turno posterior', async () => {
+      prisma.machineryShiftLog.findUnique.mockResolvedValue(baseClosedShift);
+      prisma.machineryShiftLog.findFirst.mockResolvedValueOnce({
+        id: 'shift-2',
+        startMeter: 112,
+      });
+
+      await expect(
+        service.updateShift('shift-1', { endMeter: 115 }, adminUser),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('debe rechazar edicion de endMeter cuando el turno aun esta abierto', async () => {
+      prisma.machineryShiftLog.findUnique.mockResolvedValue({
+        ...baseClosedShift,
+        endDateTime: null,
+        endMeter: null,
+      });
+
+      await expect(
+        service.updateShift('shift-1', { endMeter: 120 }, adminUser),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('revertShift', () => {
+    it('debe marcar la jornada como anulada (isReverted = true) sin eliminar historial', async () => {
+      prisma.machineryShiftLog.findUnique.mockResolvedValue({
+        id: 'shift-1',
+        warehouseId: 'wh-1',
+        isReverted: false,
+      });
+      prisma.machineryShiftLog.update.mockResolvedValue({
+        id: 'shift-1',
+        isReverted: true,
+        reversalReason: 'Turno duplicado',
+      });
+
+      const result = await service.revertShift(
+        'shift-1',
+        { reason: 'Turno duplicado' },
+        adminUser,
+      );
+
+      expect(result.isReverted).toBe(true);
+      expect(prisma.machineryShiftLog.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            isReverted: true,
+            revertedById: 'admin-1',
+            reversalReason: 'Turno duplicado',
+          }),
+        }),
+      );
+    });
+
+    it('debe lanzar ForbiddenException si WAREHOUSE_KEEPER no pertenece al almacen del turno', async () => {
+      prisma.machineryShiftLog.findUnique.mockResolvedValue({
+        id: 'shift-1',
+        warehouseId: 'wh-ajeno',
+        isReverted: false,
+      });
+      prisma.userWarehouse.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.revertShift('shift-1', { reason: 'Error de turno' }, keeperUser),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 });

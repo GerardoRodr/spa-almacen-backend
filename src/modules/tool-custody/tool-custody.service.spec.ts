@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { ItemType, MovementType, Role, ToolCondition } from '@prisma/client';
 import { ToolCustodyService } from './tool-custody.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
@@ -581,6 +585,163 @@ describe('ToolCustodyService', () => {
       expect(result.workerDni).toBe('70123456');
       expect(result.pendingCount).toBe(1);
       expect(result.loans).toHaveLength(1);
+    });
+  });
+
+  describe('revertDispatch, revertReturn, updateMetadata y filtros isReverted', () => {
+    it('revertDispatch debe restaurar loanedQty, marcar isReverted y emitir REVERSAL_ENTRY', async () => {
+      prisma.toolCustody.findUnique.mockResolvedValue({
+        id: 'vale-1',
+        custodyNumber: 'VALE-2026-00001',
+        warehouseId: 'wh-obra-1',
+        itemId: 'item-roto-1',
+        quantity: 1,
+        returnDate: null,
+        isReverted: false,
+      });
+
+      const mockTx = {
+        stock: {
+          findUnique: vi.fn().mockResolvedValue({
+            loanedQty: 2,
+            averageCost: 450,
+          }),
+          update: vi.fn().mockResolvedValue({}),
+        },
+        movement: {
+          findFirst: vi.fn().mockResolvedValue({ id: 'mov-loan-1' }),
+          update: vi.fn().mockResolvedValue({}),
+          create: vi.fn().mockResolvedValue({}),
+        },
+        toolCustody: {
+          update: vi.fn().mockResolvedValue({
+            id: 'vale-1',
+            isReverted: true,
+          }),
+        },
+      };
+
+      prisma.$transaction.mockImplementation(async (cb) => cb(mockTx));
+
+      const result = await service.revertDispatch(
+        'vale-1',
+        { reason: 'Operario equivocado' },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(result.isReverted).toBe(true);
+      expect(mockTx.stock.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { loanedQty: 1 },
+        }),
+      );
+      expect(mockTx.movement.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: MovementType.REVERSAL_ENTRY,
+            destWarehouseId: 'wh-obra-1',
+          }),
+        }),
+      );
+    });
+
+    it('revertReturn de baja patrimonial LOST debe restaurar physicalQty y loanedQty y reabrir el vale', async () => {
+      prisma.toolCustody.findUnique.mockResolvedValue({
+        id: 'vale-1',
+        custodyNumber: 'VALE-2026-00001',
+        warehouseId: 'wh-obra-1',
+        itemId: 'item-roto-1',
+        quantity: 1,
+        returnDate: new Date(),
+        conditionOnReturn: ToolCondition.LOST,
+        isReverted: false,
+      });
+
+      const mockTx = {
+        stock: {
+          findUnique: vi.fn().mockResolvedValue({
+            physicalQty: 4,
+            reservedQty: 0,
+            loanedQty: 1,
+            averageCost: 450,
+          }),
+          update: vi.fn().mockResolvedValue({}),
+        },
+        movement: {
+          findFirst: vi.fn().mockResolvedValue({ id: 'mov-shrink-1' }),
+          update: vi.fn().mockResolvedValue({}),
+          create: vi.fn().mockResolvedValue({}),
+        },
+        toolCustody: {
+          update: vi.fn().mockResolvedValue({
+            id: 'vale-1',
+            returnDate: null,
+            conditionOnReturn: null,
+          }),
+        },
+      };
+
+      prisma.$transaction.mockImplementation(async (cb) => cb(mockTx));
+
+      const result = await service.revertReturn(
+        'vale-1',
+        { reason: 'Herramienta aparecio en obra' },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(result.returnDate).toBeNull();
+      expect(mockTx.stock.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { physicalQty: 5, loanedQty: 2 },
+        }),
+      );
+      expect(mockTx.movement.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: MovementType.REVERSAL_ENTRY,
+            reversesMovementId: 'mov-shrink-1',
+          }),
+        }),
+      );
+    });
+
+    it('updateMetadata debe denegar acceso a WAREHOUSE_KEEPER de otro almacen', async () => {
+      prisma.toolCustody.findUnique.mockResolvedValue({
+        id: 'vale-1',
+        warehouseId: 'wh-otro',
+        returnDate: null,
+        isReverted: false,
+      });
+      prisma.userWarehouse.findMany.mockResolvedValue([
+        { warehouseId: 'wh-obra-1' },
+      ]);
+
+      await expect(
+        service.updateMetadata(
+          'vale-1',
+          { notes: 'Correccion' },
+          { id: 'keeper-1', role: Role.WAREHOUSE_KEEPER },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('findAll con onlyPending = true debe filtrar returnDate: null e isReverted: false', async () => {
+      prisma.toolCustody.count.mockResolvedValue(0);
+      prisma.toolCustody.findMany.mockResolvedValue([]);
+
+      await service.findAll(
+        { page: 1, limit: 10, onlyPending: true },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(prisma.toolCustody.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            returnDate: null,
+            isReverted: false,
+          }),
+        }),
+      );
     });
   });
 });

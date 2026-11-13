@@ -16,12 +16,12 @@ Ademas, este modulo expone el stock en piso en tiempo real y el monitoreo de ale
 
 ### 2.1 Listar Almacenes Accesibles
 Retorna los almacenes a los que el usuario tiene acceso.
-- Si el solicitante tiene rol `ADMIN`, retorna todos los almacenes registrados en el sistema.
+- Si el solicitante tiene rol `ADMIN` o `MODERATOR`, retorna todos los almacenes registrados en el sistema.
 - Si el solicitante tiene rol `WAREHOUSE_KEEPER`, retorna unicamente los almacenes autorizados en su perfil.
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/warehouses`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -63,7 +63,7 @@ Registra una nueva sede de almacenamiento en el sistema. Permite vincular un pro
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/warehouses`
-- **Acceso:** Protegido (`ADMIN`)
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
   - `Content-Type: application/json`
@@ -119,7 +119,7 @@ Consulta la ficha tecnica de un almacen por su identificador. Si el usuario es `
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/warehouses/:id`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -164,7 +164,7 @@ Modifica nombre, estado o proyecto vinculado de una instalacion.
 
 - **Metodo:** `PUT`
 - **Ruta:** `/api/v1/warehouses/:id`
-- **Acceso:** Protegido (`ADMIN`)
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
   - `Content-Type: application/json`
@@ -209,7 +209,7 @@ Aplica `CostMaskingInterceptor` para proteger costos financieros ante usuarios d
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/warehouses/:id/stock`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -277,7 +277,7 @@ Determina y lista de manera reactiva todos los insumos cuyo stock fisico (`physi
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/warehouses/:id/alerts`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -322,7 +322,7 @@ Permite al Administrador corporativo fijar o actualizar el Costo Promedio Ponder
 
 - **Metodo:** `PATCH`
 - **Ruta:** `/api/v1/warehouses/:id/stock/:itemId/valuation`
-- **Acceso:** Protegido (`ADMIN` exclusivamente)
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
   - `Content-Type: application/json`
@@ -337,7 +337,7 @@ Permite al Administrador corporativo fijar o actualizar el Costo Promedio Ponder
 | `averageCost` | number | Si | Nuevo costo promedio ponderado en Soles (PEN) sin IGV (minimo 0). |
 
 **Reglas de Negocio:**
-- Exclusivo para administradores. Almaceneros de caseta no tienen acceso a esta operacion ni pueden alterar la valoracion contable.
+- Exclusivo para `ADMIN` y `MODERATOR`. Almaceneros de caseta no tienen acceso a esta operacion ni pueden alterar la valoracion contable.
 - Si el insumo no tiene registro de `Stock` preexistente en la sede, el sistema lo crea automaticamente con `physicalQty: 0`, `reservedQty: 0`, `loanedQty: 0` y el `averageCost` enviado.
 - No altera las existencias fisicas ni genera un movimiento de salida o entrada; actualiza directamente la capa de valoracion del stock para futuros calculos de CPP y consumos.
 

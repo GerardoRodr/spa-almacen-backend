@@ -869,4 +869,46 @@ describe('ProjectsService', () => {
       });
     });
   });
+
+  describe('getGapAnalysis - exclusion de compras anuladas', () => {
+    it('debe consultar historial de precios excluyendo compras con isReverted = true', async () => {
+      prisma.project.findUnique.mockResolvedValue({
+        id: 'p1',
+        name: 'Obra Filtros',
+        warehouse: { id: 'wh-site-1', name: 'Almacen Obra' },
+      });
+      prisma.projectRequirement.findMany.mockResolvedValue([
+        {
+          id: 'req1',
+          projectId: 'p1',
+          itemId: 'item1',
+          requiredQty: 100,
+          allocatedQty: 0,
+          consumedQty: 0,
+          s10UnitPrice: 30,
+          item: {
+            id: 'item1',
+            sku: 'CEM-01',
+            name: 'Cemento',
+            baseUnit: 'BOL',
+            type: ItemType.CONSUMABLE,
+          },
+          project: { id: 'p1', name: 'Obra Filtros' },
+        },
+      ]);
+      prisma.warehouse.findMany.mockResolvedValue([{ id: 'wh-central' }]);
+      prisma.stock.findMany.mockResolvedValue([]);
+      prisma.purchaseDetail.findMany.mockResolvedValue([]);
+
+      await service.getGapAnalysis('p1', { id: 'admin1', role: Role.ADMIN });
+
+      expect(prisma.purchaseDetail.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            purchase: { isReverted: false },
+          }),
+        }),
+      );
+    });
+  });
 });

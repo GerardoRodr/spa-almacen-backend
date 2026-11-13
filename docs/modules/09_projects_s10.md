@@ -20,7 +20,7 @@ Retorna la relacion de obras civiles registradas con su estado, almacen de obra 
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/projects`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -70,7 +70,7 @@ Crea una obra civil y genera automaticamente su respectivo almacen de obra tempo
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/projects`
-- **Acceso:** Protegido (`ADMIN`)
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
   - `Content-Type: application/json`
@@ -125,7 +125,7 @@ Consulta la ficha integral del proyecto civil, incluyendo el almacen de obra, su
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/projects/:id`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -182,7 +182,7 @@ Consulta la ficha integral del proyecto civil, incluyendo el almacen de obra, su
 }
 ```
 
-> **Aislamiento RBAC:** Los campos financieros `s10TotalBudget`, `s10MaterialsBudget`, `s10EquipmentBudget`, `s10LaborBudget`, `s10SubcontractsBudget` y `requirements[].s10UnitPrice` se purgan automaticamente para `WAREHOUSE_KEEPER`.
+> **Aislamiento RBAC:** Los campos financieros `s10TotalBudget`, `s10MaterialsBudget`, `s10EquipmentBudget`, `s10LaborBudget`, `s10SubcontractsBudget` y `requirements[].s10UnitPrice` se purgan automaticamente para `WAREHOUSE_KEEPER` (`ADMIN` y `MODERATOR` acceden a los montos completos).
 
 ---
 
@@ -191,7 +191,7 @@ Modifica nombre, codigo de presupuesto o estado de la obra civil.
 
 - **Metodo:** `PUT`
 - **Ruta:** `/api/v1/projects/:id`
-- **Acceso:** Protegido (`ADMIN`)
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
   - `Content-Type: application/json`
@@ -225,7 +225,7 @@ Procesa un payload estructurado JSON con el listado de recursos del presupuesto 
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/projects/:id/ingest-s10`
-- **Acceso:** Protegido (`ADMIN`)
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
   - `Content-Type: application/json`
@@ -277,15 +277,15 @@ Calcula el estado del abastecimiento del proyecto comparando:
 - `fulfillmentPercentage`: Porcentaje de cobertura alcanzado.
 - `centralAvailableStock`: Stock neto disponible y no comprometido en Almacenes Centrales.
 - `purchaseDeficit`: Deficit real requerido para compra directa.
-- `minHistoricalUnitCost`: Menor precio unitario base en Soles registrado en compras historicas para ese insumo (`null` si no registra compras).
+- `minHistoricalUnitCost`: Menor precio unitario base en Soles registrado en compras historicas vigentes (`purchase.isReverted = false`, excluyendo facturas anuladas) para ese insumo (`null` si no registra compras vigentes).
 - `weightedAverageCost`: Costo promedio ponderado (CPP) vigente en stock (priorizando el almacen de obra o referencia central).
 - `s10BudgetUnitPrice`: Precio unitario presupuestado en el expediente S10 (`null` si no se cargo precio).
 
-> **Aislamiento RBAC:** Las claves financieras `minHistoricalUnitCost`, `weightedAverageCost` y `s10BudgetUnitPrice` son filtradas automaticamente por `CostMaskingInterceptor` si la consulta es realizada por un usuario con rol `WAREHOUSE_KEEPER`.
+> **Aislamiento RBAC:** Las claves financieras `minHistoricalUnitCost`, `weightedAverageCost` y `s10BudgetUnitPrice` son filtradas automaticamente por `CostMaskingInterceptor` si la consulta es realizada por un usuario con rol `WAREHOUSE_KEEPER` (`ADMIN` y `MODERATOR` visualizan los importes completos).
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/projects/:id/gap-analysis`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado a la obra)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado a la obra)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -325,7 +325,7 @@ Calcula el estado del abastecimiento del proyecto comparando:
 }
 ```
 
-> **Aislamiento RBAC:** Para usuarios con rol `WAREHOUSE_KEEPER`, las claves financieras en `budgetSummary` (`totalBudgetPEN`, `materialsBudgetPEN`, `equipmentBudgetPEN`, `laborBudgetPEN`, `subcontractsBudgetPEN`, `totalDeficitEstimatedCostPEN`) y en `analysis` (`minHistoricalUnitCost`, `weightedAverageCost`, `s10BudgetUnitPrice`) son purgadas automaticamente por `CostMaskingInterceptor`. El usuario de caseta visualiza unicamente cantidades operativas y `totalRequiredItemsCount`.
+> **Aislamiento RBAC:** Para usuarios con rol `WAREHOUSE_KEEPER`, las claves financieras en `budgetSummary` (`totalBudgetPEN`, `materialsBudgetPEN`, `equipmentBudgetPEN`, `laborBudgetPEN`, `subcontractsBudgetPEN`, `totalDeficitEstimatedCostPEN`) y en `analysis` (`minHistoricalUnitCost`, `weightedAverageCost`, `s10BudgetUnitPrice`) son purgadas automaticamente por `CostMaskingInterceptor`. El usuario de caseta visualiza unicamente cantidades operativas y `totalRequiredItemsCount`. Los roles `ADMIN` y `MODERATOR` acceden a la valorizacion completa.
 
 ---
 
@@ -334,7 +334,7 @@ Incrementa `allocatedQty` en el requerimiento del proyecto y `Stock.reservedQty`
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/projects/:id/allocate-stock`
-- **Acceso:** Protegido (`ADMIN`)
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
   - `Content-Type: application/json`
@@ -373,7 +373,7 @@ Permite liberar de forma manual o correctiva existencias que fueron reservadas p
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/projects/:id/release-stock`
-- **Acceso:** Protegido (`ADMIN`)
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
   - `Content-Type: application/json`
@@ -421,7 +421,7 @@ Sube y procesa un archivo exportado de presupuesto S10 utilizando `papaparse` e 
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/projects/:id/s10-import`
-- **Acceso:** Protegido (`ADMIN`)
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
   - `Content-Type: multipart/form-data`
@@ -473,7 +473,7 @@ Exige el cumplimiento estricto e indivisible de **3 condiciones previas**:
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/projects/:id/liquidate`
-- **Acceso:** Protegido (`ADMIN`)
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
   - `Content-Type: application/json`

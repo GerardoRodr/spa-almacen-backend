@@ -64,26 +64,26 @@ El sistema **SPA-ALMACEN-ERP** atiende dos realidades operativas radicalmente op
     - Opciones para Administrador: `[ Consolidado General (Todos) ]`, `[ Almacen Central ]`, `[ Obra Edificio Panorama ]`, `[ Obra Puente San Martin ]`.
     - Al cambiar la seleccion, todas las consultas y KPI de la vista activa se recalculan de forma reactiva con Angular Signals.
   - **Indicador de Conectividad:** Badge verde pulsante "Online" con validacion de latencia del VPS.
-  - **Perfil de Usuario:** Avatar con iniciales, Nombre Completo, Rol (`ADMIN` o `ALMACENERO`) y boton de cerrar sesion.
+  - **Perfil de Usuario:** Avatar con iniciales, Nombre Completo, Rol (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`) y boton de cerrar sesion.
 - **Sidebar Izquierdo (Fijo, W-64, Slate-950):**
-  - 📊 **Dashboard:** Metricas consolidadas, valorizacion y alertas (`/dashboard`).
-  - 📦 **Catalogo Maestro:** Gestion de SKUs, unidades base y equivalencias S10 (`/catalogo`).
-  - 🛒 **Compras y CPP:** Facturas con desglose de IGV, proveedores y recalculo atómico (`/compras`).
-  - 🏗️ **Proyectos y S10:** Matriz de brechas (Gap Analysis), carga de CSV y reserva logica (`/proyectos-s10`).
-  - 🚚 **Transferencias:** Monitoreo y despacho entre Central y Obras en 2 fases (`/transferencias`).
-  - 🔄 **Kardex e Historico:** Libro contable append-only y auditoria de consumos (`/kardex`).
-  - ⚙️ **Mantenimiento:** Respaldos de PostgreSQL en 1 clic y usuarios (`/admin/mantenimiento`).
+  - **Dashboard:** Metricas consolidadas, valorizacion y alertas (`/dashboard`).
+  - **Catalogo Maestro:** Gestion de SKUs, unidades base (`MeasurementUnit`), clasificaciones (`ItemCategory`) y equivalencias S10 (`/catalogo`).
+  - **Compras y CPP:** Facturas con desglose de IGV, proveedores, cuadro comparativo, reversion/reemplazo y recalculo atomico (`/compras`).
+  - **Proyectos y S10:** Matriz de brechas (Gap Analysis), carga de CSV y reserva logica (`/proyectos-s10`).
+  - **Transferencias:** Monitoreo, despacho en 2 fases, cancelacion y reversion de recepciones (`/transferencias`).
+  - **Kardex e Historico:** Libro contable append-only con contra-asientos (`REVERSAL_ENTRY` / `REVERSAL_EXIT`) y auditoria de consumos (`/kardex`).
+  - **Mantenimiento:** Respaldos de PostgreSQL y auditoria (`/admin/mantenimiento`); gestion de usuarios reservada a `ADMIN`.
 
 ### 3.2 Layout Movil / Tablet: `MobileLayoutComponent`
 - **Header Movil Compacto (H-14):**
   - Nombre del Almacen de Obra temporal asignado. Si el almacenero tiene mas de una obra autorizada, actua como selector tactil.
   - Icono de campana con contador de despachos en transito hacia la obra (`IN_TRANSIT`).
 - **Bottom Navigation Bar (Fijo Inferior, H-16, 5 Botones Accesibles):**
-  1. 🏠 **Inicio (`/movil/operaciones`):** Resumen de pendientes y accesos rapidos.
-  2. 🚚 **Recepcion (`/movil/recepcion`):** Confirmacion de transferencias con conteo e inspeccion.
-  3. 📦 **Salida Consumo (`/movil/consumo`):** Despacho rapido a capataces de obra por partida.
-  4. 🛠️ **Herramientas (`/movil/herramientas`):** Vales de prestamo por DNI y devoluciones.
-  5. 🔍 **Stock (`/movil/stock`):** Consulta rapida de existencias fisicas en caseta.
+  1. **Inicio (`/movil/operaciones`):** Resumen de pendientes y accesos rapidos.
+  2. **Recepcion (`/movil/recepcion`):** Confirmacion de transferencias con conteo e inspeccion.
+  3. **Salida Consumo (`/movil/consumo`):** Despacho rapido a capataces de obra por partida.
+  4. **Herramientas (`/movil/herramientas`):** Vales de prestamo por DNI, devoluciones y correcciones.
+  5. **Stock (`/movil/stock`):** Consulta rapida de existencias fisicas en caseta.
 
 ---
 
@@ -93,10 +93,10 @@ El sistema **SPA-ALMACEN-ERP** atiende dos realidades operativas radicalmente op
 
 #### Vista E1: Dashboard General (`/dashboard`)
 - **Filtro Contextual:** Vinculado al selector del Topbar (muestra datos del almacen seleccionado o consolidado).
-- **Tarjetas KPI (Grid 4 col):**
-  1. *Total SKUs Activos:* Cantidad de insumos con stock positivo.
-  2. *Valorizacion de Inventario (Solo ADMIN):* Monto total en Soles (PEN) valorizado a CPP neto sin IGV.
-  3. *Herramientas en Campo:* Cantidad total de bienes con vale activo (`loanedQty`).
+- **Tarjetas KPI (Grid 5 col):**
+  1. *Valorizacion Total Insumos (Solo `ADMIN` y `MODERATOR`):* Monto total en Soles (PEN) de consumibles valorizado a CPP neto sin IGV (`suppliesValuationPEN`).
+  2. *Insumos / Equipos Activos:* Cantidad de items con stock positivo.
+  3. *Herramientas en Campo:* Cantidad total de bienes en custodia activa no anulada (`returnDate === null` e `isReverted === false`).
   4. *Insumos Criticos:* SKUs con stock fisico por debajo de `minStockAlert`.
 - **Panel Principal:**
   - *Grafico de Barras (Chart.js):* Comparativa de Stock Central vs. Stock distribuido en Obras.
@@ -104,48 +104,42 @@ El sistema **SPA-ALMACEN-ERP** atiende dos realidades operativas radicalmente op
   - *Resumen de Reservas Logicas (Opcion A):* Stock comprometido para proyectos que aun no ha salido de Central.
 
 #### Vista E2: Catalogo Maestro de Insumos (`/catalogo`)
-- **Barra de Acciones:** Buscador en tiempo real (SKU, nombre, alias), filtro por tipo (`CONSUMABLE`, `TOOL`, `EQUIPMENT`, `MACHINERY`) y boton `[ + Nuevo Insumo ]`.
+- **Barra de Acciones:** Buscador en tiempo real (SKU, nombre, alias), filtro por tipo (`CONSUMABLE`, `TOOL`, `EQUIPMENT`, `MACHINERY`), categoria (`categoryId`) y boton `[ + Nuevo Insumo ]`.
 - **Tabla de Insumos:**
-  - Columnas: SKU, Descripcion Oficial, Unidad Base (`baseUnit`), Tipo, Stock Central, Stock en Obras, Costo Promedio (CPP - protegido por `*appHasRole="'ADMIN'"`), Acciones.
-  - Acciones por fila: `[ Editar ]`, `[ Historial Kardex ]`, `[ Gestionar Alias S10 ]`.
+  - Columnas: SKU, Descripcion Oficial, Unidad Base (`baseUnit`), Tipo (`meterType` para `MACHINERY`), Stock Central, Stock en Obras, Costo Promedio (CPP - protegido por `*appHasRole="['ADMIN', 'MODERATOR']"`), Acciones.
+  - Acciones por fila: `[ Editar ]` (con doble confirmacion `confirmUnitChange` si tiene transacciones), `[ Historial Kardex ]`, `[ Gestionar Alias S10 ]`.
 - **Modal de Mapeo de Alias S10:**
   - Formulario para registrar variantes de nombres crudos del S10 (`s10RawName`), unidad del presupuesto (`s10Unit`) y factor de conversion hacia la unidad base (`conversionFactor`).
 
-#### Vista E3: Compras, Proveedores y Recalculo de CPP (`/compras`) — [Exclusivo ADMIN]
-- **Buscador y Filtros:** Rango de fechas, proveedor por RUC y serie de comprobante.
-- **Tabla de Compras:** N° Comprobante, Proveedor, Fecha, Moneda (PEN/USD), Tipo de Cambio, Subtotal Neto, IGV (18%), Total Facturado, Estado, Evidencia Adjunta.
-- **Drawer Lateral de Registro de Compra:**
-  - Seleccion de Proveedor (RUC con autocompletado) y Tipo de Comprobante (Factura / Boleta / Guia).
-  - Selector de Moneda y Tipo de Cambio en Soles.
-  - Insercion dinamica de lineas: Insumo, Unidad de Compra (ej. PALLET), Factor de Conversion, Cantidad de Compra, Precio Unitario Neto.
-  - Calculo automatico en vivo: Cantidad Base resultante, Costo Base PEN resultante, Subtotal, IGV y Total.
-  - Zona de carga de comprobante (Dropzone PDF/JPG/PNG con procesamiento Sharp a WebP).
+#### Vista E3: Compras, Proveedores y Recalculo de CPP (`/compras`) — [`ADMIN`, `MODERATOR` y `WAREHOUSE_KEEPER` por sede]
+- **Buscador y Filtros:** Rango de fechas, proveedor, serie de comprobante, almacen receptor (`warehouseId`), insumo (`itemId` / `itemSearch`) y toggle `includeReverted` (ocultar o mostrar compras anuladas).
+- **Tabla de Compras:** N° Comprobante, Proveedor, Almacen Destino, Fecha, Moneda (PEN/USD), Subtotal Neto, IGV, Total Facturado (campos monetarios visibles solo para `ADMIN` y `MODERATOR`), Estado (Activa / Revertida / Reemplazada), Evidencia Adjunta.
+- **Acciones Correctivas de 3 Niveles:**
+  - *Edicion de Metadatos (`PATCH /purchases/:id`):* Corregir proveedor, serie, tipo de comprobante, fecha o notas sin alterar stock ni CPP.
+  - *Anulacion / Reversion (`POST /purchases/:id/revert`):* Descuenta stock libre, recalcula CPP inverso y genera `REVERSAL_EXIT`.
+  - *Reemplazo Atomico (`POST /purchases/:id/replace`):* Anula y registra nueva factura en una sola transaccion vinculando `replacedById`.
 
-#### Vista E4: Proyectos, Ingesta S10 y Matriz de Brechas (`/proyectos-s10`) — [Exclusivo ADMIN]
+#### Vista E4: Proyectos, Ingesta S10 y Matriz de Brechas (`/proyectos-s10`) — [`ADMIN` y `MODERATOR`]
 - **Cabecera de Proyecto:** Selector de proyecto civil, codigo de presupuesto S10, estado (`PLANNING`, `ACTIVE`, `LIQUIDATED`) y boton de `[ Liquidar Obra ]`.
 - **Seccion Carga S10:** Uploader de archivo plano (.csv) con deteccion automatica de delimitador (`;` o `,`) y codificacion `Windows-1252` / `UTF-8`.
 - **Tabla Matriz de Brechas (Gap Analysis):**
-  - Columnas: Codigo S10, Descripcion Cruda, Cantidad Requerida (convertida a base), Stock Neto Disponible en Central (`physicalQty - reservedQty`), Brecha / Deficit a Comprar, Estado de Mapeo (`MAPEADO` verde vs `PENDIENTE_MAPEO` naranja).
-  - Acciones por fila: Enlaces directos para vincular a SKU existente o dar de alta en catalogo.
-  - Barra de Accion Inferior: Boton `[ Ejecutar Reserva Logica (Opcion A) ]` para bloquear el disponible de Central hacia la obra, y boton `[ Exportar Reporte Excel ]` (`exceljs`).
+  - Columnas: Codigo S10, Descripcion Cruda, Cantidad Requerida, Stock Neto Disponible en Central, Brecha / Deficit, Costo Minimo Historico (excluye compras revertidas), CPP Vigente, Precio Expediente S10, Estado de Mapeo (`MAPEADO` vs `PENDIENTE_MAPEO`).
+  - Barra de Accion Inferior: Boton `[ Ejecutar Reserva Logica (Opcion A) ]` y boton `[ Exportar Reporte Excel ]`.
 
 #### Vista E5: Transferencias y Despacho en Dos Fases (`/transferencias`)
-- **Tabs de Navegacion:** `[ En Transito ]` | `[ Historial de Despachos ]` | `[ Nueva Transferencia ]`.
-- **Formulario de Despacho (Central hacia Obra o Retorno):**
-  - Almacen Origen y Almacen Destino (Obra temporal).
-  - Seleccion de items con validacion de saldo reservado en proyecto (`allocatedQty`).
-  - Generacion de Guia de Transferencia interna con codigo correlativo (`TR-2026-XXXXX`).
+- **Tabs de Navegacion:** `[ En Transito ]` | `[ Historial de Despachos ]` | `[ Nueva Transferencia ]` + toggle `includeReverted`.
+- **Formulario de Despacho y Acciones Correctivas:**
+  - Almacen Origen, Destino, Proyecto opcional y generacion de Guia (`TR-2026-XXXXX`).
+  - Acciones en guias `IN_TRANSIT`: `[ Editar Notas ]`, `[ Cancelar Guia ]`, `[ Reemplazar Guia ]`.
+  - Acciones en guias `COMPLETED` / `DISCREPANCY`: `[ Editar Notas ]`, `[ Revertir Recepcion ]` (`BACK_TO_TRANSIT` o `CANCEL_COMPLETELY`).
 
 #### Vista E6: Kardex Financiero e Historico (`/kardex`)
-- **Filtros Avanzados:** Almacen, rango de fechas, tipo de movimiento (`PURCHASE_ENTRY`, `CONSUMPTION_EXIT`, `TRANSFER_DISPATCH`, etc.) e insumo.
-- **Tabla de Libro Mayor:** Fecha y Hora, N° Movimiento, Tipo, Almacen Origen, Almacen Destino, Cantidad, Costo Unitario Snapshot (Solo visible para `ADMIN`), Responsable / DNI, Observaciones y Comprobante adjunto.
+- **Filtros Avanzados:** Almacen, rango de fechas, tipo de movimiento (incluyendo `REVERSAL_ENTRY` y `REVERSAL_EXIT`), insumo y toggle `includeReverted`.
+- **Tabla de Libro Mayor:** Fecha y Hora, N° Movimiento, Tipo, Almacen Origen, Almacen Destino, Cantidad, Costo Unitario Snapshot (Visible solo para `ADMIN` y `MODERATOR`), Responsable / DNI, Observaciones, badge de estado (`isReverted` / `reversesMovementId` / `replacedById`) y acciones correctivas (`Editar Metadatos`, `Revertir`, `Reemplazar Consumo/Merma`).
 
-#### Vista E7: Mantenimiento, Usuarios y Respaldos (`/admin/mantenimiento`) — [Exclusivo ADMIN]
-- **Gestion de Respaldos de Base de Datos:**
-  - Tarjeta de ejecucion rapida con boton destacado: `[ ⬇️ Descargar Copia de Seguridad Inmutable (.sql/.tar.gz) ]`.
-  - Historial de respaldos programados en VPS con antiguedad y tamano.
-- **Administracion de Usuarios y Almacenes:**
-  - Asignacion de usuarios a almacenes en la tabla `UserWarehouse`.
+#### Vista E7: Mantenimiento, Usuarios y Respaldos (`/admin/mantenimiento`) — [`ADMIN` y `MODERATOR`; Usuarios solo `ADMIN`]
+- **Gestion de Respaldos y Purga Temporal:** Descarga de backups PostgreSQL (`.sql`/`.sql.gz`) y mantenimiento disponible para `ADMIN` y `MODERATOR`.
+- **Administracion de Usuarios y Almacenes:** Gestion de cuentas, roles y asignacion `UserWarehouse` reservada exclusivamente al rol `ADMIN`.
 
 ---
 
@@ -270,7 +264,7 @@ export class WarehouseContextService {
 ```
 
 ### 6.2 Directiva Estructural `HasRoleDirective` (`*appHasRole`)
-Remueve elementos del DOM si el rol autenticado no coincide:
+Remueve elementos del DOM si el rol autenticado no coincide (ej. `*appHasRole="['ADMIN', 'MODERATOR']"` para metricas y costos financieros, o `*appHasRole="'ADMIN'"` para gestion de usuarios):
 ```typescript
 @Directive({
   selector: '[appHasRole]',

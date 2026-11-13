@@ -21,7 +21,7 @@ Obtiene el listado de insumos y herramientas con paginacion, busqueda por texto 
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/items`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -77,7 +77,7 @@ Calcula y retorna el siguiente codigo correlativo disponible para un tipo de ite
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/items/next-sku`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -113,7 +113,7 @@ Crea un nuevo SKU corporativo oficial. Habilitado tanto para el Administrador co
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/items`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
   - `Content-Type: application/json`
@@ -198,7 +198,7 @@ Retorna todos los insumos catalogados como perecibles (`isPerishable: true`) que
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/items/perishable-alerts`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -236,7 +236,7 @@ Retorna todos los insumos catalogados como perecibles (`isPerishable: true`) que
   }
 ]
 ```
-*Nota: Para usuarios con rol `WAREHOUSE_KEEPER`, el interceptor `CostMaskingInterceptor` enmascara automaticamente la propiedad `averageCost` en cada elemento del arreglo `stocks`.*
+*Nota: Para usuarios con rol `WAREHOUSE_KEEPER`, el interceptor `CostMaskingInterceptor` enmascara automaticamente la propiedad `averageCost` en cada elemento del arreglo `stocks`. Asimismo, el calculo del ultimo ingreso por compra (`lastPurchaseDate`, `lastSupplier`, `lastInvoiceSeries`) excluye comprobantes anulados (`purchase.isReverted = false`).*
 
 ---
 
@@ -245,7 +245,7 @@ Obtiene la ficha del item junto con el desglose de existencias por almacen, calc
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/items/:id`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -381,7 +381,7 @@ Modifica datos descriptivos, unidad base o limite de alerta de un SKU maestro.
 
 - **Metodo:** `PUT`
 - **Ruta:** `/api/v1/items/:id`
-- **Acceso:** Protegido (`ADMIN`)
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
   - `Content-Type: application/json`
@@ -452,7 +452,7 @@ Formula de conversion: `Cantidad_Item_Base = Cantidad_S10 * conversionFactor`.
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/items/aliases`
-- **Acceso:** Protegido (`ADMIN`)
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
   - `Content-Type: application/json`
@@ -506,7 +506,7 @@ Elimina un mapeo de equivalencia de S10 existente sin alterar el registro maestr
 
 - **Metodo:** `DELETE`
 - **Ruta:** `/api/v1/items/aliases/:id`
-- **Acceso:** Protegido (`ADMIN`)
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
 
@@ -541,7 +541,7 @@ Obtiene las clasificaciones ordenadas por nombre, incluyendo la cantidad de item
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/item-categories`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Parametros Query:**
   - `includeInactive` (boolean, opcional, default: `false`): Si es `true`, incluye clasificaciones inactivas.
 
@@ -566,7 +566,7 @@ Crea una nueva categoria validando unicidad de `name` y `code`.
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/item-categories`
-- **Acceso:** Exclusivo `ADMIN`
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Body (`CreateItemCategoryDto`):**
   - `name` (string, obligatorio, max 100)
   - `code` (string, opcional, max 30)
@@ -591,7 +591,7 @@ Actualiza nombre, codigo, descripcion o estado activo.
 
 - **Metodo:** `PATCH`
 - **Ruta:** `/api/v1/item-categories/:id`
-- **Acceso:** Exclusivo `ADMIN`
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Body (`UpdateItemCategoryDto`):** `name?`, `code?`, `description?`, `isActive?`
 
 ### 3.4 Eliminar o Desactivar Clasificacion
@@ -599,7 +599,7 @@ Elimina fisicamente la clasificacion si no tiene items asociados. Si cuenta con 
 
 - **Metodo:** `DELETE`
 - **Ruta:** `/api/v1/item-categories/:id`
-- **Acceso:** Exclusivo `ADMIN`
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 
 **Respuesta 200 OK (Eliminada fisicamente):**
 ```json

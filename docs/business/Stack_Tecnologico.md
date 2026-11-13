@@ -55,11 +55,12 @@ El backend implementa un monolito modular con arquitectura orientada a dominios 
   * Índices B-Tree optimizados en `(warehouseId, itemId)`, `sku`, `transferNumber` y `s10RawName` para garantizar consultas de stock en menos de 10 ms.
 * **Capa de Mapeo Objeto-Relacional:** **Prisma ORM v6**
   * Esquema declarativo (`schema.prisma`) con tipado estático autogenerado para TypeScript.
-  * **Transacciones Atómicas (`prisma.$transaction`):** Utilizadas de forma obligatoria en:
-    1. Ingreso de compras y recálculo del Costo Promedio Ponderado (CPP).
-    2. Reserva lógica de stock frente a requerimientos del S10.
-    3. Transferencias operativas de dos fases (despacho y recepción con discrepancia y merma).
+  * **Transacciones Atomicas (`prisma.$transaction`):** Utilizadas de forma obligatoria en:
+    1. Ingreso de compras y recalculo del Costo Promedio Ponderado (CPP).
+    2. Reserva logica de stock frente a requerimientos del S10.
+    3. Transferencias operativas de dos fases (despacho y recepcion con discrepancia y merma).
     4. Salidas por consumo en obra y vales de custodia de herramientas.
+    5. Reversion contable por contra-asientos (`REVERSAL_ENTRY` / `REVERSAL_EXIT`) y reemplazo atomico de transacciones (`replacedById`).
 * **Prisma Migrations:** Control de versiones formal de la base de datos aplicable mediante pipelines automatizados.
 
 ---
@@ -76,7 +77,7 @@ Especificaciones de hardware: 2 vCPU, 4 GB RAM, 100 GB SSD NVMe.
   * Terminación SSL/TLS automatizada con **Certbot (Let's Encrypt)** con renovación programada.
   * Proxy reverso hacia `localhost:3000` para las rutas de la API (`/api/v1/*`).
   * **Entrega Segura de Documentos:**
-    * Los comprobantes con datos financieros confidenciales (facturas de compra) se sirven a través del endpoint autenticado `GET /api/v1/documents/:id/download`, validando permisos de rol `ADMIN` (streaming directo o vía cabecera `X-Accel-Redirect`), evitando que almaceneros accedan a costos mediante URLs públicas.
+    * Los comprobantes con datos financieros confidenciales (facturas de compra) se sirven a traves del endpoint autenticado `GET /api/v1/documents/:id/download`, validando acceso completo para roles `ADMIN` o `MODERATOR`, y permitiendo a `WAREHOUSE_KEEPER` unicamente comprobantes de compra vinculados a sus sedes asignadas en `UserWarehouse` (streaming directo o via cabecera `X-Accel-Redirect`), evitando acceso no autorizado mediante URLs publicas.
     * Las guías de remisión física y fotos operativas de herramientas pueden ser servidas para los usuarios autenticados autorizados en su respectivo almacén.
 * **Automatización de Mantenimiento y Respaldos:**
   * **Script Cron Diario:** Ejecuta `pg_dump`, comprime en `.tar.gz`, purga respaldos locales que superen los 7 días de antigüedad (para no saturar los 100 GB del disco) y ofrece un botón de descarga directa en 1 clic en la vista de administración del ERP.

@@ -88,4 +88,22 @@ export class MachineryShiftFilterDto {
   @IsOptional()
   @IsDateString({}, { message: 'endDate debe ser una fecha ISO valida' })
   endDate?: string;
+
+  @ApiPropertyOptional({
+    example: true,
+    default: true,
+    description: 'Si es false, excluye jornadas anuladas (isReverted = true)',
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'false' || value === false || value === '0' || value === 0) {
+      return false;
+    }
+    if (value === 'true' || value === true || value === '1' || value === 1) {
+      return true;
+    }
+    return value;
+  })
+  @IsBoolean({ message: 'includeReverted debe ser booleano' })
+  includeReverted?: boolean = true;
 }

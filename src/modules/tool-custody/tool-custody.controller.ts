@@ -2,10 +2,12 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
   Param,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -18,9 +20,15 @@ import { ToolCustodyService } from './tool-custody.service.js';
 import { DispatchToolCustodyDto } from './dto/dispatch-tool-custody.dto.js';
 import { ReturnToolCustodyDto } from './dto/return-tool-custody.dto.js';
 import { ToolCustodyFilterDto } from './dto/tool-custody-filter.dto.js';
+import { RevertCustodyDto } from './dto/revert-custody.dto.js';
+import { UpdateToolCustodyMetadataDto } from './dto/update-tool-custody-metadata.dto.js';
+import { ReplaceToolCustodyDto } from './dto/replace-tool-custody.dto.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { WarehouseAccessGuard } from '../../common/guards/warehouse-access.guard.js';
+import { RolesGuard } from '../../common/guards/roles.guard.js';
+import { Roles } from '../../common/decorators/roles.decorator.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
+import { CostMaskingInterceptor } from '../../common/interceptors/cost-masking.interceptor.js';
 
 @ApiTags('Custodia de Herramientas')
 @ApiBearerAuth()
@@ -121,5 +129,84 @@ export class ToolCustodyController {
   })
   findOne(@Param('id') id: string) {
     return this.toolCustodyService.findOne(id);
+  }
+
+  @Post(':id/revert-dispatch')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MODERATOR, Role.WAREHOUSE_KEEPER)
+  @UseInterceptors(CostMaskingInterceptor)
+  @ApiOperation({
+    summary:
+      'Nivel 1A: Anular despacho de vale de custodia pendiente sin devolucion',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Despacho de custodia anulado y loanedQty restaurado',
+  })
+  revertDispatch(
+    @Param('id') id: string,
+    @Body() dto: RevertCustodyDto,
+    @CurrentUser() user: { id: string; role: Role },
+  ) {
+    return this.toolCustodyService.revertDispatch(id, dto, user);
+  }
+
+  @Post(':id/revert-return')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MODERATOR, Role.WAREHOUSE_KEEPER)
+  @UseInterceptors(CostMaskingInterceptor)
+  @ApiOperation({
+    summary:
+      'Nivel 1B: Revertir devolucion de herramienta reabriendo el vale en prestamo',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Devolucion revertida y prestamo reabierto',
+  })
+  revertReturn(
+    @Param('id') id: string,
+    @Body() dto: RevertCustodyDto,
+    @CurrentUser() user: { id: string; role: Role },
+  ) {
+    return this.toolCustodyService.revertReturn(id, dto, user);
+  }
+
+  @Patch(':id')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MODERATOR, Role.WAREHOUSE_KEEPER)
+  @UseInterceptors(CostMaskingInterceptor)
+  @ApiOperation({
+    summary: 'Nivel 2: Actualizar metadatos no contables del vale de custodia',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Metadatos de vale actualizados',
+  })
+  updateMetadata(
+    @Param('id') id: string,
+    @Body() dto: UpdateToolCustodyMetadataDto,
+    @CurrentUser() user: { id: string; role: Role },
+  ) {
+    return this.toolCustodyService.updateMetadata(id, dto, user);
+  }
+
+  @Post(':id/replace')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MODERATOR, Role.WAREHOUSE_KEEPER)
+  @UseInterceptors(CostMaskingInterceptor)
+  @ApiOperation({
+    summary:
+      'Nivel 3: Anular atomicamente vale pendiente y emitir vale de reemplazo',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Vale original anulado y vale de reemplazo emitido',
+  })
+  replace(
+    @Param('id') id: string,
+    @Body() dto: ReplaceToolCustodyDto,
+    @CurrentUser() user: { id: string; role: Role },
+  ) {
+    return this.toolCustodyService.replace(id, dto, user);
   }
 }

@@ -32,14 +32,15 @@ Consulta las ordenes de prestamo con filtro por almacen, estado activo (no devue
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/tools/custody`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
-#### Parametros Query
+#### Parametros Query (`ToolCustodyFilterDto`)
 - `warehouseId` (UUID, opcional): Filtrar por caseta de obra.
 - `assignedToDni` (string, opcional): Filtrar por DNI del operario.
-- `onlyPending` (boolean, default: false): Si es true, retorna unicamente herramientas que aun no han sido devueltas (`returnDate IS NULL`).
+- `onlyPending` (boolean, default: `false`): Si es `true`, retorna unicamente herramientas pendientes de devolucion no anuladas (`returnDate IS NULL` e `isReverted = false`).
+- `includeReverted` (boolean, default: `true`): Si se envia `false`, excluye vales anulados (`isReverted = true`).
 - `page` (integer, default: 1): Pagina.
 - `limit` (integer, default: 20): Limite de registros.
 
@@ -91,7 +92,7 @@ Registra la entrega fisica de una o varias herramientas a un trabajador en obra,
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/tools/custody/dispatch`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
   - `Content-Type: application/json`
@@ -145,7 +146,7 @@ Registra el retorno de la herramienta a la caseta de obra y asienta su calificac
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/tools/custody/:id/return`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
   - `Content-Type: application/json`
@@ -184,11 +185,11 @@ Registra el retorno de la herramienta a la caseta de obra y asienta su calificac
 ---
 
 ### 2.4 Consultar Deuda de Herramientas de un Trabajador
-Permite consultar todas las herramientas que actualmente tiene en su poder un operario buscando por su numero de DNI.
+Permite consultar todas las herramientas activas que actualmente tiene en su poder un operario buscando por su numero de DNI (excluye automaticamente vales devueltos y vales anulados con `isReverted = true`).
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/tools/custody/worker/:dni`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -234,7 +235,7 @@ Consulta la ficha completa de un vale de prestamo por su identificador.
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/tools/custody/:id`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -318,3 +319,80 @@ Consulta la ficha completa de un vale de prestamo por su identificador.
   ]
 }
 ```
+
+---
+
+### 2.6 Revertir Despacho de Vale de Custodia
+Anula un vale pendiente que aun no registra devolucion (`returnDate IS NULL`), decrementa `Stock.loanedQty`, marca `LOAN_DISPATCH` como revertido y emite el contra-asiento `REVERSAL_ENTRY`.
+
+- **Metodo:** `POST`
+- **Ruta:** `/api/v1/tools/custody/:id/revert-dispatch`
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+
+#### Request Body (`RevertCustodyDto`)
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `reason` | string (5..500 chars) | Si | Motivo de la anulacion del despacho de herramienta. |
+
+---
+
+### 2.7 Revertir Devolucion o Baja de Vale de Custodia
+Reabre un vale previamente cerrado (`returnDate != null` vuelve a `null`): si la devolucion fue conforme (`OPERATIVE`/`MINOR_WEAR`/`DAMAGED_REPAIRABLE`) restituye `Stock.loanedQty` y emite `REVERSAL_EXIT`; si fue baja patrimonial (`LOST` o `DAMAGED_UNUSABLE`) restaura tanto `physicalQty` como `loanedQty` y emite `REVERSAL_ENTRY`.
+
+- **Metodo:** `POST`
+- **Ruta:** `/api/v1/tools/custody/:id/revert-return`
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+
+#### Request Body (`RevertCustodyDto`)
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `reason` | string (5..500 chars) | Si | Motivo por el cual se reabre la devolucion o baja registrada. |
+
+---
+
+### 2.8 Editar Metadatos de Vale de Custodia
+Permite corregir datos operativos del prestamo vigente (`isReverted = false`) sin alterar existencias ni movimientos de Kardex.
+
+- **Metodo:** `PATCH`
+- **Ruta:** `/api/v1/tools/custody/:id`
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+
+#### Request Body (`UpdateToolCustodyMetadataDto`)
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `assignedToName` | string (max 150) | No | Nombre corregido del trabajador responsable. |
+| `assignedToDni` | string (max 20) | No | DNI corregido del trabajador. |
+| `serialOrCode` | string (max 100) | No | Serie o codigo patrimonial corregido. |
+| `expectedReturnDate` | ISO 8601 string | No | Nueva fecha comprometida de devolucion. |
+| `notes` | string (max 500) | No | Observaciones de entrega actualizadas. |
+| `returnNotes` | string (max 500) | No | Observaciones de devolucion (admitido solo si el vale ya fue devuelto). |
+
+---
+
+### 2.9 Reemplazar Vale de Custodia Atomicamente
+Anula un vale pendiente (`returnDate IS NULL`) y emite en la misma transaccion el vale corregido enlazando `replacedById`.
+
+- **Metodo:** `POST`
+- **Ruta:** `/api/v1/tools/custody/:id/replace`
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+
+#### Request Body (`ReplaceToolCustodyDto`)
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `(campos de DispatchToolCustodyDto)` | - | Segun DTO base | `warehouseId`, `itemId`, `quantity`, `serialOrCode?`, `assignedToName`, `assignedToDni`, `expectedReturnDate?`, `conditionOnDispatch?`, `dispatchPhotoId?`, `notes?`. |
+| `reversalReason` | string (5..500 chars) | Si | Motivo del reemplazo y anulacion del vale anterior. |
+
+> Nota: `GET /api/v1/tools/custody` con `onlyPending=true`, `GET /api/v1/tools/custody/worker/:dni` y la metrica `toolsInField` del Dashboard excluyen automaticamente vales anulados (`isReverted = false`). Para consultar historial sin anulados usar `?includeReverted=false`.
+

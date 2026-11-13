@@ -22,8 +22,8 @@ Este modulo controla la operacion, control de jornadas y registro de lecturas de
   - `endPhotoId`: Fotografia obligatoria del horometro u odometro al finalizar el trabajo diario.
   - `fuelPhotoId`: Fotografia opcional del comprobante de despacho o medidor de combustible.
 - **Segregacion por Rol (RBAC):**
-  - `ADMIN`: Consulta y opera sobre maquinarias de cualquier almacen de la empresa.
-  - `WAREHOUSE_KEEPER`: Restringido exclusivamente a registrar y consultar turnos de los almacenes u obras que tiene asignados en `UserWarehouse`.
+  - `ADMIN` y `MODERATOR`: Consultan y operan sobre maquinarias de cualquier almacen de la empresa.
+  - `WAREHOUSE_KEEPER`: Restringido exclusivamente a registrar, consultar, corregir y anular turnos de los almacenes u obras que tiene asignados en `UserWarehouse`.
 
 - **Ruta Base:** `/api/v1/machinery`
 - **Entidades Vinculadas:** `MachineryShiftLog`, `Item`, `Warehouse`, `DocumentAttachment`
@@ -37,7 +37,7 @@ Registra la apertura del turno diario de un equipo pesado o vehiculo con la lect
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/machinery/shift/start`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
   - `Content-Type: application/json`
@@ -117,7 +117,7 @@ Registra el cierre del turno, calcula el uso efectivo (`totalUsage` en horas o k
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/machinery/shift/:id/end`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
   - `Content-Type: application/json`
@@ -200,7 +200,7 @@ Consulta jornadas con filtros combinados y paginacion. Cada registro incluye `me
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/machinery/shifts`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -210,7 +210,8 @@ Consulta jornadas con filtros combinados y paginacion. Cada registro incluye `me
 | `itemId` | UUID | opcional | Filtrar por maquinaria especifica. |
 | `warehouseId` | UUID | opcional | Filtrar por almacen u obra. |
 | `operatorDni` | string | opcional | Filtrar por DNI del operador. |
-| `onlyOpen` | boolean | opcional | Si es true, retorna solo turnos en marcha (`endDateTime == null`). |
+| `onlyOpen` | boolean | opcional | Si es true, retorna solo turnos activos en marcha (`endDateTime == null` e `isReverted = false`). |
+| `includeReverted` | boolean | `true` | Si se envia `false`, excluye jornadas anuladas (`isReverted = true`). |
 | `startDate` | ISO Date | opcional | Fecha minima de apertura de turno. |
 | `endDate` | ISO Date | opcional | Fecha maxima de apertura de turno. |
 | `page` | integer | `1` | Numero de pagina. |
@@ -223,16 +224,16 @@ Obtiene la ficha individual completa de un turno de maquinaria con sus fotos enr
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/machinery/shifts/:id`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
 
 ---
 
 ### 2.5 Consultar Estado Operativo de Maquinaria (`GET /item/:itemId/status`)
-Permite a las interfaces web y moviles verificar si una maquinaria se encuentra actualmente en operacion, conocer su tipo de medidor (`meterType`: `HOUR_METER` | `KILOMETER`) y recuperar la ultima lectura registrada (`lastMeter`) para precargar formularios de apertura.
+Permite a las interfaces web y moviles verificar si una maquinaria se encuentra actualmente en operacion, conocer su tipo de medidor (`meterType`: `HOUR_METER` | `KILOMETER`) y recuperar la ultima lectura registrada (`lastMeter`) para precargar formularios de apertura. Excluye jornadas anuladas (`isReverted = true`) al evaluar `hasActiveShift`, `activeShift` y `lastMeter`.
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/machinery/item/:itemId/status`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 
 #### Respuestas
 **200 OK - Estado obtenido:**
@@ -248,3 +249,45 @@ Permite a las interfaces web y moviles verificar si una maquinaria se encuentra 
   "lastShiftEndDateTime": "2026-10-11T17:15:00.000Z"
 }
 ```
+
+---
+
+### 2.6 Editar Lecturas y Metadatos de Jornada (`PATCH /shifts/:id`)
+Permite corregir errores de digitacion de lecturas (`startMeter`, `endMeter`), operador o fotografias en una jornada vigente (`isReverted = false`). Si el turno ya fue cerrado, admite editar `endMeter`, `endPhotoId` y `fuelPhotoId`, recalculando automaticamente `totalUsage = endMeter - startMeter`. Valida coherencia cronologica contra el turno inmediatamente anterior y el inmediatamente posterior no anulados de la misma maquinaria.
+
+- **Metodo:** `PATCH`
+- **Ruta:** `/api/v1/machinery/shifts/:id`
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+
+#### Request Body (`UpdateMachineryShiftDto`)
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `operatorName` | string (max 150) | No | Nombre corregido del operador. |
+| `operatorDni` | string (max 20) | No | DNI corregido del operador. |
+| `notes` | string (max 500) | No | Observaciones operativas actualizadas. |
+| `startMeter` | number (>= 0, max 2 dec) | No | Lectura inicial corregida (`>= endMeter` del turno previo no anulado). |
+| `endMeter` | number (>= 0, max 2 dec) | No | Lectura final corregida (solo turnos cerrados; `>= startMeter` y `<= startMeter` del siguiente turno no anulado). |
+| `startPhotoId` | UUID | No | Nuevo ID de foto de lectura inicial. |
+| `endPhotoId` | UUID | No | Nuevo ID de foto de cierre (solo turnos cerrados). |
+| `fuelPhotoId` | UUID | No | Nuevo ID de foto de combustible (solo turnos cerrados). |
+
+---
+
+### 2.7 Anular Jornada de Maquinaria (Soft-Void)
+Marca una jornada con `isReverted = true`, `revertedAt`, `revertedById` y `reversalReason` sin eliminar el registro historico. En `GET /shifts`, `onlyOpen=true` e `includeReverted=false` excluyen jornadas anuladas; igualmente `startShift` y `GET /item/:itemId/status` omiten turnos anulados al evaluar turnos abiertos y calcular `lastMeter`.
+
+- **Metodo:** `POST`
+- **Ruta:** `/api/v1/machinery/shifts/:id/revert`
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+
+#### Request Body (`RevertMachineryShiftDto`)
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `reason` | string (5..500 chars) | Si | Motivo formal de la anulacion del turno registrado. |
+

@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
   Param,
   Query,
@@ -20,7 +21,13 @@ import { TransfersService } from './transfers.service.js';
 import { DispatchTransferDto } from './dto/dispatch-transfer.dto.js';
 import { ReceiveTransferDto } from './dto/receive-transfer.dto.js';
 import { TransferFilterDto } from './dto/transfer-filter.dto.js';
+import { CancelTransferDto } from './dto/cancel-transfer.dto.js';
+import { RevertTransferReceptionDto } from './dto/revert-transfer-reception.dto.js';
+import { UpdateTransferMetadataDto } from './dto/update-transfer-metadata.dto.js';
+import { ReplaceTransferDto } from './dto/replace-transfer.dto.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
+import { RolesGuard } from '../../common/guards/roles.guard.js';
+import { Roles } from '../../common/decorators/roles.decorator.js';
 import { WarehouseAccessGuard } from '../../common/guards/warehouse-access.guard.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import { CostMaskingInterceptor } from '../../common/interceptors/cost-masking.interceptor.js';
@@ -148,5 +155,117 @@ export class TransfersController {
     @CurrentUser() user: { id: string; role: Role },
   ) {
     return this.transfersService.receive(id, dto, user);
+  }
+
+  @Post(':id/cancel')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MODERATOR, Role.WAREHOUSE_KEEPER)
+  @UseInterceptors(CostMaskingInterceptor)
+  @ApiOperation({
+    summary:
+      'Nivel 1A: Cancelar una transferencia en estado IN_TRANSIT restaurando stock en origen',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Transferencia cancelada y stock restaurado en origen',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Transferencia ya anulada o no esta en estado IN_TRANSIT',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Sin autorizacion sobre el almacen de origen',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Transferencia no encontrada',
+  })
+  cancel(
+    @Param('id') id: string,
+    @Body() dto: CancelTransferDto,
+    @CurrentUser() user: { id: string; role: Role },
+  ) {
+    return this.transfersService.cancel(id, dto, user);
+  }
+
+  @Post(':id/revert-reception')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MODERATOR, Role.WAREHOUSE_KEEPER)
+  @UseInterceptors(CostMaskingInterceptor)
+  @ApiOperation({
+    summary:
+      'Nivel 1B: Revertir recepcion de transferencia (BACK_TO_TRANSIT o CANCEL_COMPLETELY)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Recepcion revertida y Kardex compensado correctamente',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Estado invalido o stock insuficiente en destino para revertir',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Sin autorizacion sobre el almacen requerido',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Transferencia no encontrada',
+  })
+  revertReception(
+    @Param('id') id: string,
+    @Body() dto: RevertTransferReceptionDto,
+    @CurrentUser() user: { id: string; role: Role },
+  ) {
+    return this.transfersService.revertReception(id, dto, user);
+  }
+
+  @Patch(':id')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MODERATOR, Role.WAREHOUSE_KEEPER)
+  @UseInterceptors(CostMaskingInterceptor)
+  @ApiOperation({
+    summary:
+      'Nivel 2: Actualizar notas de despacho y/o recepcion de una transferencia activa',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Metadatos de transferencia actualizados',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Transferencia anulada o notas de recepcion en transito',
+  })
+  updateMetadata(
+    @Param('id') id: string,
+    @Body() dto: UpdateTransferMetadataDto,
+    @CurrentUser() user: { id: string; role: Role },
+  ) {
+    return this.transfersService.updateMetadata(id, dto, user);
+  }
+
+  @Post(':id/replace')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MODERATOR, Role.WAREHOUSE_KEEPER)
+  @UseInterceptors(CostMaskingInterceptor)
+  @ApiOperation({
+    summary:
+      'Nivel 3: Reemplazar atomicamente una transferencia IN_TRANSIT (cancela original y emite nueva guia)',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Transferencia original cancelada y reemplazo despachado',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Estado invalido o stock insuficiente para el reemplazo',
+  })
+  replace(
+    @Param('id') id: string,
+    @Body() dto: ReplaceTransferDto,
+    @CurrentUser() user: { id: string; role: Role },
+  ) {
+    return this.transfersService.replace(id, dto, user);
   }
 }

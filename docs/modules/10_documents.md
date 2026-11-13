@@ -5,8 +5,8 @@ Este modulo proporciona almacenamiento seguro para evidencias fisicas, guias de 
 
 ### Caracteristicas de Seguridad y Procesamiento:
 - **Proteccion de Confidencialidad (`isConfidential`):**
-  - Los documentos marcados como confidenciales (como facturas de proveedores con precios unitarios) son de acceso exclusivo para `ADMIN`.
-  - Si un usuario con rol `WAREHOUSE_KEEPER` intenta descargar un archivo confidencial, el servidor responde `403 Forbidden`.
+  - Los documentos marcados como confidenciales (como facturas de proveedores con precios unitarios) son accesibles para `ADMIN` y `MODERATOR`. Un usuario `WAREHOUSE_KEEPER` solo puede consultar o descargar adjuntos confidenciales vinculados a compras de sus almacenes asignados en `UserWarehouse`.
+  - Si un `WAREHOUSE_KEEPER` intenta descargar un archivo confidencial sin autorizacion de sede o de otro modulo, el servidor responde `403 Forbidden`.
 - **Pipeline de Optimizacion de Imagenes con Sharp:**
   - Las fotos capturadas desde smartphones en obra (formatos JPEG, PNG) se procesan y convierten automaticamente al formato optimizado WebP con calidad del 85% para reducir el consumo de datos moviles.
 - **Validacion Estricta de Mime-Type:**
@@ -24,7 +24,7 @@ Permite subir un archivo binario y asociarlo opcionalmente a una compra, transfe
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/documents/upload`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
   - `Content-Type: multipart/form-data`
@@ -81,7 +81,7 @@ Permite subir hasta 10 archivos de forma paralela en una unica transaccion HTTP.
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/documents/upload-multiple`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
   - `Content-Type: multipart/form-data`
@@ -151,7 +151,7 @@ Consulta el listado de documentos y evidencias adjuntas con filtros por entidad 
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/documents`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -201,7 +201,7 @@ Descarga o transmite en flujo binario protegido el documento solicitado. Verific
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/documents/:id/download` (o `GET /api/v1/documents/:id` sin cabecera JSON)
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` autorizado)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` autorizado)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -231,7 +231,7 @@ Obtiene la ficha JSON de metadatos de un archivo adjunto sin transmitir el flujo
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/documents/:id`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` autorizado)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` autorizado)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
   - `Accept: application/json`
@@ -261,7 +261,7 @@ Elimina el registro de la base de datos y borra el archivo fisico del almacenami
 
 - **Metodo:** `DELETE`
 - **Ruta:** `/api/v1/documents/:id`
-- **Acceso:** Protegido (`ADMIN`)
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
 

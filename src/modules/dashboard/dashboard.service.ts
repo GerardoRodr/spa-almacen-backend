@@ -102,6 +102,7 @@ export class DashboardService {
     // Cantidad de custodias pendientes de devolucion en campo
     const custodyWhere: Record<string, unknown> = {
       returnDate: null,
+      isReverted: false,
     };
 
     if (isSpecificWarehouse) {

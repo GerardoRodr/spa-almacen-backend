@@ -34,10 +34,11 @@ Nota: La politica de seguridad CSP de Helmet se encuentra configurada en modo pe
 
 ## 2. Matriz de Control de Acceso Basado en Roles (RBAC)
 
-El sistema implementa dos roles principales:
+El sistema implementa tres roles principales:
 
-1. `ADMIN`: Control corporativo total. Acceso a todos los almacenes, catalogo maestro, creacion de usuarios, asignacion de almacenes y visualizacion sin restricciones de costos financieros y precios de compra.
-2. `WAREHOUSE_KEEPER`: Operador de almacen o caseta de obra. Restringido estrictamente a los almacenes que tiene asignados en su perfil (`UserWarehouse`). Tiene bloqueo automatico de campos financieros mediante `CostMaskingInterceptor`.
+1. `ADMIN`: Control corporativo total. Acceso a todos los almacenes, catalogo maestro, creacion y gestion de usuarios, asignacion de almacenes, respaldos y visualizacion sin restricciones de costos financieros y precios de compra.
+2. `MODERATOR`: Supervision operativa y financiera global. Acceso irrestricto a todos los almacenes, visualizacion completa de costos/precios/valorizaciones, administracion de catalogos, S10, ajustes de inventario y respaldos; tiene acceso denegado (`403 Forbidden`) unicamente al modulo de gestion de usuarios (`/api/v1/users`).
+3. `WAREHOUSE_KEEPER`: Operador de almacen o caseta de obra. Restringido estrictamente a los almacenes que tiene asignados en su perfil (`UserWarehouse`). Tiene bloqueo automatico de campos financieros mediante `CostMaskingInterceptor`.
 
 ### Comportamiento del Interceptor de Costos (`CostMaskingInterceptor`)
 Para los usuarios con rol `WAREHOUSE_KEEPER`, el interceptor elimina recursivamente en las respuestas JSON los siguientes campos sensibles:
@@ -52,8 +53,11 @@ Para los usuarios con rol `WAREHOUSE_KEEPER`, el interceptor elimina recursivame
 - `inventoryValuationPEN`
 - `suppliesValuationPEN`
 - `toolsInvestmentPEN`
+- `minUnitCostPEN`, `maxUnitCostPEN`, `currentWeightedAverageCostPEN`, `newWarehouseAverageCost`
+- `s10UnitPrice`, `minHistoricalUnitCost`, `weightedAverageCost`, `s10BudgetUnitPrice`
+- Totales y KPIs presupuestales S10 (`s10TotalBudget`, `s10MaterialsBudget`, `s10EquipmentBudget`, `s10LaborBudget`, `s10SubcontractsBudget`, `totalBudgetPEN`, `materialsBudgetPEN`, `equipmentBudgetPEN`, `laborBudgetPEN`, `subcontractsBudgetPEN`, `totalDeficitEstimatedCostPEN`)
 
-Para el usuario con rol `ADMIN`, todos estos campos se entregan con sus valores numericos decimales correspondientes.
+Para los usuarios con rol `ADMIN` y `MODERATOR`, todos estos campos se entregan con sus valores numericos decimales correspondientes.
 
 ---
 
@@ -103,15 +107,15 @@ Codigos HTTP comunes:
 2. [02 - Usuarios y RBAC](02_users.md): Administracion de usuarios, asignacion de almacenes y cambio de estado.
 3. [03 - Almacenes y Stock](03_warehouses.md): Gestion de almacenes Central y Obra, stock en tiempo real y alertas minimas.
 4. [04 - Catalogo de Items, Clasificaciones y Alias S10](04_items.md): Catalogo maestro, consumibles, herramientas, clasificaciones personalizadas (ItemCategory), stock consolidado y homologacion S10.
-5. [05 - Proveedores y Compras](05_purchases_suppliers.md): Registro de proveedores con RUC de 11 digitos, facturas bimoneda con IGV y recalculo ponderado de CPP (WAC).
-6. [06 - Transferencias Operativas](06_transfers.md): Despacho en dos fases, transito, recepcion en caseta y mermas en transporte.
-7. [07 - Movimientos de Inventario y Kardex](07_movements_kardex.md): Vales de salida a cuadrillas, mermas y kardex inmutable.
-8. [08 - Custodia de Herramientas](08_tool_custody.md): Prestamo temporal a operarios por DNI, control de caseta vs campo, devolucion y bajas patrimoniales.
-9. [09 - Proyectos y Presupuestos S10](09_projects_s10.md): Carga de archivos S10 por streams, presupuesto de obra, reserva en Central, matriz de brechas y liquidacion de obra.
-10. [10 - Documentos y Evidencias](10_documents.md): Subida y visualizacion segura de facturas, guias y remisiones con optimizacion Sharp a WebP.
-11. [11 - Administracion y Mantenimiento](11_admin_maintenance.md): Copias de seguridad de PostgreSQL, metricas de salud, purga programada y hardening E2E.
-12. [12 - Maquinaria y Horometros](12_machinery.md): Control de jornadas de maquinaria pesada, validacion de horometros inicial y final, fotos obligatorias y calculo de horas de trabajo.
-13. [13 - Dashboard y Analitica](13_dashboard.md): Metricas consolidadas, valorizacion neta de inventario, calculo de inversion patrimonial en herramientas y alertas operativas.
+5. [05 - Proveedores y Compras](05_purchases_suppliers.md): Registro de proveedores, facturas bimoneda con IGV, cuadro comparativo, valorizacion administrativa, reversion de compras (`isReverted`), edicion no contable y reemplazo atomico.
+6. [06 - Transferencias Operativas](06_transfers.md): Despacho en dos fases, recepcion en caseta, mermas en transporte, cancelacion/reversion de recepcion, edicion de notas y reemplazo atomico.
+7. [07 - Movimientos de Inventario y Kardex](07_movements_kardex.md): Vales de salida, mermas, kardex append-only con contra-asientos (`REVERSAL_ENTRY`/`REVERSAL_EXIT`), edicion de metadatos y reemplazo atomico.
+8. [08 - Custodia de Herramientas](08_tool_custody.md): Prestamo a operarios por DNI, control de caseta vs campo, devolucion, reversion de despacho/retorno, edicion de metadatos y reemplazo atomico.
+9. [09 - Proyectos y Presupuestos S10](09_projects_s10.md): Carga de archivos S10 por streams, presupuesto de obra, reserva en Central, matriz de brechas (excluyendo compras revertidas) y liquidacion de obra.
+10. [10 - Documentos y Evidencias](10_documents.md): Subida y visualizacion segura de facturas, guias y evidencias con optimizacion Sharp a WebP y control de confidencialidad.
+11. [11 - Administracion y Mantenimiento](11_admin_maintenance.md): Copias de seguridad de PostgreSQL, metricas de salud, purga programada y hardening E2E (`ADMIN` y `MODERATOR`).
+12. [12 - Maquinaria y Horometros](12_machinery.md): Control de jornadas de maquinaria pesada (`HOUR_METER`/`KILOMETER`), fotos, edicion y anulacion de turnos (`isReverted`).
+13. [13 - Dashboard y Analitica](13_dashboard.md): Metricas consolidadas (excluyendo vales y movimientos revertidos), valorizacion neta de inventario, inversion en herramientas y alertas operativas.
 14. [14 - Unidades de Medida Maestras](14_measurement_units.md): Catalogo maestro de unidades base (`MeasurementUnit`), endpoints CRUD para administracion y protocolo de doble confirmacion para modificacion de unidades en insumos con historial.
 
 

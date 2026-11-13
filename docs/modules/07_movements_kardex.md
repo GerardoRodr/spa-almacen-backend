@@ -4,17 +4,19 @@
 Este modulo implementa el libro mayor contable y operativo del inventario (Kardex Fisico y Valorizado).
 
 ### Reglas Clave:
-- **Inmutabilidad Absoluta (Append-Only):** Los registros en `Movement` y `MovementItem` representan hechos fisicos consumados. Estan estrictamente prohibidas las operaciones de actualizacion (`UPDATE`) o eliminacion (`DELETE`).
+- **Inmutabilidad Contable (Append-Only + Contra-Asientos):** Los registros en `Movement` y `MovementItem` nunca se eliminan ni alteran sus cantidades o costos historicos. Toda correccion operativa de movimientos directos se realiza mediante contra-asientos compensatorios (`REVERSAL_ENTRY` / `REVERSAL_EXIT` vinculados con `reversesMovementId` y `isReverted = true`), edicion controlada de metadatos no contables (`PATCH`) o reemplazo atomico (`replacedById`).
 - **Snapshot de Costo Congelado:** Cada salida o entrada registra de manera inmutable el `unitCostSnapshot` vigente al instante de la transaccion, garantizando que valorizaciones de obra posteriores no se desvirtuen.
 - **Tipos de Movimientos Contemplados:**
-  - `PURCHASE_ENTRY`: Entrada por compra en Almacen Central.
+  - `PURCHASE_ENTRY`: Entrada por compra en almacen receptor.
   - `CONSUMPTION_EXIT`: Salida definitiva de material entregado a cuadrilla/capataz en obra.
   - `TRANSFER_DISPATCH`: Salida fisica desde almacen de origen hacia transito.
   - `TRANSFER_RECEIPT`: Entrada fisica confirmada en almacen de destino.
   - `LOAN_DISPATCH`: Salida de herramienta para custodia temporal.
   - `LOAN_RETURN`: Retorno fisico de herramienta a caseta.
   - `SHRINKAGE_EXIT`: Perdida, merma en ruta o rotura no recuperable.
-  - `INVENTORY_ADJUSTMENT`: Regularizacion por toma fisica o carga inicial de inventario (ADMIN o WAREHOUSE_KEEPER asignado).
+  - `INVENTORY_ADJUSTMENT`: Regularizacion por toma fisica (`ADMIN` o `MODERATOR` en `/adjustment`) o carga inicial de inventario (`/initial-stock`).
+  - `REVERSAL_ENTRY`: Contra-asiento de reingreso al stock por anulacion de una salida, merma o despacho.
+  - `REVERSAL_EXIT`: Contra-asiento de egreso de stock por anulacion de una compra, recepcion o ajuste positivo.
 
 - **Ruta Base:** `/api/v1/movements`
 - **Entidades Vinculadas:** `Movement`, `MovementItem`, `Warehouse`, `Item`, `Project`, `User`, `DocumentAttachment`
@@ -28,7 +30,7 @@ El almacenero de caseta entrega material a una cuadrilla o capataz. Decrementa e
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/movements/consumption`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado al almacen)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado al almacen)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
   - `Content-Type: application/json`
@@ -114,7 +116,7 @@ Registra perdidas por rotura, vencimiento de quimicos o destruccion fortuita. Ex
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/movements/shrinkage`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
   - `Content-Type: application/json`
@@ -183,7 +185,7 @@ Permite registrar tomas fisicas masivas o iniciales de existencias al momento de
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/movements/initial-stock`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado via `WarehouseAccessGuard`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado via `WarehouseAccessGuard`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
   - `Content-Type: application/json`
@@ -272,7 +274,7 @@ Permite regularizar sobrantes (`INCREASE`) o faltantes (`DECREASE`) tras un inve
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/movements/adjustment`
-- **Acceso:** Protegido (`ADMIN`)
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
   - `Content-Type: application/json`
@@ -343,7 +345,7 @@ Obtiene la ficha inmutable de un movimiento de inventario, con datos de almacene
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/movements/:id`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -408,22 +410,23 @@ Consulta el libro de movimientos con filtros avanzados. Aplica `CostMaskingInter
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/movements`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
 #### Parametros Query (`MovementFilterDto`)
 - `warehouseId` (UUID, opcional): Filtrar por almacen origen/destino.
 - `itemId` (UUID, opcional): Filtrar por insumo o herramienta.
-- `type` (enum `MovementType`, opcional): Tipo de movimiento especifico.
+- `type` (enum `MovementType`, opcional): Tipo de movimiento especifico (incluye `REVERSAL_ENTRY` y `REVERSAL_EXIT`).
 - `startDate` (ISO Date, opcional): Fecha desde.
 - `endDate` (ISO Date, opcional): Fecha hasta.
+- `includeReverted` (boolean, default: `true`): Si se envia `false`, excluye movimientos compensados (`isReverted = true`).
 - `page` (integer, default: 1): Pagina actual.
 - `limit` (integer, default: 20): Registros por pagina.
 
 #### Respuestas Segun Rol
 
-**Respuesta para ADMIN (Muestra costos valorizados):**
+**Respuesta para ADMIN o MODERATOR (Muestra costos valorizados):**
 ```json
 {
   "data": [
@@ -494,3 +497,82 @@ Consulta el libro de movimientos con filtros avanzados. Aplica `CostMaskingInter
   }
 }
 ```
+
+---
+
+## 3. Reversion, Edicion de Metadatos y Reemplazo de Movimientos Directos
+
+El filtro `includeReverted=false` en `GET /api/v1/movements` permite ocultar movimientos ya compensados (`isReverted = true`). Los contra-asientos utilizan `REVERSAL_ENTRY` y `REVERSAL_EXIT` vinculados mediante `reversesMovementId`. Movimientos generados por compras, transferencias o vales de herramientas deben revertirse desde sus modulos respectivos.
+
+### 3.1 Revertir Movimiento Directo (`CONSUMPTION_EXIT`, `SHRINKAGE_EXIT` o `INVENTORY_ADJUSTMENT`)
+Revierte un movimiento directo vigente generando su contra-asiento contable: restaura `Stock.physicalQty`, recalcula CPP al reingresar unidades, descuenta `ProjectRequirement.consumedQty` en consumos de obra y marca el movimiento original con `isReverted = true`. Para `INVENTORY_ADJUSTMENT` se restringe a `ADMIN` o `MODERATOR` y requiere `adjustmentDirections` por cada insumo ajustado.
+
+- **Metodo:** `POST`
+- **Ruta:** `/api/v1/movements/:id/revert`
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado; `INVENTORY_ADJUSTMENT` solo `ADMIN` o `MODERATOR`)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+
+#### Request Body (`RevertMovementDto`)
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `reason` | string (5..500 chars) | Si | Motivo formal de la anulacion del movimiento directo. |
+| `adjustmentDirections` | array (`AdjustmentDirectionDto[]`) | Condicional | Obligatorio para `INVENTORY_ADJUSTMENT`: lista `{ itemId: UUID, direction: 'INCREASE' | 'DECREASE' }`. |
+
+---
+
+### 3.2 Editar Metadatos de Movimiento Directo
+Actualiza datos administrativos de un movimiento vigente (`isReverted = false`) sin modificar cantidades ni costos en Kardex.
+
+- **Metodo:** `PATCH`
+- **Ruta:** `/api/v1/movements/:id`
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+
+#### Request Body (`UpdateMovementMetadataDto`)
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `recipientName` | string (max 150) | No | Nombre del receptor (aplica a `CONSUMPTION_EXIT`). |
+| `recipientDni` | string (max 20) | No | DNI del receptor (aplica a `CONSUMPTION_EXIT`). |
+| `shrinkageReason` | string (max 300) | No | Causa de merma o siniestro (aplica a `SHRINKAGE_EXIT`). |
+| `observation` | string (max 500) | No | Observacion operativa general. |
+
+---
+
+### 3.3 Reemplazar Salida por Consumo Atomicamente
+Revierte atomicamente un `CONSUMPTION_EXIT` original y emite la nueva salida por consumo corregida, enlazando `replacedById` hacia el nuevo movimiento.
+
+- **Metodo:** `POST`
+- **Ruta:** `/api/v1/movements/:id/replace-consumption`
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+
+#### Request Body (`ReplaceConsumptionExitDto`)
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `(campos de CreateConsumptionExitDto)` | - | Segun DTO base | `warehouseId`, `projectId`, `recipientName`, `recipientDni`, `observation?`, `items`. |
+| `reversalReason` | string (5..500 chars) | Si | Sustento del reemplazo de la salida por consumo. |
+
+---
+
+### 3.4 Reemplazar Salida por Merma Atomicamente
+Revierte atomicamente una merma directa (`SHRINKAGE_EXIT` sin `transferId` ni `toolCustodyId`) y emite la nueva merma corregida vinculando `replacedById`.
+
+- **Metodo:** `POST`
+- **Ruta:** `/api/v1/movements/:id/replace-shrinkage`
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+
+#### Request Body (`ReplaceShrinkageExitDto`)
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `(campos de CreateShrinkageExitDto)` | - | Segun DTO base | `warehouseId`, `shrinkageReason`, `observation?`, `items`. |
+| `reversalReason` | string (5..500 chars) | Si | Sustento del reemplazo de la merma registrada. |
+

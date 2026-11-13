@@ -26,7 +26,7 @@ Retorna la relacion de proveedores comerciales registrados con conteo de factura
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/suppliers`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -72,7 +72,7 @@ Registra una persona juridica o natural proveedora validando unicidad de RUC (11
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/suppliers`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
   - `Content-Type: application/json`
@@ -131,7 +131,7 @@ Consulta la ficha del proveedor junto con sus ultimas 10 compras registradas y e
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/suppliers/:id`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -174,7 +174,7 @@ Modifica los datos generales de un proveedor comercial.
 
 - **Metodo:** `PUT`
 - **Ruta:** `/api/v1/suppliers/:id`
-- **Acceso:** Protegido (`ADMIN`)
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
   - `Content-Type: application/json`
@@ -216,17 +216,21 @@ Consulta el historial de comprobantes de compra con filtros por rango de fecha, 
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/purchases`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
-#### Parametros Query
+#### Parametros Query (`PurchaseFilterDto`)
 - `page` (integer, default: 1): Pagina actual.
 - `limit` (integer, default: 20): Registros por pagina.
+- `warehouseId` (UUID o `'ALL'`, opcional): Filtrar por almacen destino (para `WAREHOUSE_KEEPER` restringido a sus `UserWarehouse`).
 - `supplierId` (UUID, opcional): Filtrar por proveedor.
 - `invoiceSeries` (string, opcional): Buscar por serie (ej. `F001-0004523`).
+- `itemId` (UUID, opcional): Filtrar compras que incluyan un insumo especifico.
+- `itemSearch` (string, opcional): Buscar compras cuyos detalles coincidan por nombre o SKU de insumo.
 - `startDate` (ISO Date, opcional): Fecha inicio.
 - `endDate` (ISO Date, opcional): Fecha fin.
+- `includeReverted` (boolean, default: `true`): Si se envia `false`, excluye compras con `isReverted = true`.
 
 #### Respuestas
 **200 OK - Listado obtenido:**
@@ -271,7 +275,7 @@ Si el usuario autenticado tiene rol `WAREHOUSE_KEEPER`, se valida obligatoriamen
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/purchases`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
   - `Content-Type: application/json`
@@ -386,7 +390,7 @@ Obtiene la informacion completa de la factura, proveedor emisor, renglones compr
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/purchases/:id`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -450,7 +454,7 @@ Retorna la comparativa exhaustiva de precios de compras historicas para un insum
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/purchases/price-comparison`
-- **Acceso:** Protegido (`ADMIN`)
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
 
@@ -522,7 +526,7 @@ Permite a Administracion regularizar comprobantes ingresados previamente con cos
 
 - **Metodo:** `PATCH`
 - **Ruta:** `/api/v1/purchases/:id/valuation`
-- **Acceso:** Protegido (`ADMIN`)
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken_admin>`
   - `Content-Type: application/json`
@@ -548,3 +552,63 @@ Permite a Administracion regularizar comprobantes ingresados previamente con cos
    $$\text{Stock.averageCost} = \frac{(S_{\text{actual}} \times \text{CPP}_{\text{anterior}}) + (Q_{\text{comprada}} \times C_{\text{unitPEN}})}{S_{\text{actual}}}$$
    (sin alterar `physicalQty` para no duplicar el stock fisico).
 4. Retorna el comprobante completamente valorizado con sus nuevos costos consolidados.
+
+---
+
+### 3.6 Revertir Compra (Contra-Asiento Contable)
+Anula logicamente una compra (`isReverted = true`), descuenta las unidades ingresadas del almacen receptor validando que permanezcan en stock libre disponible (`physicalQty - reservedQty - loanedQty >= baseQty`), recalcula de forma inversa el Costo Promedio Ponderado (`averageCost`) de cada insumo involucrado y genera un movimiento de Kardex `REVERSAL_EXIT` enlazado al `PURCHASE_ENTRY` original (marcado tambien como revertido).
+
+- **Metodo:** `POST`
+- **Ruta:** `/api/v1/purchases/:id/revert`
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado en `UserWarehouse`)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+
+#### Request Body (`RevertPurchaseDto`)
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `reversalReason` | string (5..500 chars) | Si | Motivo formal de la anulacion o correccion contable. |
+
+---
+
+### 3.7 Editar Metadatos de Compra sin Afectar Inventario
+Permite corregir datos documentales o administrativos de una compra vigente (`isReverted = false`) sin alterar cantidades, costos ni movimientos de Kardex.
+
+- **Metodo:** `PATCH`
+- **Ruta:** `/api/v1/purchases/:id`
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado en `UserWarehouse`)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+
+#### Request Body (`UpdatePurchaseMetadataDto`)
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `supplierId` | string (UUID) | No | Nuevo proveedor emisor validado. |
+| `invoiceSeries` | string (max 100, no vacio) | No | Serie y numero corregidos del comprobante. |
+| `voucherType` | string (max 50, no vacio) | No | Tipo de comprobante corregido. |
+| `issueDate` | ISO 8601 string | No | Fecha de emision corregida. |
+| `notes` | string (max 1000) | No | Observaciones generales actualizadas. |
+| `itemNotes` | array (`PurchaseDetailNoteDto[]`) | No | Notas por renglon: cada elemento recibe `detailId` (UUID) y `notes` (string, max 1000). |
+
+---
+
+### 3.8 Reemplazar Compra Atomicamente
+Ejecuta en una unica transaccion ACID la reversion de la compra original (incluyendo validacion de stock libre, recalculo inverso de CPP y `REVERSAL_EXIT`) junto con el registro de una nueva compra y su `PURCHASE_ENTRY`, dejando la compra anterior marcada con `replacedById` apuntando al nuevo comprobante. Admite todos los campos de `CreatePurchaseDto` mas `reversalReason`.
+
+- **Metodo:** `POST`
+- **Ruta:** `/api/v1/purchases/:id/replace`
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado en `UserWarehouse`)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+
+#### Request Body (`ReplacePurchaseDto`)
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `(campos de CreatePurchaseDto)` | - | Segun DTO base | `supplierId`, `centralWarehouseId` / `warehouseId`, `invoiceSeries`, `voucherType`, `hasIgv`, `currency`, `exchangeRate`, `issueDate`, `notes`, `items`, etc. |
+| `reversalReason` | string (5..500 chars) | Si | Motivo del reemplazo y anulacion de la factura original. |
+
+> Nota RBAC: Para `WAREHOUSE_KEEPER`, las claves financieras en las respuestas de `GET /purchases`, `GET /purchases/:id`, `POST /purchases`, `POST /purchases/:id/revert`, `PATCH /purchases/:id` y `POST /purchases/:id/replace` son enmascaradas automaticamente por `CostMaskingInterceptor`. Para obtener compras activas sin anuladas usar `?includeReverted=false`.
+

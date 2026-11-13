@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsEnum,
   IsInt,
   IsOptional,
@@ -7,7 +8,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { TransferStatus } from '@prisma/client';
 
 export class TransferFilterDto {
@@ -66,4 +67,22 @@ export class TransferFilterDto {
   @IsOptional()
   @IsUUID('4', { message: 'El projectId debe ser un UUID valido' })
   projectId?: string;
+
+  @ApiPropertyOptional({
+    example: true,
+    default: true,
+    description: 'Si es false, excluye transferencias anuladas (isReverted = true)',
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'false' || value === false || value === '0' || value === 0) {
+      return false;
+    }
+    if (value === 'true' || value === true || value === '1' || value === 1) {
+      return true;
+    }
+    return value;
+  })
+  @IsBoolean({ message: 'includeReverted debe ser booleano' })
+  includeReverted?: boolean = true;
 }

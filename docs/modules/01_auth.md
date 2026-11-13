@@ -129,7 +129,7 @@ Obtiene los datos completos del usuario autenticado actual, incluyendo el listad
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/auth/profile`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 

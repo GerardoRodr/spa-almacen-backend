@@ -37,19 +37,40 @@ Este documento constituye la **Fuente Unica de Verdad (Single Source of Truth - 
 
 ---
 
-## 2. Inmutabilidad del Kardex y Transacciones ACID
+## 2. Inmutabilidad del Kardex, Contra-Asientos y Transacciones ACID
 
-### 2.1. Principio Append-Only
-- Todos los registros del libro mayor contable (`Movement` y `MovementItem`) son de solo lectura, secuenciales e inmutables.
-- **Se prohiben terminantemente operaciones `UPDATE` o `DELETE` sobre `Movement` o `MovementItem`.**
-- El ciclo de vida operativo de transferencias, aprobaciones y ordenes se gestiona en entidades independientes (`Transfer`, `Purchase`), dejando al Kardex unicamente el registro del hecho fisico consumado.
+### 2.1. Principio Append-Only y Trazabilidad Contable
+- Todos los registros del libro mayor contable (`Movement` y `MovementItem`) conservan su secuencia historica e integridad contable.
+- **Se prohiben operaciones `DELETE` fisicas o mutaciones directas de cantidades/costos sobre `Movement` o `MovementItem`.**
+- El ciclo de vida operativo de transferencias, aprobaciones, ordenes, custodias y jornadas se gestiona en entidades independientes (`Transfer`, `Purchase`, `ToolCustody`, `MachineryShiftLog`), dejando al Kardex el registro del hecho fisico consumado.
 
 ### 2.2. Ajustes de Inventario y Mermas
 - Cualquier descuadre fisico detectado en toma de inventario se regulariza mediante un `Movement` de tipo `INVENTORY_ADJUSTMENT` o `SHRINKAGE_EXIT`.
 - Exige obligatoriamente motivo justificado, evidencia fotografica adjunta y aprobacion de los roles `ADMIN` o `MODERATOR`.
 
 ### 2.3. Transacciones Atomicas
-- Toda operacion que modifique simultaneamente stocks (`physicalQty`, `reservedQty`, `loanedQty`), recalcule costos promedio o liquide transferencias debe ejecutarse dentro de un bloque transaccional atomico (`prisma.$transaction`).
+- Toda operacion que modifique simultaneamente stocks (`physicalQty`, `reservedQty`, `loanedQty`), recalcule costos promedio, revierta o reemplace transacciones o liquide transferencias debe ejecutarse dentro de un bloque transaccional atomico (`prisma.$transaction`).
+
+### 2.4. Politica de Correccion en Tres Niveles y Contra-Asientos
+El sistema resuelve correcciones operativas sin destruir el historial contable mediante tres niveles excluyentes de intervencion:
+1. **Nivel 1 — Reversion Contable / Anulacion (`revert`, `cancel`, `revert-reception`, `revert-dispatch`, `revert-return`):**
+   - Marca la transaccion o movimiento como revertido/cancelado (`isReverted = true` o `status = CANCELLED`, con sello de `revertedAt`/`cancelledAt`, usuario y motivo obligatorio).
+   - Emite un contra-asiento compensatorio en `Movement` de tipo **`REVERSAL_EXIT`** (para revertir ingresos previos) o **`REVERSAL_ENTRY`** (para revertir salidas previas), vinculado mediante `reversesMovementId`.
+   - **Validacion de Stock y Recalculo Inverso de CPP:** Al revertir un ingreso (`Purchase`, recepcion de transferencia o ajuste positivo), valida que `Stock.physicalQty - reservedQty - loanedQty >= Q`. El CPP se recalcula inversamente descontando el lote revertido; si `nuevoStock <= 0`, `averageCost` retorna a `0.0000`.
+   - **Restauracion de Cuotas de Proyecto y Prestamos:** Revertir `CONSUMPTION_EXIT` descuenta `ProjectRequirement.consumedQty`; cancelar una transferencia `IN_TRANSIT` puede restaurar `ProjectRequirement.allocatedQty` y `Stock.reservedQty` en Central; revertir un despacho o retorno de custodia restaura `Stock.loanedQty` (y `physicalQty` en bajas).
+2. **Nivel 2 — Edicion de Metadatos No Contables (`PATCH`):**
+   - Permite corregir campos descriptivos sin alterar cantidades, costos, almacenes ni inventario (observaciones, notas por lote/renglon, serie de factura, proveedor en compras sin cambiar importes, notas de despacho/recepcion, datos de operario/DNI o lecturas de horometro/kilometraje en jornadas).
+   - Bloqueado para registros ya revertidos/cancelados (`400 Bad Request`).
+3. **Nivel 3 — Reemplazo Atomico (`POST :id/replace*`):**
+   - Dentro de una unica transaccion ACID (`prisma.$transaction`), ejecuta primero la reversion completa (Nivel 1) del registro original y crea de inmediato el nuevo registro corregido, enlazando el original con `replacedById`.
+   - Aplicable en compras, transferencias (`IN_TRANSIT` o `COMPLETED`/`DISCREPANCY`), consumos, mermas directas y vales de custodia de herramientas.
+
+### 2.5. Exclusion de Registros Anulados en Consultas y Analitica
+- Los listados operativos exponen el filtro opcional `includeReverted` (por defecto `true` para auditoria historica; `false` oculta anulados).
+- Las consultas operativas activas y metricas de negocio excluyen automaticamente registros con `isReverted = true`:
+  - Prestamos pendientes (`onlyPending=true`), deuda por operario (`worker/:dni`) y conteo `toolsInField` en Dashboard.
+  - Calculo de `minHistoricalUnitCost` en `Gap Analysis` y ultima compra en `perishable-alerts`.
+  - Calculo de jornada abierta (`onlyOpen=true`), validacion de inicio de turno y ultimo medidor (`lastMeter`) en Maquinaria.
 
 ---
 
@@ -191,6 +212,12 @@ Al devolver la herramienta o equipo a la caseta, el almacenero evalua su condici
   - Se decrementa `Stock.physicalQty -= Q` (baja patrimonial).
   - Se genera automaticamente un `Movement` de tipo `SHRINKAGE_EXIT` por baja de equipo.
 
+### 5.4. Reversion de Despacho, Reversion de Retorno y Reemplazo (`ToolCustody`)
+- **Reversion de Despacho (`revert-dispatch`):** Solo permitida en vales abiertos sin retorno (`returnDate == null`) y no anulados. Marca `isReverted = true`, decrementa `Stock.loanedQty` y emite `REVERSAL_ENTRY` anulando `LOAN_DISPATCH`.
+- **Reversion de Retorno (`revert-return`):** Reabre un vale cerrado restaurando `Stock.loanedQty += Q` (si `conditionOnReturn` fue `DAMAGED_UNUSABLE` o `LOST`, restaura tambien `Stock.physicalQty += Q` y revierte `SHRINKAGE_EXIT` con `REVERSAL_ENTRY`), emitiendo `REVERSAL_EXIT` sobre `LOAN_RETURN` y limpiando `returnDate`/`receivedById`/`conditionOnReturn`.
+- **Edicion y Reemplazo:** Admite correccion de metadatos (`PATCH`) y reemplazo atomico (`replace`, revirtiendo despacho/retorno previo y emitiendo nuevo vale con vinculo `replacedById`).
+- Los vales anulados quedan excluidos automaticamente de `onlyPending=true` y `GET /worker/:dni`.
+
 ---
 
 ## 6. Parser de S10, Aliasing y Gap Analysis
@@ -223,6 +250,7 @@ Al devolver la herramienta o equipo a la caseta, el almacenero evalua su condici
 ### 6.4. Matriz de Brechas (Gap Analysis)
 $$\text{Stock Neto Disponible Central} = \sum (\text{Stock.physicalQty} - \text{Stock.reservedQty})_{\text{Almacenes Centrales}}$$
 $$\text{Deficit a Comprar} = \max(0, \text{Demanda Total S10 en Base} - \text{Stock Neto Disponible Central})$$
+- El campo `minHistoricalUnitCost` calcula el menor `unitCostBasePEN` entre detalles de compras vigentes (`purchase.isReverted = false`), excluyendo automaticamente facturas anuladas.
 
 ---
 

@@ -5,7 +5,7 @@ El modulo de Unidades de Medida centraliza el catalogo maestro corporativo de ma
 
 Este modulo permite:
 - **Listar Unidades:** Proveer la lista de unidades activas para alimentar selectores, dropdowns y autocompletes en toda la aplicacion frontend.
-- **Administrar Unidades (CRUD):** Permitir a usuarios con rol `ADMIN` crear nuevas unidades maestras, actualizar su nombre o descripcion, y desactivar o eliminar unidades en desuso.
+- **Administrar Unidades (CRUD):** Permitir a usuarios con rol `ADMIN` o `MODERATOR` crear nuevas unidades maestras, actualizar su nombre o descripcion, y desactivar o eliminar unidades en desuso.
 - **Proteccion Referencial:** Si una unidad ya esta asociada a uno o mas insumos (`Item.baseUnit`), la eliminacion fisica se bloquea automaticamente y el sistema realiza una desactivacion logica (`isActive = false`), preservando la integridad historica del inventario.
 - **Auto-registro:** Al registrar o actualizar un insumo con una unidad no existente previamente, el sistema la incorpora de forma automatica al catalogo maestro con estado activo.
 
@@ -21,7 +21,7 @@ Obtiene el catalogo de unidades de medida ordenadas alfabeticamente por nombre. 
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/measurement-units`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -79,7 +79,7 @@ Consulta una unidad por su identificador UUID o por su codigo literal (`code`).
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/measurement-units/:id`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -114,7 +114,7 @@ Crea una nueva unidad de medida en el catalogo maestro corporativo. El codigo se
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/measurement-units`
-- **Acceso:** Exclusivo `ADMIN`
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
   - `Content-Type: application/json`
@@ -166,7 +166,7 @@ Actualiza el nombre, descripcion o estado activo/inactivo de una unidad.
 
 - **Metodo:** `PATCH`
 - **Ruta:** `/api/v1/measurement-units/:id`
-- **Acceso:** Exclusivo `ADMIN`
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
   - `Content-Type: application/json`
@@ -190,7 +190,7 @@ Elimina la unidad si no cuenta con insumos asociados; si ya tiene insumos vincul
 
 - **Metodo:** `DELETE`
 - **Ruta:** `/api/v1/measurement-units/:id`
-- **Acceso:** Exclusivo `ADMIN`
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 

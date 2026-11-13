@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
   Param,
   Query,
@@ -23,6 +24,10 @@ import {
 } from './dto/create-inventory-adjustment.dto.js';
 import { CreateInitialStockDto } from './dto/create-initial-stock.dto.js';
 import { MovementFilterDto } from './dto/movement-filter.dto.js';
+import { RevertMovementDto } from './dto/revert-movement.dto.js';
+import { UpdateMovementMetadataDto } from './dto/update-movement-metadata.dto.js';
+import { ReplaceConsumptionExitDto } from './dto/replace-consumption-exit.dto.js';
+import { ReplaceShrinkageExitDto } from './dto/replace-shrinkage-exit.dto.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { WarehouseAccessGuard } from '../../common/guards/warehouse-access.guard.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
@@ -185,5 +190,89 @@ export class MovementsController {
     @CurrentUser('id') userId: string,
   ) {
     return this.movementsService.createInventoryAdjustment(dto, userId);
+  }
+
+  @Post(':id/revert')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MODERATOR, Role.WAREHOUSE_KEEPER)
+  @UseInterceptors(CostMaskingInterceptor)
+  @ApiOperation({
+    summary:
+      'Nivel 1: Revertir movimiento directo de Kardex (CONSUMPTION_EXIT, SHRINKAGE_EXIT directo, INVENTORY_ADJUSTMENT)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Movimiento revertido y compensado en Kardex y Stock',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Movimiento ya revertido o pertenece a otro modulo',
+  })
+  revertMovement(
+    @Param('id') id: string,
+    @Body() dto: RevertMovementDto,
+    @CurrentUser() user: { id: string; role: Role },
+  ) {
+    return this.movementsService.revertMovement(id, dto, user);
+  }
+
+  @Patch(':id')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MODERATOR, Role.WAREHOUSE_KEEPER)
+  @UseInterceptors(CostMaskingInterceptor)
+  @ApiOperation({
+    summary:
+      'Nivel 2: Actualizar metadatos no contables de un movimiento activo',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Metadatos de movimiento actualizados',
+  })
+  updateMetadata(
+    @Param('id') id: string,
+    @Body() dto: UpdateMovementMetadataDto,
+    @CurrentUser() user: { id: string; role: Role },
+  ) {
+    return this.movementsService.updateMetadata(id, dto, user);
+  }
+
+  @Post(':id/replace-consumption')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MODERATOR, Role.WAREHOUSE_KEEPER)
+  @UseInterceptors(CostMaskingInterceptor)
+  @ApiOperation({
+    summary:
+      'Nivel 3A: Reemplazar atomicamente una salida por consumo (CONSUMPTION_EXIT)',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Consumo original revertido y reemplazo registrado',
+  })
+  replaceConsumptionExit(
+    @Param('id') id: string,
+    @Body() dto: ReplaceConsumptionExitDto,
+    @CurrentUser() user: { id: string; role: Role },
+  ) {
+    return this.movementsService.replaceConsumptionExit(id, dto, user);
+  }
+
+  @Post(':id/replace-shrinkage')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MODERATOR, Role.WAREHOUSE_KEEPER)
+  @UseInterceptors(CostMaskingInterceptor)
+  @ApiOperation({
+    summary:
+      'Nivel 3B: Reemplazar atomicamente una baja por merma directa (SHRINKAGE_EXIT)',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Merma original revertida y reemplazo registrado',
+  })
+  replaceShrinkageExit(
+    @Param('id') id: string,
+    @Body() dto: ReplaceShrinkageExitDto,
+    @CurrentUser() user: { id: string; role: Role },
+  ) {
+    return this.movementsService.replaceShrinkageExit(id, dto, user);
   }
 }

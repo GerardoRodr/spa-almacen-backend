@@ -406,6 +406,30 @@ Creacion del modulo corporativo de unidades de medida maestras (`MeasurementUnit
   - [x] Creacion del manual de integracion `docs/modules/14_measurement_units.md`.
   - [x] Actualizacion de `docs/modules/04_items.md`, `docs/modules/README.md`, `docs/business/ARCHITECTURE.md` y `docs/business/BUSINESS_RULES.md`.
 
+---
+
+## Paso 16: Reversion Contable, Edicion de Metadatos y Reemplazo Atomico de Transacciones (Completado)
+
+Implementacion transversal del ciclo de correccion operativa y contable en 3 niveles (Edicion de metadatos sin impacto en stock, Reversion mediante contra-asientos en Kardex `REVERSAL_ENTRY` / `REVERSAL_EXIT` y Reemplazo atomico con trazabilidad `replacedById`), ademas de soporte completo para el rol `MODERATOR` y purga de registros anulados en reportes y alertas.
+
+### Tareas:
+- [x] **Base de Datos y Trazabilidad (`prisma/schema.prisma`):**
+  - [x] Agregados `REVERSAL_ENTRY` y `REVERSAL_EXIT` al enum `MovementType`.
+  - [x] Campos `isReverted`, `revertedAt`, `revertedById`, `reversalReason` y `replacedById` en `Purchase`, `Transfer`, `Movement`, `ToolCustody` y `MachineryShiftLog` (`MachineryShiftLog` sin `replacedById`), mas `reversesMovementId` en `Movement`.
+  - [x] Aplicada migracion SQL `20261113031521_add_transaction_reversals_and_audit`.
+- [x] **Endpoints de Reversion, Edicion (`PATCH`) y Reemplazo Atomico (19 endpoints):**
+  - [x] **Compras (`/api/v1/purchases`):** `:id/revert`, `PATCH :id`, `:id/replace` + filtros `warehouseId`, `itemId`, `itemSearch`, `includeReverted`.
+  - [x] **Transferencias (`/api/v1/transfers`):** `:id/cancel`, `:id/revert-reception` (`BACK_TO_TRANSIT` | `CANCEL_COMPLETELY`), `PATCH :id`, `:id/replace` + filtro `includeReverted`.
+  - [x] **Movimientos Kardex (`/api/v1/movements`):** `:id/revert` (`CONSUMPTION_EXIT`, `SHRINKAGE_EXIT` directo e `INVENTORY_ADJUSTMENT`), `PATCH :id`, `:id/replace-consumption`, `:id/replace-shrinkage` + filtro `includeReverted`.
+  - [x] **Custodia de Herramientas (`/api/v1/tools/custody`):** `:id/revert-dispatch`, `:id/revert-return`, `PATCH :id`, `:id/replace` + exclusion automatica de anulados en `onlyPending=true` y `worker/:dni`.
+  - [x] **Maquinaria (`/api/v1/machinery`):** `PATCH shifts/:id` (con validacion cronologica de medidores), `POST shifts/:id/revert` + exclusion de anulados en `onlyOpen=true`, `startShift` y `/item/:itemId/status`.
+- [x] **Integridad Transversal, RBAC y Reportes:**
+  - [x] Acceso habilitado para `MODERATOR` en controladores administrativos/operativos (mantiene restriccion `ADMIN`-only en `/api/v1/users`), costos visibles sin `CostMaskingInterceptor` y acceso a documentos confidenciales en `DocumentsService`.
+  - [x] Exclusion de `isReverted = true` en `DashboardService.metrics` (`toolsInField`), `ItemsService.getPerishableAlerts` y `ProjectsService.getGapAnalysis` (`minHistoricalUnitCost`).
+- [x] **Pruebas y Documentacion:**
+  - [x] Cobertura unitaria completa para reversion, edicion de metadatos, reemplazo atomico, `MODERATOR` y regresion completa.
+  - [x] Sincronizacion integral de manuales en `docs/modules/*`, `docs/business/*`, `README.md`, `docs/correcciones.md` y `docs/todo.md`.
+
 
 
 

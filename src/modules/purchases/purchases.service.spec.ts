@@ -1108,4 +1108,198 @@ describe('PurchasesService', () => {
       expect(result.invoiceSeries).toBe('F001-00099');
     });
   });
+
+  describe('revertPurchase, updateMetadata, replacePurchase y findAll includeReverted', () => {
+    const basePurchase = {
+      id: 'purch-rev-1',
+      supplierId: 'sup-1',
+      warehouseId: 'wh-central',
+      invoiceSeries: 'F001-00100',
+      voucherType: 'FACTURA',
+      subtotalPEN: 1000,
+      igvAmountPEN: 180,
+      totalAmountPEN: 1180,
+      isReverted: false,
+      createdAt: new Date('2026-10-01T10:00:00Z'),
+      details: [
+        {
+          id: 'det-1',
+          itemId: 'item-cemento',
+          baseQty: 50,
+          unitCostBasePEN: 20,
+          item: {
+            id: 'item-cemento',
+            sku: 'MAT-CEM-001',
+            name: 'Cemento Portland',
+          },
+        },
+      ],
+    };
+
+    it('revertPurchase debe recalcular CPP inverso, marcar isReverted = true y emitir REVERSAL_EXIT', async () => {
+      const mockTx = {
+        purchase: {
+          findUnique: vi.fn().mockResolvedValue(basePurchase),
+          update: vi.fn().mockResolvedValue({
+            ...basePurchase,
+            isReverted: true,
+            reversalReason: 'Factura duplicada',
+          }),
+        },
+        stock: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: 'st-1',
+            warehouseId: 'wh-central',
+            itemId: 'item-cemento',
+            physicalQty: 150, // 100 previas a 25.00 + 50 de compra a 20.00 -> CPP = 23.3333
+            reservedQty: 0,
+            loanedQty: 0,
+            averageCost: 23.3333,
+          }),
+          update: vi.fn().mockResolvedValue({}),
+        },
+        movement: {
+          findFirst: vi.fn().mockResolvedValue({ id: 'mov-orig-1' }),
+          update: vi.fn().mockResolvedValue({}),
+          create: vi.fn().mockResolvedValue({
+            id: 'mov-rev-exit-1',
+            movementNumber: 'MOV-2026-00001',
+            type: MovementType.REVERSAL_EXIT,
+          }),
+        },
+      };
+
+      prisma.$transaction.mockImplementation(async (cb) => cb(mockTx));
+
+      const result = await service.revertPurchase(
+        'purch-rev-1',
+        { reversalReason: 'Factura duplicada' },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(result.isReverted).toBe(true);
+      expect(result.reversalMovement.type).toBe(MovementType.REVERSAL_EXIT);
+      // (150 * 23.3333 - 50 * 20) / 100 = (3499.995 - 1000) / 100 = 25.00
+      expect(mockTx.stock.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            physicalQty: 100,
+            averageCost: 25,
+          }),
+        }),
+      );
+      expect(mockTx.movement.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: MovementType.REVERSAL_EXIT,
+            originWarehouseId: 'wh-central',
+            reversesMovementId: 'mov-orig-1',
+          }),
+        }),
+      );
+    });
+
+    it('revertPurchase debe lanzar BadRequestException si stock disponible es menor que baseQty', async () => {
+      const mockTx = {
+        purchase: {
+          findUnique: vi.fn().mockResolvedValue(basePurchase),
+        },
+        stock: {
+          findUnique: vi.fn().mockResolvedValue({
+            physicalQty: 30,
+            reservedQty: 0,
+            loanedQty: 0,
+            averageCost: 20,
+          }),
+        },
+      };
+      prisma.$transaction.mockImplementation(async (cb) => cb(mockTx));
+
+      await expect(
+        service.revertPurchase(
+          'purch-rev-1',
+          { reversalReason: 'Anular ingreso' },
+          { id: 'admin-1', role: Role.ADMIN },
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('revertPurchase debe denegar acceso a WAREHOUSE_KEEPER de otro almacen', async () => {
+      prisma.userWarehouse.findMany.mockResolvedValue([
+        { warehouseId: 'wh-central' },
+      ]);
+      const mockTx = {
+        purchase: {
+          findUnique: vi.fn().mockResolvedValue({
+            ...basePurchase,
+            warehouseId: 'wh-otro',
+          }),
+        },
+      };
+      prisma.$transaction.mockImplementation(async (cb) => cb(mockTx));
+
+      await expect(
+        service.revertPurchase(
+          'purch-rev-1',
+          { reversalReason: 'Anular ingreso' },
+          { id: 'keeper-1', role: Role.WAREHOUSE_KEEPER },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('updateMetadata debe actualizar serie/notas y rechazar si compra ya esta revertida', async () => {
+      prisma.purchase.findUnique.mockResolvedValueOnce({
+        ...basePurchase,
+        isReverted: true,
+      });
+
+      await expect(
+        service.updateMetadata(
+          'purch-rev-1',
+          { notes: 'Nueva nota' },
+          { id: 'admin-1', role: Role.ADMIN },
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      prisma.purchase.findUnique.mockResolvedValueOnce(basePurchase);
+      const mockTx = {
+        purchase: {
+          update: vi.fn().mockResolvedValue({}),
+          findUnique: vi.fn().mockResolvedValue({
+            ...basePurchase,
+            invoiceSeries: 'F001-00999',
+            notes: 'Nota corregida',
+          }),
+        },
+        purchaseDetail: {
+          update: vi.fn().mockResolvedValue({}),
+        },
+      };
+      prisma.$transaction.mockImplementation(async (cb) => cb(mockTx));
+
+      const updated = await service.updateMetadata(
+        'purch-rev-1',
+        { invoiceSeries: 'F001-00999', notes: 'Nota corregida' },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(updated?.invoiceSeries).toBe('F001-00999');
+    });
+
+    it('findAll con includeReverted = false debe filtrar isReverted: false', async () => {
+      prisma.purchase.count.mockResolvedValue(0);
+      prisma.purchase.findMany.mockResolvedValue([]);
+
+      await service.findAll(
+        { page: 1, limit: 10, includeReverted: false },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(prisma.purchase.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ isReverted: false }),
+        }),
+      );
+    });
+  });
 });

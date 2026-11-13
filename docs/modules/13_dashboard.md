@@ -10,13 +10,13 @@ Este modulo centraliza los calculos analiticos, consolidacion multi-sede y metri
   - `toolsInvestmentPEN`: Inversion patrimonial acumulada exclusivamente para bienes de activo clasificados como `TOOL`, `EQUIPMENT` o `MACHINERY`. Los consumibles (`CONSUMABLE`) quedan excluidos de esta metrica.
   - Relacion de balance: `inventoryValuationPEN = suppliesValuationPEN + toolsInvestmentPEN`.
 - **Proteccion Financiera RBAC (`CostMaskingInterceptor`):**
-  - Los usuarios con rol `ADMIN` acceden a las cifras monetarias completas (`inventoryValuationPEN`, `suppliesValuationPEN`, `toolsInvestmentPEN`).
+  - Los usuarios con rol `ADMIN` y `MODERATOR` acceden a las cifras monetarias completas (`inventoryValuationPEN`, `suppliesValuationPEN`, `toolsInvestmentPEN`).
   - Los usuarios con rol `WAREHOUSE_KEEPER` reciben las respuestas con los campos monetarios completamente purgados, visualizando unicamente los volumenes fisicos, SKUs y conteos operativos.
 - **Soporte Multi-Sede y Consolidado:**
   - `warehouseId = 'ALL'` (o sin parametro): Agrega las existencias a nivel de toda la corporacion (todas las obras y almacen central).
   - `warehouseId = <UUID>`: Filtra las existencias, valorizaciones y alertas para un frente de obra o almacen especifico.
 - **Herramientas en Campo (`toolsInField`):**
-  - Conteo directo de vales de custodia activos (`ToolCustody`) donde la devolucion aun esta pendiente (`returnDate === null`).
+  - Conteo directo de vales de custodia activos (`ToolCustody`) donde la devolucion aun esta pendiente (`returnDate === null`) y el vale no fue revertido (`isReverted === false`).
 - **Alertas de Reposicion Critica (`criticalItemsCount`):**
   - Conteo de insumos cuyo stock fisico se encuentra en o por debajo del umbral de alerta configurado (`physicalQty <= minStockAlert` con `minStockAlert > 0`).
 
@@ -32,7 +32,7 @@ Retorna los indicadores de inventario, valorizacion e inversion en herramientas.
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/dashboard/metrics`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -81,7 +81,7 @@ Compara el volumen fisico almacenado en el Almacen Central respecto a todos los 
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/dashboard/stock-comparison`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -114,7 +114,7 @@ Entrega el listado de insumos que presentan deficit de existencias respecto al u
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/dashboard/urgent-replenishments`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Query Params:**
   - `warehouseId` (opcional): Filtra por almacen especifico.
 
@@ -144,7 +144,7 @@ Lista los insumos que se encuentran comprometidos (`allocatedQty`) en Almacen Ce
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/dashboard/logical-reservations`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 
 **Ejemplo de Respuesta:**
 ```json

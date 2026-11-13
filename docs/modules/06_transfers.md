@@ -26,14 +26,16 @@ Consulta la relacion de guias y ordenes de traslado con filtros por estado, alma
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/transfers`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado al origen o destino)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado al origen o destino)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
-#### Parametros Query
+#### Parametros Query (`TransferFilterDto`)
 - `status` (enum, opcional): `PENDING`, `IN_TRANSIT`, `COMPLETED`, `DISCREPANCY`, `CANCELLED`.
 - `originWarehouseId` (UUID, opcional): Filtrar por almacen de origen.
 - `destWarehouseId` (UUID, opcional): Filtrar por almacen de destino.
+- `projectId` (UUID, opcional): Filtrar transferencias asociadas a un proyecto de obra.
+- `includeReverted` (boolean, default: `true`): Si se envia `false`, excluye guias anuladas (`CANCELLED` / `isReverted = true`).
 - `page` (integer, default: 1): Pagina actual.
 - `limit` (integer, default: 20): Registros por pagina.
 
@@ -80,7 +82,7 @@ Permite a los almaceneros de caseta de obra listar rapidamente las cargas despac
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/transfers/in-transit`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER`)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER`)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -155,7 +157,7 @@ Recupera los datos completos de la orden de transferencia, datos de almacenes, p
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/transfers/:id`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
 
@@ -226,7 +228,7 @@ Inicia el traslado de materiales desde un almacen de origen hacia una caseta de 
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/transfers/dispatch`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado al almacen de origen)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado al almacen de origen)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
   - `Content-Type: application/json`
@@ -298,7 +300,7 @@ El almacenero receptor sella la entrada de los materiales en la caseta de obra, 
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/transfers/:id/receive`
-- **Acceso:** Protegido (`ADMIN` o `WAREHOUSE_KEEPER` asignado al almacen de destino)
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado al almacen de destino)
 - **Cabeceras:**
   - `Authorization: Bearer <accessToken>`
   - `Content-Type: application/json`
@@ -350,3 +352,78 @@ El almacenero receptor sella la entrada de los materiales en la caseta de obra, 
   ]
 }
 ```
+
+---
+
+### 2.6 Cancelar Guia de Transferencia en Transito (`IN_TRANSIT`)
+Anula una guia despachada que aun no ha sido recepcionada en destino (`status = IN_TRANSIT`), restaura el stock fisico en el almacen de origen, restituye la reserva de proyecto (`allocatedQty` y `Stock.reservedQty`) si asi se indica, marca la guia como `CANCELLED` y `isReverted = true`, marca el movimiento `TRANSFER_DISPATCH` como revertido y genera el contra-asiento `REVERSAL_ENTRY`.
+
+- **Metodo:** `POST`
+- **Ruta:** `/api/v1/transfers/:id/cancel`
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado a la sede correspondiente)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+
+#### Request Body (`CancelTransferDto`)
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `cancellationReason` | string (5..500 chars) | Si | Motivo formal de cancelacion de la guia en transito. |
+| `restoreProjectAllocation` | boolean (default: `true`) | No | Indica si se restituye `allocatedQty` en el proyecto y `reservedQty` en origen. |
+
+---
+
+### 2.7 Revertir Recepcion de Transferencia (`COMPLETED` / `DISCREPANCY`)
+Revierte el acta de recepcion en destino descontando del almacen receptor lo efectivamente ingresado (validando stock libre suficiente), compensando `TRANSFER_RECEIPT` con `REVERSAL_EXIT` y, si existio merma por discrepancia (`SHRINKAGE_EXIT`), compensandola con `REVERSAL_ENTRY`.
+
+- **Metodo:** `POST`
+- **Ruta:** `/api/v1/transfers/:id/revert-reception`
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado a la sede correspondiente)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+
+#### Request Body (`RevertTransferReceptionDto`)
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `reversalReason` | string (5..500 chars) | Si | Sustento de la reversion de recepcion. |
+| `mode` | `BACK_TO_TRANSIT` \| `CANCEL_COMPLETELY` | No | `BACK_TO_TRANSIT` (default) regresa la guia a `IN_TRANSIT`; `CANCEL_COMPLETELY` cancela tambien el despacho restaurando origen. |
+
+---
+
+### 2.8 Editar Metadatos de Transferencia sin Alterar Stock
+Permite actualizar notas operativas en guias no canceladas (`status != CANCELLED`).
+
+- **Metodo:** `PATCH`
+- **Ruta:** `/api/v1/transfers/:id`
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+
+#### Request Body (`UpdateTransferMetadataDto`)
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `dispatchNotes` | string (max 500) | No | Observaciones de despacho actualizadas. |
+| `receptionNotes` | string (max 500) | No | Observaciones de recepcion actualizadas. |
+
+---
+
+### 2.9 Reemplazar Transferencia en Transito Atomicamente
+Cancela atomicamente una guia en estado `IN_TRANSIT` y despacha una nueva guia corregida en la misma transaccion, enlazando `replacedById` hacia la nueva transferencia.
+
+- **Metodo:** `POST`
+- **Ruta:** `/api/v1/transfers/:id/replace`
+- **Acceso:** Protegido (`ADMIN`, `MODERATOR` o `WAREHOUSE_KEEPER` asignado al origen)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken>`
+  - `Content-Type: application/json`
+
+#### Request Body (`ReplaceTransferDto`)
+| Campo | Tipo | Obligatorio | Descripcion |
+|---|---|---|---|
+| `(campos de DispatchTransferDto)` | - | Segun DTO base | `originWarehouseId`, `destWarehouseId`, `projectId?`, `dispatchNotes?`, `items` (`itemId`, `quantity`). |
+| `cancellationReason` | string (5..500 chars) | Si | Motivo del reemplazo y anulacion de la guia anterior. |
+
+> Nota: En `GET /api/v1/transfers`, enviar `?includeReverted=false` omite guias con estado `CANCELLED` o `isReverted = true`.
+

@@ -9,7 +9,7 @@ Desarrollado con **NestJS 12+** en arquitectura modular con soporte nativo de **
 ## 1. Caracteristicas Principales del Sistema
 
 - **Arquitectura Multi-Almacen y RBAC:**
-  - Segregacion de permisos mediante roles de usuario: `ADMIN` (control corporativo) y `WAREHOUSE_KEEPER` (personal operativo de caseta de obra).
+  - Segregacion de permisos mediante tres roles de usuario: `ADMIN` (control corporativo y gestion de usuarios), `MODERATOR` (supervision operativa/financiera global sin gestion de usuarios) y `WAREHOUSE_KEEPER` (personal operativo de caseta de obra).
   - Vinculacion explicita de usuarios a almacenes autorizados con verificacion por guard (`WarehouseAccessGuard`).
 - **Proteccion Financiera y Data Masking:**
   - Enmascaramiento automatico de precios de compra, costos promedios y valorizaciones hacia usuarios de obra mediante `CostMaskingInterceptor`.
@@ -20,8 +20,9 @@ Desarrollado con **NestJS 12+** en arquitectura modular con soporte nativo de **
   1. Reserva logica en Almacen Central sobre la demanda del presupuesto de obra.
   2. Transferencia fisica en dos fases: despacho en origen (`IN_TRANSIT`) e inspeccion en caseta con registro de discrepancias y mermas.
   3. Salida por consumo definitivo entregada a capataces y cuadrillas en el frente de obra (restringida a items `CONSUMABLE`).
-- **Kardex Inmutable (Append-Only):**
-  - Registro de hechos fisicos consumados sin operaciones de actualizacion o borrado, conservando instantaneas congeladas de costo (`unitCostSnapshot`).
+- **Kardex Inmutable (Append-Only) y Correcciones en 3 Niveles:**
+  - Registro de hechos fisicos consumados sin eliminacion ni alteracion directa de saldos en movimientos, conservando instantaneas congeladas de costo (`unitCostSnapshot`).
+  - Mecanismo controlado de correccion: Nivel 1 (reversion contable mediante contra-asientos `REVERSAL_ENTRY` y `REVERSAL_EXIT` con restauracion de stock/CPP), Nivel 2 (edicion de metadatos no contables via `PATCH`) y Nivel 3 (reemplazo atomico transaccional).
 - **Motor Financiero de Costo Promedio Ponderado (CPP / WAC):**
   - Valorizacion en Soles (PEN) computable sobre la base imponible neta sin IGV (18%) para operaciones gravadas (`hasIgv = true`) y sobre el costo total integro en operaciones sin IGV (`hasIgv = false`), conforme a normativa contable (NIC 2 / SUNAT).
 - **Control de Custodia de Herramientas y Equipos:**
@@ -72,10 +73,14 @@ spa-almacen-backend/
 │   │   ├── 08_tool_custody.md  # Vales de prestamo de herramientas por DNI
 │   │   ├── 09_projects_s10.md  # Presupuestos S10 y analisis de brechas
 │   │   ├── 10_documents.md     # Documentos seguros y pipeline Sharp
-│   │   └── 11_admin_maintenance.md   # Backups de base de datos y salud
+│   │   ├── 11_admin_maintenance.md   # Backups de base de datos y salud
+│   │   ├── 12_machinery.md     # Control de maquinaria, horometros y kilometraje
+│   │   ├── 13_dashboard.md     # Metricas consolidadas y analitica
+│   │   └── 14_measurement_units.md   # Catalogo maestro de unidades de medida
+│   ├── reversion_edicion_transacciones.md # Diseno y checklist de reversion/edicion en 3 niveles
 │   └── todo.md                 # Roadmap y estado de ejecucion de fases
 ├── prisma/                     # Modelado de datos relacional
-│   ├── schema.prisma           # 18 modelos y 8 enums de dominio
+│   ├── schema.prisma           # 21 modelos y 9 enums de dominio
 │   ├── seed.ts                 # Poblacion de datos iniciales
 │   └── migrations/             # Historial de migraciones SQL
 ├── src/                        # Codigo fuente de la aplicacion

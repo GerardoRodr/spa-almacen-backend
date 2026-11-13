@@ -2,10 +2,12 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
   Param,
   Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -18,9 +20,14 @@ import { MachineryService } from './machinery.service.js';
 import { StartMachineryShiftDto } from './dto/start-machinery-shift.dto.js';
 import { EndMachineryShiftDto } from './dto/end-machinery-shift.dto.js';
 import { MachineryShiftFilterDto } from './dto/machinery-shift-filter.dto.js';
+import { UpdateMachineryShiftDto } from './dto/update-machinery-shift.dto.js';
+import { RevertMachineryShiftDto } from './dto/revert-machinery-shift.dto.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { WarehouseAccessGuard } from '../../common/guards/warehouse-access.guard.js';
+import { RolesGuard } from '../../common/guards/roles.guard.js';
+import { Roles } from '../../common/decorators/roles.decorator.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
+import { CostMaskingInterceptor } from '../../common/interceptors/cost-masking.interceptor.js';
 
 @ApiTags('Maquinaria, Horometros y Kilometrajes')
 @ApiBearerAuth()
@@ -147,5 +154,45 @@ export class MachineryController {
     @CurrentUser() user: { id: string; role: Role },
   ) {
     return this.machineryService.getStatus(itemId, user);
+  }
+
+  @Patch('shifts/:id')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MODERATOR, Role.WAREHOUSE_KEEPER)
+  @UseInterceptors(CostMaskingInterceptor)
+  @ApiOperation({
+    summary:
+      'Nivel 2: Corregir metadatos, fotos y lecturas de horometro/kilometraje de una jornada activa',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Jornada de maquinaria actualizada exitosamente',
+  })
+  updateShift(
+    @Param('id') id: string,
+    @Body() dto: UpdateMachineryShiftDto,
+    @CurrentUser() user: { id: string; role: Role },
+  ) {
+    return this.machineryService.updateShift(id, dto, user);
+  }
+
+  @Post('shifts/:id/revert')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MODERATOR, Role.WAREHOUSE_KEEPER)
+  @UseInterceptors(CostMaskingInterceptor)
+  @ApiOperation({
+    summary:
+      'Nivel 1: Anular jornada de maquinaria (soft-void sin borrar historial)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Jornada de maquinaria anulada exitosamente',
+  })
+  revertShift(
+    @Param('id') id: string,
+    @Body() dto: RevertMachineryShiftDto,
+    @CurrentUser() user: { id: string; role: Role },
+  ) {
+    return this.machineryService.revertShift(id, dto, user);
   }
 }

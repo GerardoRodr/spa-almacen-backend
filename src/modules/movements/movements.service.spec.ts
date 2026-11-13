@@ -23,6 +23,7 @@ describe('MovementsService', () => {
       findFirst: ReturnType<typeof vi.fn>;
       count: ReturnType<typeof vi.fn>;
       create: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
     };
     warehouse: {
       findUnique: ReturnType<typeof vi.fn>;
@@ -57,6 +58,7 @@ describe('MovementsService', () => {
         findFirst: vi.fn(),
         count: vi.fn(),
         create: vi.fn(),
+        update: vi.fn(),
       },
       warehouse: {
         findUnique: vi.fn(),
@@ -558,6 +560,165 @@ describe('MovementsService', () => {
 
       expect(result.type).toBe(MovementType.INVENTORY_ADJUSTMENT);
       expect(result.observation).toBe('Inventario ciclico mensual');
+    });
+  });
+
+  describe('revertMovement, updateMetadata, replace y findAll includeReverted', () => {
+    it('revertMovement debe restaurar stock y ProjectRequirement.consumedQty para CONSUMPTION_EXIT', async () => {
+      prisma.movement.findUnique.mockResolvedValue({
+        id: 'mov-cons-1',
+        movementNumber: 'MOV-2026-00001',
+        type: MovementType.CONSUMPTION_EXIT,
+        originWarehouseId: 'wh-obra',
+        destWarehouseId: null,
+        projectId: 'proj-1',
+        isReverted: false,
+        transferId: null,
+        observation: 'Entrega a cuadrilla',
+        items: [
+          {
+            itemId: 'item-cem',
+            quantity: 10,
+            unitCostSnapshot: 28,
+            totalCostSnapshot: 280,
+          },
+        ],
+      });
+
+      const mockTx = {
+        stock: {
+          findUnique: vi.fn().mockResolvedValue({
+            physicalQty: 40,
+            averageCost: 28,
+          }),
+          upsert: vi.fn().mockResolvedValue({}),
+        },
+        projectRequirement: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: 'req-1',
+            consumedQty: 25,
+          }),
+          update: vi.fn().mockResolvedValue({}),
+        },
+        movement: {
+          findFirst: vi.fn().mockResolvedValue(null),
+          create: vi.fn().mockResolvedValue({ id: 'mov-rev-1' }),
+          update: vi.fn().mockResolvedValue({
+            id: 'mov-cons-1',
+            isReverted: true,
+          }),
+        },
+      };
+
+      prisma.$transaction.mockImplementation(async (cb) => cb(mockTx));
+
+      const result = await service.revertMovement(
+        'mov-cons-1',
+        { reason: 'Error de proyecto civil' },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(result.isReverted).toBe(true);
+      expect(mockTx.stock.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: expect.objectContaining({ physicalQty: 50, averageCost: 28 }),
+        }),
+      );
+      expect(mockTx.projectRequirement.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { consumedQty: 15 },
+        }),
+      );
+      expect(mockTx.movement.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: MovementType.REVERSAL_ENTRY,
+            destWarehouseId: 'wh-obra',
+            reversesMovementId: 'mov-cons-1',
+          }),
+        }),
+      );
+    });
+
+    it('revertMovement debe rechazar PURCHASE_ENTRY y restringir ajuste formal a ADMIN/MODERATOR', async () => {
+      prisma.movement.findUnique.mockResolvedValueOnce({
+        id: 'mov-purch-1',
+        type: MovementType.PURCHASE_ENTRY,
+        isReverted: false,
+        items: [],
+      });
+
+      await expect(
+        service.revertMovement(
+          'mov-purch-1',
+          { reason: 'Intento directo' },
+          { id: 'admin-1', role: Role.ADMIN },
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      prisma.movement.findUnique.mockResolvedValueOnce({
+        id: 'mov-adj-formal',
+        type: MovementType.INVENTORY_ADJUSTMENT,
+        originWarehouseId: 'wh-obra',
+        observation: 'Inventario ciclico',
+        isReverted: false,
+        items: [],
+      });
+
+      await expect(
+        service.revertMovement(
+          'mov-adj-formal',
+          { reason: 'No autorizado' },
+          { id: 'keeper-1', role: Role.WAREHOUSE_KEEPER },
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('updateMetadata debe actualizar recipientName en CONSUMPTION_EXIT y rechazar shrinkageReason', async () => {
+      prisma.movement.findUnique.mockResolvedValue({
+        id: 'mov-cons-1',
+        type: MovementType.CONSUMPTION_EXIT,
+        originWarehouseId: 'wh-obra',
+        destWarehouseId: null,
+        isReverted: false,
+      });
+
+      await expect(
+        service.updateMetadata(
+          'mov-cons-1',
+          { shrinkageReason: 'No aplica' },
+          { id: 'admin-1', role: Role.ADMIN },
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      prisma.movement.update.mockResolvedValue({
+        id: 'mov-cons-1',
+        recipientName: 'Carlos Lopez',
+      });
+
+      const updated = await service.updateMetadata(
+        'mov-cons-1',
+        { recipientName: 'Carlos Lopez' },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(updated.recipientName).toBe('Carlos Lopez');
+    });
+
+    it('findAll con includeReverted = false debe incluir isReverted: false', async () => {
+      prisma.movement.count.mockResolvedValue(0);
+      prisma.movement.findMany.mockResolvedValue([]);
+
+      await service.findAll(
+        { page: 1, limit: 10, includeReverted: false },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(prisma.movement.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ isReverted: false }),
+        }),
+      );
     });
   });
 });
