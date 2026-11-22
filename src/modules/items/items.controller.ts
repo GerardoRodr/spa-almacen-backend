@@ -116,4 +116,17 @@ export class ItemsController {
   deleteAlias(@Param('id') id: string) {
     return this.itemsService.deleteAlias(id);
   }
+
+  @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Eliminar fisicamente o desactivar logicamente un item del catalogo (solo ADMIN, stock = 0)',
+  })
+  @ApiResponse({ status: 200, description: 'Item eliminado o desactivado exitosamente' })
+  @ApiResponse({ status: 400, description: 'El item posee stock fisico, reservado o custodias activas' })
+  @ApiResponse({ status: 404, description: 'Item no encontrado' })
+  remove(@Param('id') id: string) {
+    return this.itemsService.remove(id);
+  }
 }

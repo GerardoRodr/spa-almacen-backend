@@ -28,16 +28,22 @@ export class ItemsService {
 
   // Listar catalogo de items con paginacion y filtros
   async findAll(filter: ItemFilterDto) {
-    const page = filter.page ?? 1;
-    const limit = filter.limit ?? 20;
+    const page = Number(filter.page) || 1;
+    const limit = Number(filter.limit) || 20;
     const skip = (page - 1) * limit;
 
     const where: Record<string, unknown> = {};
 
-    if (filter.search) {
+    if (!filter.includeInactive) {
+      where.isActive = true;
+    }
+
+    if (filter.search && filter.search.trim()) {
+      const term = filter.search.trim();
       where.OR = [
-        { sku: { contains: filter.search.trim(), mode: 'insensitive' } },
-        { name: { contains: filter.search.trim(), mode: 'insensitive' } },
+        { sku: { contains: term, mode: 'insensitive' } },
+        { name: { contains: term, mode: 'insensitive' } },
+        { description: { contains: term, mode: 'insensitive' } },
       ];
     }
 
@@ -51,6 +57,31 @@ export class ItemsService {
 
     if (filter.isPerishable !== undefined) {
       where.isPerishable = filter.isPerishable;
+    }
+
+    if (filter.lowStockOnly) {
+      const critRows = filter.warehouseId
+        ? await this.prisma.$queryRaw<Array<{ itemId: string }>>`
+            SELECT s."itemId"
+            FROM "Stock" s
+            JOIN "Item" i ON s."itemId" = i."id"
+            WHERE s."warehouseId" = ${filter.warehouseId}
+              AND i."isActive" = true
+              AND i."type" != 'SERVICE'
+              AND i."minStockAlert" > 0
+              AND s."physicalQty" <= i."minStockAlert"
+          `
+        : await this.prisma.$queryRaw<Array<{ itemId: string }>>`
+            SELECT s."itemId"
+            FROM "Stock" s
+            JOIN "Item" i ON s."itemId" = i."id"
+            WHERE i."isActive" = true
+              AND i."type" != 'SERVICE'
+              AND i."minStockAlert" > 0
+            GROUP BY s."itemId", i."minStockAlert"
+            HAVING SUM(s."physicalQty") <= i."minStockAlert"
+          `;
+      where.id = { in: critRows.map((r) => r.itemId) };
     }
 
     const [total, data] = await Promise.all([
@@ -157,16 +188,24 @@ export class ItemsService {
           ? (dto.meterType ?? MeterType.HOUR_METER)
           : null;
 
+      if (dto.type === ItemType.SERVICE && dto.initialStock && dto.initialStock.quantity > 0) {
+        throw new BadRequestException(
+          'Los insumos de tipo SERVICIO no generan existencias fisicas en almacen',
+        );
+      }
+
       const createdItem = await tx.item.create({
         data: {
           sku: formattedSku,
           name: dto.name.trim(),
-          description: dto.description?.trim(),
+          description: dto.description?.trim() || null,
           baseUnit: formattedBaseUnit,
           type: dto.type,
           meterType: resolvedMeterType,
           minStockAlert: dto.minStockAlert ?? 0,
           isPerishable: dto.isPerishable ?? false,
+          trackLot: dto.trackLot ?? false,
+          trackExpiration: dto.trackExpiration ?? false,
           categoryId: dto.categoryId ?? null,
         },
         include: {
@@ -427,18 +466,109 @@ export class ItemsService {
       where: { id },
       data: {
         name: dto.name ? dto.name.trim() : undefined,
-        description: dto.description ? dto.description.trim() : undefined,
+        description:
+          dto.description !== undefined ? dto.description?.trim() || null : undefined,
         baseUnit: formattedBaseUnit,
         type: dto.type,
         meterType: resolvedMeterType,
         minStockAlert: dto.minStockAlert,
         isPerishable: dto.isPerishable,
+        trackLot: dto.trackLot,
+        trackExpiration: dto.trackExpiration,
         categoryId: dto.categoryId !== undefined ? dto.categoryId : undefined,
       },
       include: {
         category: true,
       },
     });
+  }
+
+  // Eliminar fisicamente o desactivar logicamente un item del catalogo (solo ADMIN, stock = 0)
+  async remove(id: string) {
+    const item = await this.prisma.item.findUnique({
+      where: { id },
+      include: {
+        stocks: {
+          select: {
+            physicalQty: true,
+            reservedQty: true,
+          },
+        },
+      },
+    });
+
+    if (!item) {
+      throw new NotFoundException('Item no encontrado en el catalogo maestro');
+    }
+
+    const totalPhysicalQty = item.stocks.reduce(
+      (acc, s) => acc + Number(s.physicalQty),
+      0,
+    );
+    const totalReservedQty = item.stocks.reduce(
+      (acc, s) => acc + Number(s.reservedQty),
+      0,
+    );
+
+    const openCustodiesCount = await this.prisma.toolCustody.count({
+      where: {
+        itemId: id,
+        returnDate: null,
+        isReverted: false,
+      },
+    });
+
+    if (totalPhysicalQty > 0 || totalReservedQty > 0 || openCustodiesCount > 0) {
+      throw new BadRequestException(
+        `No se puede eliminar el insumo "${item.name}" porque mantiene stock fisico (${totalPhysicalQty}), stock reservado (${totalReservedQty}) o prestamos en custodia activos (${openCustodiesCount}). Primero debe liquidarse o consumirse su stock.`,
+      );
+    }
+
+    const [
+      purchaseCount,
+      movementCount,
+      transferCount,
+      requirementCount,
+      custodyCount,
+      machineryCount,
+    ] = await Promise.all([
+      this.prisma.purchaseDetail.count({ where: { itemId: id } }),
+      this.prisma.movementItem.count({ where: { itemId: id } }),
+      this.prisma.transferItem.count({ where: { itemId: id } }),
+      this.prisma.projectRequirement.count({ where: { itemId: id } }),
+      this.prisma.toolCustody.count({ where: { itemId: id } }),
+      this.prisma.machineryShiftLog.count({ where: { itemId: id } }),
+    ]);
+
+    const totalHistoryCount =
+      purchaseCount +
+      movementCount +
+      transferCount +
+      requirementCount +
+      custodyCount +
+      machineryCount;
+
+    if (totalHistoryCount === 0) {
+      await this.prisma.item.delete({
+        where: { id },
+      });
+
+      return {
+        action: 'DELETED',
+        message: 'Insumo eliminado permanentemente del catalogo maestro.',
+      };
+    }
+
+    await this.prisma.item.update({
+      where: { id },
+      data: { isActive: false },
+    });
+
+    return {
+      action: 'DEACTIVATED',
+      message:
+        'El insumo posee historial contable o logistico. Se ha desactivado logicamente para preservar la integridad del Kardex.',
+    };
   }
 
   // Registrar equivalencia o alias S10 para el item
@@ -497,6 +627,7 @@ export class ItemsService {
 
     const items = await this.prisma.item.findMany({
       where: {
+        isActive: true,
         isPerishable: true,
         stocks: {
           some: stockWhere,

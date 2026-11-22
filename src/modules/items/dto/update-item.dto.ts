@@ -63,6 +63,22 @@ export class UpdateItemDto {
   isPerishable?: boolean;
 
   @ApiPropertyOptional({
+    example: false,
+    description: 'Indica si el insumo requiere registrar numero de lote en compras',
+  })
+  @IsOptional()
+  @IsBoolean({ message: 'trackLot debe ser un valor booleano' })
+  trackLot?: boolean;
+
+  @ApiPropertyOptional({
+    example: false,
+    description: 'Indica si el insumo requiere registrar fecha de caducidad en compras',
+  })
+  @IsOptional()
+  @IsBoolean({ message: 'trackExpiration debe ser un valor booleano' })
+  trackExpiration?: boolean;
+
+  @ApiPropertyOptional({
     example: 60,
     description: 'Umbral minimo para alertas de reposicion',
   })

@@ -6,6 +6,7 @@ export const ITEM_TYPE_PREFIX: Record<ItemType, string> = {
   TOOL: 'HER',
   EQUIPMENT: 'EQU',
   MACHINERY: 'MAQ',
+  SERVICE: 'SER',
 };
 
 @Injectable()

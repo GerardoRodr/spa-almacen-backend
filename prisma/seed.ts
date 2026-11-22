@@ -43,8 +43,11 @@ const DEFAULT_MEASUREMENT_UNITS = [
   { code: 'KG', name: 'Kilogramo', description: 'Unidad de masa en kilogramos' },
   { code: 'M3', name: 'Metro Cubico', description: 'Unidad de volumen para agregados o concreto' },
   { code: 'M2', name: 'Metro Cuadrado', description: 'Unidad de area para encofrados o acabados' },
+  { code: 'M', name: 'Metro Lineal', description: 'Metro lineal (abreviatura estandar)' },
   { code: 'METRO', name: 'Metro Lineal', description: 'Unidad de longitud lineal' },
+  { code: 'VAR', name: 'Varilla', description: 'Varilla de acero o construccion' },
   { code: 'VARILLA', name: 'Varilla de Acero', description: 'Varilla de construccion' },
+  { code: 'PZA', name: 'Pieza', description: 'Pieza individual' },
   { code: 'GLN', name: 'Galon', description: 'Galon de combustible o liquido' },
   { code: 'GALON', name: 'Galon', description: 'Equivalente textual de galon' },
   { code: 'MILLAR', name: 'Millar', description: 'Mil unidades (ej. ladrillos)' },
@@ -53,12 +56,14 @@ const DEFAULT_MEASUREMENT_UNITS = [
   { code: 'ROLLO', name: 'Rollo', description: 'Rollo de alambre o geomembrana' },
   { code: 'LITRO', name: 'Litro', description: 'Unidad de volumen liquido' },
   { code: 'CIENTO', name: 'Ciento', description: 'Cien unidades' },
+  { code: 'CJA', name: 'Caja', description: 'Caja contenedora (abreviatura estandar)' },
   { code: 'CAJA', name: 'Caja', description: 'Caja contenedora' },
   { code: 'PLIEGO', name: 'Pliego', description: 'Pliego de lija o lamina' },
   { code: 'LATA', name: 'Lata', description: 'Lata de pintura, solvente o pegamento' },
   { code: 'BALDE', name: 'Balde', description: 'Balde de pintura o aditivo' },
   { code: 'PAR', name: 'Par', description: 'Par de guantes o calzado' },
   { code: 'JGO', name: 'Juego', description: 'Juego de herramientas o llaves' },
+  { code: 'GLB', name: 'Global', description: 'Unidad global para partidas y servicios' },
 ];
 
 // Secuencias correlativas iniciales para SKU y documentos
@@ -68,6 +73,7 @@ const INITIAL_DOCUMENT_SEQUENCES = [
   { year: 0, prefix: 'HER', nextSeq: 1 },
   { year: 0, prefix: 'EQU', nextSeq: 1 },
   { year: 0, prefix: 'MAQ', nextSeq: 1 },
+  { year: 0, prefix: 'SER', nextSeq: 1 },
   // Secuencias operativas anuales (year: 2026)
   { year: 2026, prefix: 'MOV', nextSeq: 1 },
   { year: 2026, prefix: 'TR', nextSeq: 1 },

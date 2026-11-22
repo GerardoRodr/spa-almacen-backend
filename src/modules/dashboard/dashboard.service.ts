@@ -49,7 +49,7 @@ export class DashboardService {
           COUNT(DISTINCT s."itemId")::int AS "totalActiveSkus"
         FROM "Stock" s
         JOIN "Item" i ON s."itemId" = i."id"
-        WHERE s."physicalQty" > 0 AND s."warehouseId" = ${warehouseId}
+        WHERE s."physicalQty" > 0 AND i."isActive" = true AND s."warehouseId" = ${warehouseId}
       `;
     } else {
       valuationRows = await this.prisma.$queryRaw`
@@ -60,7 +60,7 @@ export class DashboardService {
           COUNT(DISTINCT s."itemId")::int AS "totalActiveSkus"
         FROM "Stock" s
         JOIN "Item" i ON s."itemId" = i."id"
-        WHERE s."physicalQty" > 0
+        WHERE s."physicalQty" > 0 AND i."isActive" = true
       `;
     }
 
@@ -79,7 +79,7 @@ export class DashboardService {
         SELECT COUNT(*)::int AS "criticalCount"
         FROM "Stock" s
         JOIN "Item" i ON s."itemId" = i."id"
-        WHERE s."warehouseId" = ${warehouseId} AND i."minStockAlert" > 0 AND s."physicalQty" <= i."minStockAlert"
+        WHERE s."warehouseId" = ${warehouseId} AND i."isActive" = true AND i."type" != 'SERVICE' AND i."minStockAlert" > 0 AND s."physicalQty" <= i."minStockAlert"
       `;
       criticalItemsCount = Number(critRows[0]?.criticalCount ?? 0);
     } else {
@@ -91,7 +91,7 @@ export class DashboardService {
           SELECT s."itemId"
           FROM "Stock" s
           JOIN "Item" i ON s."itemId" = i."id"
-          WHERE i."minStockAlert" > 0
+          WHERE i."isActive" = true AND i."type" != 'SERVICE' AND i."minStockAlert" > 0
           GROUP BY s."itemId", i."minStockAlert"
           HAVING SUM(s."physicalQty") <= i."minStockAlert"
         ) sub
@@ -148,6 +148,7 @@ export class DashboardService {
       FROM "Item" i
       JOIN "Stock" s ON i."id" = s."itemId"
       JOIN "Warehouse" w ON s."warehouseId" = w."id"
+      WHERE i."isActive" = true
       GROUP BY i."id", i."sku", i."name", i."baseUnit"
       HAVING SUM(s."physicalQty") > 0
       ORDER BY SUM(s."physicalQty") DESC

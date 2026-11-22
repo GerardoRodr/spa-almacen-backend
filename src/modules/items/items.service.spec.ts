@@ -19,6 +19,7 @@ describe('ItemsService', () => {
         findUnique: vi.fn(),
         create: vi.fn(),
         update: vi.fn(),
+        delete: vi.fn(),
       },
       itemAlias: {
         findUnique: vi.fn(),
@@ -55,6 +56,15 @@ describe('ItemsService', () => {
         count: vi.fn().mockResolvedValue(0),
       },
       transferItem: {
+        count: vi.fn().mockResolvedValue(0),
+      },
+      projectRequirement: {
+        count: vi.fn().mockResolvedValue(0),
+      },
+      toolCustody: {
+        count: vi.fn().mockResolvedValue(0),
+      },
+      machineryShiftLog: {
         count: vi.fn().mockResolvedValue(0),
       },
     } as unknown as PrismaService;
@@ -529,6 +539,132 @@ describe('ItemsService', () => {
           baseUnit: 'DESUSO',
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('Servicios, trazabilidad y eliminacion segura de items', () => {
+    it('debe crear un insumo tipo SERVICE con trackLot y trackExpiration', async () => {
+      vi.spyOn(prisma.item, 'findUnique').mockResolvedValue(null);
+      vi.spyOn(prisma.item, 'create').mockResolvedValue({
+        id: 'srv-1',
+        sku: 'SER-0001',
+        name: 'Flete de Transporte de Obra',
+        baseUnit: 'GLB',
+        type: ItemType.SERVICE,
+        trackLot: false,
+        trackExpiration: false,
+      } as any);
+
+      const result = await service.create({
+        sku: 'ser-0001',
+        name: 'Flete de Transporte de Obra',
+        baseUnit: 'GLB',
+        type: ItemType.SERVICE,
+        trackLot: false,
+        trackExpiration: false,
+      });
+
+      expect(result.type).toBe(ItemType.SERVICE);
+      expect(prisma.item.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            type: ItemType.SERVICE,
+            trackLot: false,
+            trackExpiration: false,
+          }),
+        }),
+      );
+    });
+
+    it('debe rechazar initialStock al crear un insumo de tipo SERVICE', async () => {
+      vi.spyOn(prisma.item, 'findUnique').mockResolvedValue(null);
+
+      await expect(
+        service.create({
+          sku: 'SER-0002',
+          name: 'Ensayo de Rotura de Probetas',
+          baseUnit: 'UND',
+          type: ItemType.SERVICE,
+          initialStock: {
+            warehouseId: 'wh-1',
+            quantity: 5,
+          },
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('debe filtrar isActive: true por defecto en findAll', async () => {
+      vi.spyOn(prisma.item, 'count').mockResolvedValue(0);
+      vi.spyOn(prisma.item, 'findMany').mockResolvedValue([] as any);
+
+      await service.findAll({ type: ItemType.SERVICE });
+
+      expect(prisma.item.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            isActive: true,
+            type: ItemType.SERVICE,
+          }),
+        }),
+      );
+    });
+
+    it('debe rechazar eliminacion cuando el insumo tiene stock fisico o reservado > 0', async () => {
+      vi.spyOn(prisma.item, 'findUnique').mockResolvedValue({
+        id: 'item-1',
+        name: 'Cemento',
+        stocks: [{ physicalQty: 10, reservedQty: 0 }],
+      } as any);
+
+      await expect(service.remove('item-1')).rejects.toThrow(BadRequestException);
+    });
+
+    it('debe rechazar eliminacion cuando el insumo tiene custodias abiertas', async () => {
+      vi.spyOn(prisma.item, 'findUnique').mockResolvedValue({
+        id: 'item-tool',
+        name: 'Taladro Percutor',
+        stocks: [{ physicalQty: 0, reservedQty: 0 }],
+      } as any);
+      vi.spyOn(prisma.toolCustody, 'count').mockResolvedValueOnce(1);
+
+      await expect(service.remove('item-tool')).rejects.toThrow(BadRequestException);
+    });
+
+    it('debe eliminar fisicamente el insumo si tiene stock 0 y sin historial', async () => {
+      vi.spyOn(prisma.item, 'findUnique').mockResolvedValue({
+        id: 'item-clean',
+        name: 'Insumo Error',
+        stocks: [{ physicalQty: 0, reservedQty: 0 }],
+      } as any);
+      vi.spyOn(prisma.toolCustody, 'count').mockResolvedValue(0);
+      vi.spyOn(prisma.item, 'delete').mockResolvedValue({ id: 'item-clean' } as any);
+
+      const result = await service.remove('item-clean');
+
+      expect(result.action).toBe('DELETED');
+      expect(prisma.item.delete).toHaveBeenCalledWith({ where: { id: 'item-clean' } });
+    });
+
+    it('debe desactivar logicamente el insumo si tiene stock 0 pero posee historial contable', async () => {
+      vi.spyOn(prisma.item, 'findUnique').mockResolvedValue({
+        id: 'item-hist',
+        name: 'Cemento Historico',
+        stocks: [{ physicalQty: 0, reservedQty: 0 }],
+      } as any);
+      vi.spyOn(prisma.toolCustody, 'count').mockResolvedValue(0);
+      vi.spyOn(prisma.purchaseDetail, 'count').mockResolvedValue(2);
+      vi.spyOn(prisma.item, 'update').mockResolvedValue({
+        id: 'item-hist',
+        isActive: false,
+      } as any);
+
+      const result = await service.remove('item-hist');
+
+      expect(result.action).toBe('DEACTIVATED');
+      expect(prisma.item.update).toHaveBeenCalledWith({
+        where: { id: 'item-hist' },
+        data: { isActive: false },
+      });
     });
   });
 });
