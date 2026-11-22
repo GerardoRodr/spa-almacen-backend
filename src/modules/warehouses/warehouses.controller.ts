@@ -38,11 +38,22 @@ export class WarehousesController {
 
   @Get()
   @ApiOperation({
-    summary: 'Listar almacenes accesibles (todos para ADMIN, asignados para WAREHOUSE_KEEPER)',
+    summary: 'Listar almacenes accesibles (todos para ADMIN, asignadas para WAREHOUSE_KEEPER)',
   })
   @ApiResponse({ status: 200, description: 'Listado de almacenes obtenido exitosamente' })
   findAll(@CurrentUser() user: { id: string; role: Role }) {
     return this.warehousesService.findAll(user);
+  }
+
+  @Get('available-for-project')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MODERATOR)
+  @ApiOperation({
+    summary: 'Listar almacenes activos de obra (PROJECT_SITE) sin proyecto asignado',
+  })
+  @ApiResponse({ status: 200, description: 'Listado de almacenes disponibles obtenido' })
+  findAvailableForProject() {
+    return this.warehousesService.findAvailableForProject();
   }
 
   @Post()

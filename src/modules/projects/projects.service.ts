@@ -134,7 +134,104 @@ export class ProjectsService {
     return project;
   }
 
-  // Registrar nuevo proyecto civil y crear automaticamente su almacen de obra temporal
+  // Helper para validar que un almacen de obra existente pueda vincularse a un proyecto
+  private async validateTargetProjectWarehouse(
+    tx: Prisma.TransactionClient,
+    warehouseId: string,
+    currentProjectId?: string,
+  ) {
+    const targetWarehouse = await tx.warehouse.findUnique({
+      where: { id: warehouseId },
+    });
+
+    if (!targetWarehouse) {
+      throw new NotFoundException('El almacen seleccionado no existe');
+    }
+
+    if (targetWarehouse.type !== WarehouseType.PROJECT_SITE) {
+      throw new BadRequestException(
+        'Solo se pueden asignar almacenes de tipo Obra (PROJECT_SITE) a un proyecto',
+      );
+    }
+
+    if (!targetWarehouse.isActive) {
+      throw new BadRequestException(
+        `El almacen "${targetWarehouse.name}" se encuentra inactivo`,
+      );
+    }
+
+    if (
+      targetWarehouse.projectId !== null &&
+      targetWarehouse.projectId !== currentProjectId
+    ) {
+      throw new ConflictException(
+        `El almacen "${targetWarehouse.name}" ya esta asignado a otro proyecto`,
+      );
+    }
+
+    return targetWarehouse;
+  }
+
+  // Helper de validacion estricta de integridad antes de desvincular un almacen de proyecto
+  private async ensureWarehouseCanBeUnlinked(
+    tx: Prisma.TransactionClient,
+    warehouseId: string,
+    warehouseName: string,
+  ) {
+    const stocks = await tx.stock.findMany({
+      where: { warehouseId },
+      select: { physicalQty: true, reservedQty: true },
+    });
+
+    const totalPhysical = stocks.reduce(
+      (acc, s) => acc + Number(s.physicalQty),
+      0,
+    );
+    const totalReserved = stocks.reduce(
+      (acc, s) => acc + Number(s.reservedQty),
+      0,
+    );
+
+    if (totalPhysical > 0 || totalReserved > 0) {
+      throw new ConflictException(
+        `No se puede cambiar el almacen "${warehouseName}": mantiene existencias fisicas (${totalPhysical}) o reservadas (${totalReserved}). Transfiera o liquide el stock antes de desvincularlo.`,
+      );
+    }
+
+    const openCustodies = await tx.toolCustody.count({
+      where: {
+        warehouseId,
+        returnDate: null,
+        isReverted: false,
+      },
+    });
+
+    if (openCustodies > 0) {
+      throw new ConflictException(
+        `No se puede cambiar el almacen "${warehouseName}": tiene ${openCustodies} prestamo(s) de herramientas sin devolver.`,
+      );
+    }
+
+    const activeTransfers = await tx.transfer.count({
+      where: {
+        OR: [
+          { originWarehouseId: warehouseId },
+          { destWarehouseId: warehouseId },
+        ],
+        status: {
+          in: [TransferStatus.PENDING, TransferStatus.IN_TRANSIT],
+        },
+      },
+    });
+
+    if (activeTransfers > 0) {
+      throw new ConflictException(
+        `No se puede cambiar el almacen "${warehouseName}": participa en ${activeTransfers} transferencia(s) en estado PENDING o IN_TRANSIT.`,
+      );
+    }
+  }
+
+  // Registrar nuevo proyecto civil y vincular un almacen existente o crear su almacen temporal
   async create(dto: CreateProjectDto) {
     const nameFormatted = dto.name.trim();
 
@@ -149,7 +246,11 @@ export class ProjectsService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      // 1. Crear el proyecto civil en estado inicial PLANNING
+      if (dto.warehouseId) {
+        await this.validateTargetProjectWarehouse(tx, dto.warehouseId);
+      }
+
+      // 1. Crear el proyecto civil
       const project = await tx.project.create({
         data: {
           name: nameFormatted,
@@ -158,37 +259,44 @@ export class ProjectsService {
         },
       });
 
-      // 2. Determinar nombre unico para el almacen de obra
-      let preferredWhName = dto.warehouseName?.trim();
-      if (!preferredWhName) {
-        if (
-          project.name.toLowerCase().startsWith('obra ') ||
-          project.name.toLowerCase().startsWith('almacen ')
-        ) {
-          preferredWhName = `Almacen ${project.name}`;
-        } else {
-          preferredWhName = `Almacen Obra ${project.name}`;
+      // 2. Vincular almacen existente o crear almacen temporal automatico
+      let warehouse;
+      if (dto.warehouseId) {
+        warehouse = await tx.warehouse.update({
+          where: { id: dto.warehouseId },
+          data: { projectId: project.id },
+        });
+      } else {
+        let preferredWhName = dto.warehouseName?.trim();
+        if (!preferredWhName) {
+          if (
+            project.name.toLowerCase().startsWith('obra ') ||
+            project.name.toLowerCase().startsWith('almacen ')
+          ) {
+            preferredWhName = `Almacen ${project.name}`;
+          } else {
+            preferredWhName = `Almacen Obra ${project.name}`;
+          }
         }
-      }
-      let finalWhName = preferredWhName;
+        let finalWhName = preferredWhName;
 
-      const existingWh = await tx.warehouse.findFirst({
-        where: { name: finalWhName },
-      });
-      if (existingWh) {
-        finalWhName = `${preferredWhName} - ${project.id.slice(0, 8)}`;
-      }
+        const existingWh = await tx.warehouse.findFirst({
+          where: { name: finalWhName },
+        });
+        if (existingWh) {
+          finalWhName = `${preferredWhName} - ${project.id.slice(0, 8)}`;
+        }
 
-      // 3. Crear el almacen de obra temporal vinculado
-      const warehouse = await tx.warehouse.create({
-        data: {
-          name: finalWhName,
-          type: WarehouseType.PROJECT_SITE,
-          isTemporary: true,
-          isActive: true,
-          projectId: project.id,
-        },
-      });
+        warehouse = await tx.warehouse.create({
+          data: {
+            name: finalWhName,
+            type: WarehouseType.PROJECT_SITE,
+            isTemporary: true,
+            isActive: true,
+            projectId: project.id,
+          },
+        });
+      }
 
       return {
         ...project,
@@ -200,9 +308,12 @@ export class ProjectsService {
     });
   }
 
-  // Actualizar informacion basica del proyecto
+  // Actualizar informacion general, estado y almacen asignado del proyecto civil
   async update(id: string, dto: UpdateProjectDto) {
-    const project = await this.prisma.project.findUnique({ where: { id } });
+    const project = await this.prisma.project.findUnique({
+      where: { id },
+      include: { warehouse: true },
+    });
     if (!project) {
       throw new NotFoundException('Proyecto civil no encontrado');
     }
@@ -221,18 +332,61 @@ export class ProjectsService {
       }
     }
 
-    return this.prisma.project.update({
-      where: { id },
-      data: {
-        name: dto.name ? dto.name.trim() : undefined,
-        budgetCode: dto.budgetCode !== undefined ? dto.budgetCode.trim() : undefined,
-        status: dto.status,
-      },
-      include: {
-        warehouse: {
-          select: { id: true, name: true, type: true, isActive: true },
+    const isChangingWarehouse =
+      dto.warehouseId !== undefined &&
+      dto.warehouseId !== project.warehouse?.id;
+
+    if (!isChangingWarehouse) {
+      return this.prisma.project.update({
+        where: { id },
+        data: {
+          name: dto.name ? dto.name.trim() : undefined,
+          budgetCode:
+            dto.budgetCode !== undefined ? dto.budgetCode.trim() : undefined,
+          status: dto.status,
         },
-      },
+        include: {
+          warehouse: {
+            select: { id: true, name: true, type: true, isActive: true },
+          },
+        },
+      });
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await this.validateTargetProjectWarehouse(tx, dto.warehouseId!, id);
+
+      if (project.warehouse) {
+        await this.ensureWarehouseCanBeUnlinked(
+          tx,
+          project.warehouse.id,
+          project.warehouse.name,
+        );
+        await tx.warehouse.update({
+          where: { id: project.warehouse.id },
+          data: { projectId: null },
+        });
+      }
+
+      await tx.warehouse.update({
+        where: { id: dto.warehouseId! },
+        data: { projectId: id },
+      });
+
+      return tx.project.update({
+        where: { id },
+        data: {
+          name: dto.name ? dto.name.trim() : undefined,
+          budgetCode:
+            dto.budgetCode !== undefined ? dto.budgetCode.trim() : undefined,
+          status: dto.status,
+        },
+        include: {
+          warehouse: {
+            select: { id: true, name: true, type: true, isActive: true },
+          },
+        },
+      });
     });
   }
 

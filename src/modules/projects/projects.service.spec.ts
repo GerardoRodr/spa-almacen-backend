@@ -911,4 +911,126 @@ describe('ProjectsService', () => {
       );
     });
   });
+
+  describe('Fase B6: Asignacion y cambio de almacenes existentes en Proyectos', () => {
+    it('debe vincular un almacen PROJECT_SITE disponible al crear un proyecto', async () => {
+      prisma.project.findFirst.mockResolvedValue(null);
+      prisma.warehouse.findUnique.mockResolvedValue({
+        id: 'wh-free-1',
+        name: 'Caseta Norte',
+        type: WarehouseType.PROJECT_SITE,
+        isActive: true,
+        projectId: null,
+      });
+      prisma.project.create.mockResolvedValue({
+        id: 'proj-new-1',
+        name: 'Obra Norte',
+        status: ProjectStatus.PLANNING,
+      });
+      prisma.warehouse.update.mockResolvedValue({
+        id: 'wh-free-1',
+        name: 'Caseta Norte',
+        projectId: 'proj-new-1',
+      });
+
+      const res = await service.create({
+        name: 'Obra Norte',
+        warehouseId: 'wh-free-1',
+      });
+
+      expect(res.warehouse.id).toBe('wh-free-1');
+      expect(prisma.warehouse.create).not.toHaveBeenCalled();
+      expect(prisma.warehouse.update).toHaveBeenCalledWith({
+        where: { id: 'wh-free-1' },
+        data: { projectId: 'proj-new-1' },
+      });
+    });
+
+    it('debe rechazar con ConflictException al crear proyecto con almacen ya asignado', async () => {
+      prisma.project.findFirst.mockResolvedValue(null);
+      prisma.warehouse.findUnique.mockResolvedValue({
+        id: 'wh-busy',
+        name: 'Caseta Ocupada',
+        type: WarehouseType.PROJECT_SITE,
+        isActive: true,
+        projectId: 'otro-proyecto',
+      });
+
+      await expect(
+        service.create({ name: 'Obra Nueva', warehouseId: 'wh-busy' }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('debe rechazar cambio de almacen con ConflictException (409) si el almacen anterior tiene stock o custodias o transferencias activas', async () => {
+      prisma.project.findUnique.mockResolvedValue({
+        id: 'proj-1',
+        name: 'Obra 1',
+        warehouse: { id: 'wh-old', name: 'Almacen Viejo' },
+      });
+      prisma.warehouse.findUnique.mockResolvedValue({
+        id: 'wh-new',
+        name: 'Almacen Nuevo',
+        type: WarehouseType.PROJECT_SITE,
+        isActive: true,
+        projectId: null,
+      });
+
+      // Caso 1: Stock fisico > 0
+      prisma.stock.findMany.mockResolvedValueOnce([{ physicalQty: 5, reservedQty: 0 }]);
+      await expect(
+        service.update('proj-1', { warehouseId: 'wh-new' }),
+      ).rejects.toThrow(ConflictException);
+
+      // Caso 2: Custodia abierta
+      prisma.stock.findMany.mockResolvedValueOnce([{ physicalQty: 0, reservedQty: 0 }]);
+      prisma.toolCustody.count.mockResolvedValueOnce(1);
+      await expect(
+        service.update('proj-1', { warehouseId: 'wh-new' }),
+      ).rejects.toThrow(ConflictException);
+
+      // Caso 3: Transferencia pendiente / en transito
+      prisma.stock.findMany.mockResolvedValueOnce([]);
+      prisma.toolCustody.count.mockResolvedValueOnce(0);
+      prisma.transfer.count.mockResolvedValueOnce(1);
+      await expect(
+        service.update('proj-1', { warehouseId: 'wh-new' }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('debe desvincular el almacen anterior y vincular el nuevo si pasa validaciones de integridad', async () => {
+      prisma.project.findUnique.mockResolvedValue({
+        id: 'proj-1',
+        name: 'Obra 1',
+        warehouse: { id: 'wh-old', name: 'Almacen Viejo' },
+      });
+      prisma.warehouse.findUnique.mockResolvedValue({
+        id: 'wh-new',
+        name: 'Almacen Nuevo',
+        type: WarehouseType.PROJECT_SITE,
+        isActive: true,
+        projectId: null,
+      });
+      prisma.stock.findMany.mockResolvedValue([{ physicalQty: 0, reservedQty: 0 }]);
+      prisma.toolCustody.count.mockResolvedValue(0);
+      prisma.transfer.count.mockResolvedValue(0);
+      prisma.warehouse.update.mockResolvedValue({});
+      prisma.project.update.mockResolvedValue({
+        id: 'proj-1',
+        name: 'Obra 1',
+        warehouse: { id: 'wh-new', name: 'Almacen Nuevo' },
+      });
+
+      const res = await service.update('proj-1', { warehouseId: 'wh-new' });
+
+      expect(prisma.warehouse.update).toHaveBeenNthCalledWith(1, {
+        where: { id: 'wh-old' },
+        data: { projectId: null },
+      });
+      expect(prisma.warehouse.update).toHaveBeenNthCalledWith(2, {
+        where: { id: 'wh-new' },
+        data: { projectId: 'proj-1' },
+      });
+      expect(res.warehouse?.id).toBe('wh-new');
+    });
+  });
 });

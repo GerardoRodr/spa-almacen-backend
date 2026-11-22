@@ -4,7 +4,7 @@ import {
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { Role, WarehouseType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { CreateWarehouseDto } from './dto/create-warehouse.dto.js';
 import { UpdateWarehouseDto } from './dto/update-warehouse.dto.js';
@@ -47,6 +47,18 @@ export class WarehousesService {
         _count: {
           select: { stocks: true },
         },
+      },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  // Listar almacenes activos tipo PROJECT_SITE disponibles para vincular a un proyecto (projectId = null)
+  async findAvailableForProject() {
+    return this.prisma.warehouse.findMany({
+      where: {
+        type: WarehouseType.PROJECT_SITE,
+        isActive: true,
+        projectId: null,
       },
       orderBy: { name: 'asc' },
     });

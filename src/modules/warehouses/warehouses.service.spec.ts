@@ -114,4 +114,22 @@ describe('WarehousesService', () => {
     expect(alerts[0].sku).toBe('CEM-01');
     expect(alerts[0].deficitQty).toBe(5);
   });
+
+  it('debe listar unicamente almacenes activos tipo PROJECT_SITE disponibles sin proyecto', async () => {
+    vi.spyOn(prisma.warehouse, 'findMany').mockResolvedValue([
+      { id: 'wh-free', name: 'Almacen Obra Libre', type: WarehouseType.PROJECT_SITE, projectId: null },
+    ] as any);
+
+    const res = await service.findAvailableForProject();
+
+    expect(res).toHaveLength(1);
+    expect(prisma.warehouse.findMany).toHaveBeenCalledWith({
+      where: {
+        type: WarehouseType.PROJECT_SITE,
+        isActive: true,
+        projectId: null,
+      },
+      orderBy: { name: 'asc' },
+    });
+  });
 });

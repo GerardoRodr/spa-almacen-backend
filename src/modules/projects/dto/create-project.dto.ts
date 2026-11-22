@@ -3,8 +3,10 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ProjectStatus } from '@prisma/client';
 
@@ -42,4 +44,15 @@ export class CreateProjectDto {
   @IsOptional()
   @IsString({ message: 'El nombre del almacen debe ser una cadena de texto' })
   warehouseName?: string;
+
+  @ApiPropertyOptional({
+    example: 'b0000000-0000-4000-8000-000000000002',
+    description: 'UUID de un almacen PROJECT_SITE existente y disponible para vincular al proyecto',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
+  @IsUUID('4', { message: 'El warehouseId debe ser un UUID valido' })
+  warehouseId?: string;
 }

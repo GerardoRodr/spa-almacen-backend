@@ -2,8 +2,10 @@ import {
   IsEnum,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { ProjectStatus } from '@prisma/client';
 
@@ -32,4 +34,15 @@ export class UpdateProjectDto {
   @IsOptional()
   @IsEnum(ProjectStatus, { message: 'El estado del proyecto no es valido' })
   status?: ProjectStatus;
+
+  @ApiPropertyOptional({
+    example: 'b0000000-0000-4000-8000-000000000002',
+    description: 'UUID del nuevo almacen PROJECT_SITE disponible a asignar al proyecto',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
+  @IsUUID('4', { message: 'El warehouseId debe ser un UUID valido' })
+  warehouseId?: string;
 }
