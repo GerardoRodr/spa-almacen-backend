@@ -11,6 +11,8 @@ import { CreateItemDto } from './dto/create-item.dto.js';
 import { UpdateItemDto } from './dto/update-item.dto.js';
 import { ItemFilterDto } from './dto/item-filter.dto.js';
 import { CreateItemAliasDto } from './dto/create-item-alias.dto.js';
+import { UpdateItemAliasDto } from './dto/update-item-alias.dto.js';
+import { ItemAliasFilterDto } from './dto/item-alias-filter.dto.js';
 import { CreateItemCategoryDto } from './dto/create-item-category.dto.js';
 import { UpdateItemCategoryDto } from './dto/update-item-category.dto.js';
 
@@ -571,9 +573,76 @@ export class ItemsService {
     };
   }
 
-  // Registrar equivalencia o alias S10 para el item
+  // Listar equivalencias de alias S10 paginadas con buscador
+  async findAllAliases(filter: ItemAliasFilterDto) {
+    const page = Math.max(1, Number(filter.page) || 1);
+    const limit = Math.max(1, Math.min(100, Number(filter.limit) || 20));
+    const skip = (page - 1) * limit;
+
+    const where: Record<string, unknown> = {};
+
+    if (filter.itemId) {
+      where.itemId = filter.itemId;
+    }
+
+    if (filter.search && filter.search.trim()) {
+      const term = filter.search.trim();
+      where.OR = [
+        { s10RawName: { contains: term, mode: 'insensitive' } },
+        { s10Code: { contains: term, mode: 'insensitive' } },
+        { s10Unit: { contains: term, mode: 'insensitive' } },
+        {
+          item: {
+            OR: [
+              { name: { contains: term, mode: 'insensitive' } },
+              { sku: { contains: term, mode: 'insensitive' } },
+            ],
+          },
+        },
+      ];
+    }
+
+    const [total, data] = await Promise.all([
+      this.prisma.itemAlias.count({ where }),
+      this.prisma.itemAlias.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { s10RawName: 'asc' },
+        include: {
+          item: {
+            select: {
+              id: true,
+              sku: true,
+              name: true,
+              baseUnit: true,
+              type: true,
+              isActive: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
+  }
+
+  // Registrar equivalencia o alias S10 para el item (soporta multiples alias por item 1:N)
   async createAlias(dto: CreateItemAliasDto) {
-    await this.findOne(dto.itemId);
+    const item = await this.findOne(dto.itemId);
+    if ((item as { isActive?: boolean }).isActive === false) {
+      throw new BadRequestException(
+        'No se puede asociar un alias S10 a un insumo inactivo',
+      );
+    }
 
     const rawNameFormatted = dto.s10RawName.trim();
 
@@ -591,9 +660,88 @@ export class ItemsService {
       data: {
         itemId: dto.itemId,
         s10RawName: rawNameFormatted,
-        s10Code: dto.s10Code?.trim(),
-        s10Unit: dto.s10Unit?.trim(),
+        s10Code: dto.s10Code?.trim() || null,
+        s10Unit: dto.s10Unit?.trim() || null,
         conversionFactor: dto.conversionFactor ?? 1.0,
+      },
+      include: {
+        item: {
+          select: {
+            id: true,
+            sku: true,
+            name: true,
+            baseUnit: true,
+            type: true,
+            isActive: true,
+          },
+        },
+      },
+    });
+  }
+
+  // Actualizar equivalencia de alias S10 existente
+  async updateAlias(aliasId: string, dto: UpdateItemAliasDto) {
+    const existing = await this.prisma.itemAlias.findUnique({
+      where: { id: aliasId },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Alias S10 no encontrado');
+    }
+
+    if (dto.itemId && dto.itemId !== existing.itemId) {
+      const targetItem = await this.findOne(dto.itemId);
+      if ((targetItem as { isActive?: boolean }).isActive === false) {
+        throw new BadRequestException(
+          'No se puede vincular el alias a un insumo inactivo',
+        );
+      }
+    }
+
+    const rawNameFormatted =
+      dto.s10RawName !== undefined ? dto.s10RawName.trim() : undefined;
+    if (rawNameFormatted && rawNameFormatted !== existing.s10RawName) {
+      const conflict = await this.prisma.itemAlias.findUnique({
+        where: { s10RawName: rawNameFormatted },
+      });
+      if (conflict && conflict.id !== aliasId) {
+        throw new ConflictException(
+          'Ya existe otro alias registrado con esa descripcion literal de S10',
+        );
+      }
+    }
+
+    return this.prisma.itemAlias.update({
+      where: { id: aliasId },
+      data: {
+        itemId: dto.itemId ?? undefined,
+        s10RawName: rawNameFormatted,
+        s10Code:
+          dto.s10Code !== undefined
+            ? dto.s10Code
+              ? dto.s10Code.trim()
+              : null
+            : undefined,
+        s10Unit:
+          dto.s10Unit !== undefined
+            ? dto.s10Unit
+              ? dto.s10Unit.trim()
+              : null
+            : undefined,
+        conversionFactor:
+          dto.conversionFactor !== undefined ? dto.conversionFactor : undefined,
+      },
+      include: {
+        item: {
+          select: {
+            id: true,
+            sku: true,
+            name: true,
+            baseUnit: true,
+            type: true,
+            isActive: true,
+          },
+        },
       },
     });
   }

@@ -22,6 +22,8 @@ import { CreateItemDto } from './dto/create-item.dto.js';
 import { UpdateItemDto } from './dto/update-item.dto.js';
 import { ItemFilterDto } from './dto/item-filter.dto.js';
 import { CreateItemAliasDto } from './dto/create-item-alias.dto.js';
+import { UpdateItemAliasDto } from './dto/update-item-alias.dto.js';
+import { ItemAliasFilterDto } from './dto/item-alias-filter.dto.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
@@ -77,6 +79,48 @@ export class ItemsController {
     return this.itemsService.getPerishableAlerts(warehouseId);
   }
 
+  @Get('aliases')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MODERATOR)
+  @ApiOperation({
+    summary: 'Listar equivalencias S10 (ItemAlias) paginadas con busqueda por codigo, texto S10 o insumo maestro',
+  })
+  @ApiResponse({ status: 200, description: 'Listado de alias S10 obtenido' })
+  findAllAliases(@Query() filter: ItemAliasFilterDto) {
+    return this.itemsService.findAllAliases(filter);
+  }
+
+  @Post('aliases')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MODERATOR)
+  @ApiOperation({ summary: 'Registrar equivalencia cruda de S10 (ItemAlias) con factor de conversion' })
+  @ApiResponse({ status: 201, description: 'Alias de S10 registrado exitosamente' })
+  @ApiResponse({ status: 409, description: 'Nombre crudo de S10 ya registrado' })
+  createAlias(@Body() dto: CreateItemAliasDto) {
+    return this.itemsService.createAlias(dto);
+  }
+
+  @Put('aliases/:id')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MODERATOR)
+  @ApiOperation({ summary: 'Actualizar equivalencia de alias S10 (producto maestro, unidad o factor)' })
+  @ApiResponse({ status: 200, description: 'Alias actualizado exitosamente' })
+  @ApiResponse({ status: 404, description: 'Alias no encontrado' })
+  @ApiResponse({ status: 409, description: 'Nombre crudo de S10 ya registrado en otro alias' })
+  updateAlias(@Param('id') id: string, @Body() dto: UpdateItemAliasDto) {
+    return this.itemsService.updateAlias(id, dto);
+  }
+
+  @Delete('aliases/:id')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MODERATOR)
+  @ApiOperation({ summary: 'Eliminar una equivalencia de alias S10' })
+  @ApiResponse({ status: 200, description: 'Alias eliminado exitosamente' })
+  @ApiResponse({ status: 404, description: 'Alias no encontrado' })
+  deleteAlias(@Param('id') id: string) {
+    return this.itemsService.deleteAlias(id);
+  }
+
   @Get(':id')
   @UseInterceptors(CostMaskingInterceptor)
   @ApiOperation({
@@ -95,26 +139,6 @@ export class ItemsController {
   @ApiResponse({ status: 200, description: 'Item actualizado exitosamente' })
   update(@Param('id') id: string, @Body() dto: UpdateItemDto) {
     return this.itemsService.update(id, dto);
-  }
-
-  @Post('aliases')
-  @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MODERATOR)
-  @ApiOperation({ summary: 'Registrar equivalencia cruda de S10 (ItemAlias) con factor de conversion' })
-  @ApiResponse({ status: 201, description: 'Alias de S10 registrado exitosamente' })
-  @ApiResponse({ status: 409, description: 'Nombre crudo de S10 ya registrado' })
-  createAlias(@Body() dto: CreateItemAliasDto) {
-    return this.itemsService.createAlias(dto);
-  }
-
-  @Delete('aliases/:id')
-  @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.MODERATOR)
-  @ApiOperation({ summary: 'Eliminar una equivalencia de alias S10' })
-  @ApiResponse({ status: 200, description: 'Alias eliminado exitosamente' })
-  @ApiResponse({ status: 404, description: 'Alias no encontrado' })
-  deleteAlias(@Param('id') id: string) {
-    return this.itemsService.deleteAlias(id);
   }
 
   @Delete(':id')

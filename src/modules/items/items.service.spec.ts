@@ -22,8 +22,11 @@ describe('ItemsService', () => {
         delete: vi.fn(),
       },
       itemAlias: {
+        count: vi.fn(),
+        findMany: vi.fn(),
         findUnique: vi.fn(),
         create: vi.fn(),
+        update: vi.fn(),
         delete: vi.fn(),
       },
       itemCategory: {
@@ -665,6 +668,117 @@ describe('ItemsService', () => {
         where: { id: 'item-hist' },
         data: { isActive: false },
       });
+    });
+  });
+
+  describe('Fase B8: CRUD paginado de Alias S10 (1:N)', () => {
+    it('debe listar alias S10 paginados filtrando por search e itemId', async () => {
+      vi.spyOn(prisma.itemAlias, 'count').mockResolvedValue(2);
+      vi.spyOn(prisma.itemAlias, 'findMany').mockResolvedValue([
+        {
+          id: 'al-1',
+          itemId: 'item-1',
+          s10RawName: 'CEMENTO PORTLAND TIPO I',
+          s10Code: '020401',
+          s10Unit: 'BOL',
+          conversionFactor: 1,
+          item: { id: 'item-1', sku: 'MAT-0001', name: 'Cemento' },
+        },
+      ] as any);
+
+      const res = await service.findAllAliases({
+        page: 1,
+        limit: 10,
+        search: 'CEMENTO',
+        itemId: 'item-1',
+      });
+
+      expect(res.data).toHaveLength(1);
+      expect(res.meta).toEqual({
+        total: 2,
+        page: 1,
+        limit: 10,
+        totalPages: 1,
+      });
+      expect(prisma.itemAlias.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            itemId: 'item-1',
+            OR: expect.any(Array),
+          }),
+        }),
+      );
+    });
+
+    it('debe permitir multiples alias S10 distintos asociados al mismo itemId (1:N)', async () => {
+      vi.spyOn(prisma.item, 'findUnique').mockResolvedValue({
+        id: 'item-1',
+        isActive: true,
+        stocks: [],
+      } as any);
+      vi.spyOn(prisma.itemAlias, 'findUnique').mockResolvedValue(null);
+      vi.spyOn(prisma.itemAlias, 'create')
+        .mockResolvedValueOnce({ id: 'al-1', itemId: 'item-1', s10RawName: 'CEM. PORTLAND T-I' } as any)
+        .mockResolvedValueOnce({ id: 'al-2', itemId: 'item-1', s10RawName: 'CEMENTO TIPO I 42.5KG' } as any);
+
+      const al1 = await service.createAlias({
+        itemId: 'item-1',
+        s10RawName: 'CEM. PORTLAND T-I',
+      });
+      const al2 = await service.createAlias({
+        itemId: 'item-1',
+        s10RawName: 'CEMENTO TIPO I 42.5KG',
+      });
+
+      expect(al1.itemId).toBe('item-1');
+      expect(al2.itemId).toBe('item-1');
+    });
+
+    it('debe actualizar producto vinculado y factor de conversion de un alias S10', async () => {
+      vi.spyOn(prisma.itemAlias, 'findUnique')
+        .mockResolvedValueOnce({
+          id: 'al-1',
+          itemId: 'item-1',
+          s10RawName: 'ARENA GRUESA S10',
+        } as any)
+        .mockResolvedValueOnce(null);
+      vi.spyOn(prisma.item, 'findUnique').mockResolvedValue({
+        id: 'item-2',
+        isActive: true,
+        stocks: [],
+      } as any);
+      vi.spyOn(prisma.itemAlias, 'update').mockResolvedValue({
+        id: 'al-1',
+        itemId: 'item-2',
+        s10RawName: 'ARENA GRUESA LAVADA',
+        conversionFactor: 1.5,
+      } as any);
+
+      const updated = await service.updateAlias('al-1', {
+        itemId: 'item-2',
+        s10RawName: 'ARENA GRUESA LAVADA',
+        conversionFactor: 1.5,
+      });
+
+      expect(updated.itemId).toBe('item-2');
+      expect(updated.conversionFactor).toBe(1.5);
+    });
+
+    it('debe lanzar ConflictException si updateAlias usa un s10RawName ya existente en otro alias', async () => {
+      vi.spyOn(prisma.itemAlias, 'findUnique')
+        .mockResolvedValueOnce({
+          id: 'al-1',
+          itemId: 'item-1',
+          s10RawName: 'NOMBRE A',
+        } as any)
+        .mockResolvedValueOnce({
+          id: 'al-2',
+          s10RawName: 'NOMBRE B',
+        } as any);
+
+      await expect(
+        service.updateAlias('al-1', { s10RawName: 'NOMBRE B' }),
+      ).rejects.toThrow(ConflictException);
     });
   });
 });
