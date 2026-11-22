@@ -4,6 +4,7 @@ import {
   ConflictException,
   BadRequestException,
   ForbiddenException,
+  Optional,
 } from '@nestjs/common';
 import {
   ProjectStatus,
@@ -13,6 +14,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { StorageService } from '../documents/storage.service.js';
 import { CreateProjectDto } from './dto/create-project.dto.js';
 import { UpdateProjectDto } from './dto/update-project.dto.js';
 import { ProjectFilterDto } from './dto/project-filter.dto.js';
@@ -20,6 +22,8 @@ import { IngestS10Dto } from './dto/ingest-s10.dto.js';
 import { AllocateStockDto } from './dto/allocate-stock.dto.js';
 import { ReleaseStockDto } from './dto/release-stock.dto.js';
 import { LiquidateProjectDto } from './dto/liquidate-project.dto.js';
+import { CreateProjectRequirementDto } from './dto/create-project-requirement.dto.js';
+import { UpdateProjectRequirementDto } from './dto/update-project-requirement.dto.js';
 import { S10ParserService } from './s10-parser.service.js';
 
 @Injectable()
@@ -27,6 +31,7 @@ export class ProjectsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly s10ParserService: S10ParserService,
+    @Optional() private readonly storageService?: StorageService,
   ) {}
 
   // Listar obras civiles registradas segun rol y permisos de usuario
@@ -416,7 +421,9 @@ export class ProjectsService {
       this.prisma.itemAlias.findMany({
         include: { item: true },
       }),
-      this.prisma.item.findMany(),
+      this.prisma.item.findMany({
+        where: { isActive: true },
+      }),
     ]);
 
     const aliasByName = new Map<string, (typeof aliases)[0]>();
@@ -608,7 +615,7 @@ export class ProjectsService {
     };
   }
 
-  // Importacion de archivo delimitado S10 (CSV / TXT)
+  // Importacion de archivo delimitado S10 (CSV / TXT) con persistencia en disco
   async importS10File(
     id: string,
     file: { buffer?: Buffer; originalname?: string },
@@ -616,6 +623,11 @@ export class ProjectsService {
     if (!file || !file.buffer) {
       throw new BadRequestException('Archivo no proporcionado o vacio');
     }
+
+    const projectBefore = await this.prisma.project.findUnique({
+      where: { id },
+      select: { id: true, s10FilePath: true },
+    });
 
     const parseResult = this.s10ParserService.parseS10Buffer(file.buffer);
 
@@ -638,16 +650,113 @@ export class ProjectsService {
       mode: 'REPLACE',
     });
 
+    const fileName = file.originalname?.trim() || `presupuesto-s10-${id}.csv`;
+    const uploadedAt = new Date();
+    let savedStoredPath: string | null = projectBefore?.s10FilePath ?? null;
+
+    if (this.storageService) {
+      const saved = await this.storageService.saveS10File(
+        file.buffer,
+        id,
+        fileName,
+      );
+      savedStoredPath = saved.storedPath;
+
+      if (
+        projectBefore?.s10FilePath &&
+        projectBefore.s10FilePath !== savedStoredPath
+      ) {
+        await this.storageService.deleteFile(projectBefore.s10FilePath);
+      }
+    }
+
+    await this.prisma.project.update({
+      where: { id },
+      data: {
+        s10FilePath: savedStoredPath,
+        s10FileName: fileName,
+        s10UploadedAt: uploadedAt,
+      },
+    });
+
     return {
       projectId: id,
       s10ProjectCode: parseResult.s10ProjectCode,
       s10ProjectName: parseResult.s10ProjectName,
+      s10FileName: fileName,
+      s10UploadedAt: uploadedAt,
       totalRowsParsed: parseResult.totalRowsParsed,
       materialsAndEquipmentRows: parseResult.materialsAndEquipmentRows,
       budgetSummary: parseResult.budgetSummary,
       mappedItems: ingestResult.mappedCount,
       unmappedItems: ingestResult.unmappedItems,
       requirementsCreatedOrUpdated: ingestResult.requirementsCreatedOrUpdated,
+    };
+  }
+
+  // Obtener stream de descarga protegida del archivo S10 guardado
+  async getS10FileStream(id: string, user: { id: string; role: Role }) {
+    const project = await this.findOne(id, user);
+
+    if (!project.s10FilePath) {
+      throw new NotFoundException(
+        'El proyecto no tiene un archivo S10 almacenado',
+      );
+    }
+
+    if (!this.storageService) {
+      throw new BadRequestException(
+        'El servicio de almacenamiento local no esta disponible',
+      );
+    }
+
+    const { stream } = this.storageService.getFileStream(project.s10FilePath);
+    const fileName = project.s10FileName || `presupuesto-s10-${id}.csv`;
+    const mimeType = fileName.toLowerCase().endsWith('.txt')
+      ? 'text/plain; charset=utf-8'
+      : 'text/csv; charset=utf-8';
+
+    return {
+      stream,
+      fileName,
+      mimeType,
+    };
+  }
+
+  // Eliminar archivo S10 guardado en disco y limpiar metadatos del proyecto
+  async deleteS10File(id: string) {
+    const project = await this.prisma.project.findUnique({
+      where: { id },
+      select: { id: true, s10FilePath: true, s10FileName: true },
+    });
+
+    if (!project) {
+      throw new NotFoundException('Proyecto civil no encontrado');
+    }
+
+    if (!project.s10FilePath && !project.s10FileName) {
+      throw new NotFoundException(
+        'El proyecto no tiene un archivo S10 almacenado',
+      );
+    }
+
+    if (project.s10FilePath && this.storageService) {
+      await this.storageService.deleteFile(project.s10FilePath);
+    }
+
+    await this.prisma.project.update({
+      where: { id },
+      data: {
+        s10FilePath: null,
+        s10FileName: null,
+        s10UploadedAt: null,
+      },
+    });
+
+    return {
+      deleted: true,
+      projectId: id,
+      message: 'Archivo S10 eliminado exitosamente',
     };
   }
 
@@ -844,6 +953,7 @@ export class ProjectsService {
           : null;
 
       return {
+        requirementId: req.id,
         itemId: req.itemId,
         sku: req.item.sku,
         itemName: req.item.name,
@@ -1177,5 +1287,215 @@ export class ProjectsService {
         warehouseDeactivated,
       };
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // EDICION MANUAL DE LA MATRIZ DE BRECHAS (PROJECT REQUIREMENTS)
+  // -------------------------------------------------------------------------
+
+  // Agregar manualmente un insumo a la matriz de requerimientos del proyecto
+  async addRequirement(projectId: string, dto: CreateProjectRequirementDto) {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+    });
+    if (!project) {
+      throw new NotFoundException('Proyecto civil no encontrado');
+    }
+    if (
+      project.status === ProjectStatus.LIQUIDATED ||
+      project.status === ProjectStatus.ARCHIVED
+    ) {
+      throw new BadRequestException(
+        'No se pueden modificar requerimientos de un proyecto liquidado o archivado',
+      );
+    }
+
+    const item = await this.prisma.item.findUnique({
+      where: { id: dto.itemId },
+    });
+    if (!item || item.isActive === false) {
+      throw new NotFoundException(
+        'El insumo seleccionado no existe o se encuentra inactivo en el catalogo',
+      );
+    }
+
+    const existing = await this.prisma.projectRequirement.findUnique({
+      where: {
+        projectId_itemId: {
+          projectId,
+          itemId: dto.itemId,
+        },
+      },
+    });
+    if (existing) {
+      throw new ConflictException(
+        `El insumo "${item.name}" (${item.sku}) ya existe en la matriz del proyecto`,
+      );
+    }
+
+    return this.prisma.projectRequirement.create({
+      data: {
+        projectId,
+        itemId: dto.itemId,
+        requiredQty: Number(dto.requiredQty),
+        allocatedQty: 0,
+        consumedQty: 0,
+        s10UnitPrice:
+          dto.s10UnitPrice !== undefined && dto.s10UnitPrice !== null
+            ? Number(dto.s10UnitPrice)
+            : null,
+      },
+      include: {
+        item: {
+          select: {
+            id: true,
+            sku: true,
+            name: true,
+            baseUnit: true,
+            type: true,
+          },
+        },
+      },
+    });
+  }
+
+  // Editar cantidad requerida, precio referencial S10 o reasignar insumo de la matriz
+  async updateRequirement(
+    projectId: string,
+    reqId: string,
+    dto: UpdateProjectRequirementDto,
+  ) {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+    });
+    if (!project) {
+      throw new NotFoundException('Proyecto civil no encontrado');
+    }
+    if (
+      project.status === ProjectStatus.LIQUIDATED ||
+      project.status === ProjectStatus.ARCHIVED
+    ) {
+      throw new BadRequestException(
+        'No se pueden modificar requerimientos de un proyecto liquidado o archivado',
+      );
+    }
+
+    const req = await this.prisma.projectRequirement.findUnique({
+      where: { id: reqId },
+    });
+    if (!req || req.projectId !== projectId) {
+      throw new NotFoundException(
+        'El requerimiento especificado no pertenece a este proyecto',
+      );
+    }
+
+    const allocated = Number(req.allocatedQty);
+    const consumed = Number(req.consumedQty);
+
+    if (dto.requiredQty !== undefined && Number(dto.requiredQty) < allocated) {
+      throw new BadRequestException(
+        `La cantidad requerida (${dto.requiredQty}) no puede ser menor al stock actualmente reservado (${allocated})`,
+      );
+    }
+
+    if (dto.itemId && dto.itemId !== req.itemId) {
+      if (allocated > 0 || consumed > 0) {
+        throw new BadRequestException(
+          'No se puede reasignar el insumo porque esta fila ya tiene stock reservado o consumido',
+        );
+      }
+
+      const newItem = await this.prisma.item.findUnique({
+        where: { id: dto.itemId },
+      });
+      if (!newItem || newItem.isActive === false) {
+        throw new NotFoundException(
+          'El nuevo insumo seleccionado no existe o se encuentra inactivo',
+        );
+      }
+
+      const duplicate = await this.prisma.projectRequirement.findUnique({
+        where: {
+          projectId_itemId: {
+            projectId,
+            itemId: dto.itemId,
+          },
+        },
+      });
+      if (duplicate && duplicate.id !== reqId) {
+        throw new ConflictException(
+          `El insumo "${newItem.name}" (${newItem.sku}) ya se encuentra registrado en otra fila de la matriz`,
+        );
+      }
+    }
+
+    return this.prisma.projectRequirement.update({
+      where: { id: reqId },
+      data: {
+        itemId: dto.itemId ?? undefined,
+        requiredQty:
+          dto.requiredQty !== undefined ? Number(dto.requiredQty) : undefined,
+        s10UnitPrice:
+          dto.s10UnitPrice !== undefined
+            ? dto.s10UnitPrice !== null
+              ? Number(dto.s10UnitPrice)
+              : null
+            : undefined,
+      },
+      include: {
+        item: {
+          select: {
+            id: true,
+            sku: true,
+            name: true,
+            baseUnit: true,
+            type: true,
+          },
+        },
+      },
+    });
+  }
+
+  // Eliminar una fila de requerimiento de la matriz (si allocatedQty == 0 y consumedQty == 0)
+  async deleteRequirement(projectId: string, reqId: string) {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+    });
+    if (!project) {
+      throw new NotFoundException('Proyecto civil no encontrado');
+    }
+    if (
+      project.status === ProjectStatus.LIQUIDATED ||
+      project.status === ProjectStatus.ARCHIVED
+    ) {
+      throw new BadRequestException(
+        'No se pueden eliminar requerimientos de un proyecto liquidado o archivado',
+      );
+    }
+
+    const req = await this.prisma.projectRequirement.findUnique({
+      where: { id: reqId },
+    });
+    if (!req || req.projectId !== projectId) {
+      throw new NotFoundException(
+        'El requerimiento especificado no pertenece a este proyecto',
+      );
+    }
+
+    if (Number(req.allocatedQty) > 0 || Number(req.consumedQty) > 0) {
+      throw new BadRequestException(
+        'No se puede eliminar este requerimiento porque ya tiene stock reservado o consumido en obra',
+      );
+    }
+
+    await this.prisma.projectRequirement.delete({
+      where: { id: reqId },
+    });
+
+    return {
+      deleted: true,
+      id: reqId,
+      message: 'Requerimiento eliminado exitosamente de la matriz del proyecto',
+    };
   }
 }

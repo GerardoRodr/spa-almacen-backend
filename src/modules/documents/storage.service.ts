@@ -121,6 +121,30 @@ export class StorageService {
     };
   }
 
+  // Guardar archivo CSV/TXT de presupuesto S10 en subdirectorio s10/
+  async saveS10File(
+    buffer: Buffer,
+    projectId: string,
+    originalName?: string,
+  ): Promise<SavedFileResult> {
+    const rawExt = path.extname(originalName || '').toLowerCase();
+    const safeExt = rawExt === '.txt' ? '.txt' : '.csv';
+    const fileName = `s10-${projectId}-${crypto.randomUUID()}${safeExt}`;
+    const relativeDir = 's10';
+    const relativePath = `${relativeDir}/${fileName}`;
+    const fullTargetDir = path.resolve(this.baseUploadDir, relativeDir);
+    const fullFilePath = path.resolve(fullTargetDir, fileName);
+
+    await fs.promises.mkdir(fullTargetDir, { recursive: true });
+    await fs.promises.writeFile(fullFilePath, buffer);
+
+    return {
+      storedPath: relativePath,
+      mimeType: safeExt === '.txt' ? 'text/plain' : 'text/csv',
+      fileSizeBytes: buffer.length,
+    };
+  }
+
   // Eliminar archivo fisico del almacenamiento
   async deleteFile(storedPath: string): Promise<void> {
     try {

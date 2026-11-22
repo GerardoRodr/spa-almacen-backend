@@ -24,6 +24,9 @@ export class GapAnalysisBudgetSummaryDto {
 }
 
 export class GapAnalysisItemDto {
+  @ApiProperty({ example: 'req-uuid-1' })
+  requirementId: string;
+
   @ApiProperty({ example: 'item-uuid-cemento' })
   itemId: string;
 

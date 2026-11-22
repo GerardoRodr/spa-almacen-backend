@@ -14,6 +14,7 @@ import {
 import { ProjectsService } from './projects.service.js';
 import { S10ParserService } from './s10-parser.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
+import { StorageService } from '../documents/storage.service.js';
 
 describe('ProjectsService', () => {
   let service: ProjectsService;
@@ -42,6 +43,7 @@ describe('ProjectsService', () => {
       findUnique: ReturnType<typeof vi.fn>;
       create: ReturnType<typeof vi.fn>;
       update: ReturnType<typeof vi.fn>;
+      delete: ReturnType<typeof vi.fn>;
     };
     item: {
       findMany: ReturnType<typeof vi.fn>;
@@ -92,6 +94,7 @@ describe('ProjectsService', () => {
         findUnique: vi.fn(),
         create: vi.fn(),
         update: vi.fn(),
+        delete: vi.fn(),
       },
       item: {
         findMany: vi.fn(),
@@ -1031,6 +1034,169 @@ describe('ProjectsService', () => {
         data: { projectId: 'proj-1' },
       });
       expect(res.warehouse?.id).toBe('wh-new');
+    });
+  });
+
+  describe('Fase B7: Persistencia CSV S10 y Matriz de Brechas editable', () => {
+    it('debe persistir archivo CSV S10 via StorageService y eliminar el anterior si existia', async () => {
+      const storageMock = {
+        saveS10File: vi.fn().mockResolvedValue({
+          storedPath: 's10/s10-p1-new.csv',
+          mimeType: 'text/csv',
+          fileSizeBytes: 120,
+        }),
+        deleteFile: vi.fn().mockResolvedValue(undefined),
+        getFileStream: vi.fn(),
+      } as unknown as StorageService;
+
+      const serviceWithStorage = new ProjectsService(
+        prisma as unknown as PrismaService,
+        s10ParserService,
+        storageMock,
+      );
+
+      prisma.project.findUnique.mockResolvedValue({
+        id: 'p1',
+        budgetCode: null,
+        status: ProjectStatus.ACTIVE,
+        s10FilePath: 's10/s10-p1-old.csv',
+      });
+      prisma.itemAlias.findMany.mockResolvedValue([]);
+      prisma.item.findMany.mockResolvedValue([]);
+      prisma.project.update.mockResolvedValue({});
+
+      const csvContent =
+        'Obra;0102003;OBRA TEST;0204010001;CEMENTO;BOL;100;25.00;2500.00\n';
+      const result = await serviceWithStorage.importS10File('p1', {
+        buffer: Buffer.from(csvContent, 'utf-8'),
+        originalname: 'presupuesto-v2.csv',
+      });
+
+      expect(storageMock.saveS10File).toHaveBeenCalled();
+      expect(storageMock.deleteFile).toHaveBeenCalledWith('s10/s10-p1-old.csv');
+      expect(result.s10FileName).toBe('presupuesto-v2.csv');
+      expect(prisma.project.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'p1' },
+          data: expect.objectContaining({
+            s10FilePath: 's10/s10-p1-new.csv',
+            s10FileName: 'presupuesto-v2.csv',
+          }),
+        }),
+      );
+    });
+
+    it('debe descargar y eliminar el archivo S10 guardado en el proyecto', async () => {
+      const mockStream = { pipe: vi.fn() };
+      const storageMock = {
+        getFileStream: vi.fn().mockReturnValue({ stream: mockStream }),
+        deleteFile: vi.fn().mockResolvedValue(undefined),
+      } as unknown as StorageService;
+
+      const serviceWithStorage = new ProjectsService(
+        prisma as unknown as PrismaService,
+        s10ParserService,
+        storageMock,
+      );
+
+      prisma.project.findUnique.mockResolvedValue({
+        id: 'p1',
+        s10FilePath: 's10/s10-p1.csv',
+        s10FileName: 'obra.csv',
+      });
+
+      const downloadRes = await serviceWithStorage.getS10FileStream('p1', {
+        id: 'admin-1',
+        role: Role.ADMIN,
+      });
+      expect(downloadRes.fileName).toBe('obra.csv');
+      expect(downloadRes.stream).toBe(mockStream);
+
+      const deleteRes = await serviceWithStorage.deleteS10File('p1');
+      expect(storageMock.deleteFile).toHaveBeenCalledWith('s10/s10-p1.csv');
+      expect(prisma.project.update).toHaveBeenCalledWith({
+        where: { id: 'p1' },
+        data: { s10FilePath: null, s10FileName: null, s10UploadedAt: null },
+      });
+      expect(deleteRes.deleted).toBe(true);
+    });
+
+    it('debe agregar, editar y eliminar requerimientos validando reservas y consumos', async () => {
+      prisma.project.findUnique.mockResolvedValue({
+        id: 'p1',
+        status: ProjectStatus.ACTIVE,
+      });
+      prisma.item.findUnique.mockResolvedValue({
+        id: 'item-1',
+        sku: 'MAT-01',
+        name: 'Cemento',
+        isActive: true,
+      });
+      prisma.projectRequirement.findUnique.mockResolvedValueOnce(null);
+      prisma.projectRequirement.create.mockResolvedValue({
+        id: 'req-1',
+        projectId: 'p1',
+        itemId: 'item-1',
+        requiredQty: 50,
+        s10UnitPrice: 28,
+      });
+
+      const created = await service.addRequirement('p1', {
+        itemId: 'item-1',
+        requiredQty: 50,
+        s10UnitPrice: 28,
+      });
+      expect(created.id).toBe('req-1');
+
+      // Editar requiredQty menor a allocatedQty debe fallar
+      prisma.projectRequirement.findUnique.mockResolvedValueOnce({
+        id: 'req-1',
+        projectId: 'p1',
+        itemId: 'item-1',
+        requiredQty: 50,
+        allocatedQty: 30,
+        consumedQty: 0,
+      });
+      await expect(
+        service.updateRequirement('p1', 'req-1', { requiredQty: 20 }),
+      ).rejects.toThrow(BadRequestException);
+
+      // Reasignar itemId cuando allocatedQty > 0 debe fallar
+      prisma.projectRequirement.findUnique.mockResolvedValueOnce({
+        id: 'req-1',
+        projectId: 'p1',
+        itemId: 'item-1',
+        requiredQty: 50,
+        allocatedQty: 10,
+        consumedQty: 0,
+      });
+      await expect(
+        service.updateRequirement('p1', 'req-1', { itemId: 'item-2' }),
+      ).rejects.toThrow(BadRequestException);
+
+      // Eliminar cuando consumedQty > 0 debe fallar
+      prisma.projectRequirement.findUnique.mockResolvedValueOnce({
+        id: 'req-1',
+        projectId: 'p1',
+        itemId: 'item-1',
+        allocatedQty: 0,
+        consumedQty: 5,
+      });
+      await expect(
+        service.deleteRequirement('p1', 'req-1'),
+      ).rejects.toThrow(BadRequestException);
+
+      // Eliminar limpio debe funcionar
+      prisma.projectRequirement.findUnique.mockResolvedValueOnce({
+        id: 'req-1',
+        projectId: 'p1',
+        itemId: 'item-1',
+        allocatedQty: 0,
+        consumedQty: 0,
+      });
+      prisma.projectRequirement.delete.mockResolvedValue({ id: 'req-1' });
+      const deleted = await service.deleteRequirement('p1', 'req-1');
+      expect(deleted.deleted).toBe(true);
     });
   });
 });

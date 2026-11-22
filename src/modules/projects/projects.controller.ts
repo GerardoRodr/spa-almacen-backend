@@ -3,13 +3,16 @@ import {
   Get,
   Post,
   Put,
+  Delete,
   Body,
   Param,
   Query,
   UseGuards,
   UseInterceptors,
   UploadedFile,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -28,6 +31,8 @@ import { IngestS10Dto } from './dto/ingest-s10.dto.js';
 import { AllocateStockDto } from './dto/allocate-stock.dto.js';
 import { ReleaseStockDto } from './dto/release-stock.dto.js';
 import { LiquidateProjectDto } from './dto/liquidate-project.dto.js';
+import { CreateProjectRequirementDto } from './dto/create-project-requirement.dto.js';
+import { UpdateProjectRequirementDto } from './dto/update-project-requirement.dto.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../../common/guards/roles.guard.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
@@ -171,6 +176,86 @@ export class ProjectsController {
     @UploadedFile() file: { buffer?: Buffer; originalname?: string },
   ) {
     return this.projectsService.importS10File(id, file);
+  }
+
+  @Get(':id/s10-file')
+  @ApiOperation({
+    summary: 'Descargar el archivo CSV/TXT de S10 persistido en el proyecto',
+  })
+  @ApiResponse({ status: 200, description: 'Archivo CSV de S10 retornado exitosamente' })
+  @ApiResponse({ status: 404, description: 'Proyecto o archivo S10 no encontrado' })
+  async downloadS10File(
+    @Param('id') id: string,
+    @CurrentUser() user: { id: string; role: Role },
+    @Res() res: Response,
+  ) {
+    const { stream, fileName, mimeType } =
+      await this.projectsService.getS10FileStream(id, user);
+
+    res.set({
+      'Content-Type': mimeType,
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(fileName)}"`,
+    });
+
+    stream.pipe(res);
+  }
+
+  @Delete(':id/s10-file')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MODERATOR)
+  @ApiOperation({
+    summary: 'Eliminar el archivo S10 guardado en disco y limpiar metadatos del proyecto',
+  })
+  @ApiResponse({ status: 200, description: 'Archivo S10 eliminado exitosamente' })
+  @ApiResponse({ status: 404, description: 'Proyecto o archivo S10 no encontrado' })
+  deleteS10File(@Param('id') id: string) {
+    return this.projectsService.deleteS10File(id);
+  }
+
+  @Post(':id/requirements')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Agregar manualmente un insumo a la Matriz de Brechas del proyecto (solo ADMIN)',
+  })
+  @ApiResponse({ status: 201, description: 'Requerimiento agregado exitosamente' })
+  @ApiResponse({ status: 409, description: 'El insumo ya existe en la matriz del proyecto' })
+  addRequirement(
+    @Param('id') id: string,
+    @Body() dto: CreateProjectRequirementDto,
+  ) {
+    return this.projectsService.addRequirement(id, dto);
+  }
+
+  @Put(':id/requirements/:reqId')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Editar cantidad, precio referencial S10 o reasignar insumo en la matriz (solo ADMIN)',
+  })
+  @ApiResponse({ status: 200, description: 'Requerimiento actualizado exitosamente' })
+  @ApiResponse({ status: 400, description: 'Violacion de reglas de reserva o consumo' })
+  updateRequirement(
+    @Param('id') id: string,
+    @Param('reqId') reqId: string,
+    @Body() dto: UpdateProjectRequirementDto,
+  ) {
+    return this.projectsService.updateRequirement(id, reqId, dto);
+  }
+
+  @Delete(':id/requirements/:reqId')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Eliminar una fila de requerimiento de la Matriz de Brechas (solo ADMIN)',
+  })
+  @ApiResponse({ status: 200, description: 'Requerimiento eliminado exitosamente' })
+  @ApiResponse({ status: 400, description: 'El requerimiento tiene stock reservado o consumido' })
+  deleteRequirement(
+    @Param('id') id: string,
+    @Param('reqId') reqId: string,
+  ) {
+    return this.projectsService.deleteRequirement(id, reqId);
   }
 
   @Get(':id/gap-analysis')

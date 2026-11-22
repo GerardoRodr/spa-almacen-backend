@@ -109,6 +109,12 @@ export class ProjectDetailResponseDto {
   @ApiPropertyOptional({ example: '603399.93' })
   s10SubcontractsBudget?: string | number | null;
 
+  @ApiPropertyOptional({ example: 'presupuesto-yanivilca.csv' })
+  s10FileName?: string | null;
+
+  @ApiPropertyOptional({ example: '2026-11-22T18:00:00.000Z' })
+  s10UploadedAt?: Date | null;
+
   @ApiPropertyOptional({ type: ProjectWarehouseDto })
   warehouse?: ProjectWarehouseDto | null;
 
