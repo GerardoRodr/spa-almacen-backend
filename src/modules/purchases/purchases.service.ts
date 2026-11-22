@@ -106,8 +106,8 @@ export class PurchasesService {
     filter: PurchaseFilterDto,
     user?: { id: string; role: Role },
   ) {
-    const page = filter.page ?? 1;
-    const limit = filter.limit ?? 20;
+    const page = Math.max(1, Number(filter.page) || 1);
+    const limit = Math.max(1, Number(filter.limit) || 20);
     const skip = (page - 1) * limit;
 
     const where: Prisma.PurchaseWhereInput = {};
@@ -143,10 +143,16 @@ export class PurchasesService {
     if (filter.startDate || filter.endDate) {
       where.issueDate = {};
       if (filter.startDate) {
-        where.issueDate.gte = new Date(filter.startDate);
+        const s = filter.startDate.trim();
+        where.issueDate.gte = /^\d{4}-\d{2}-\d{2}$/.test(s)
+          ? new Date(`${s}T00:00:00.000Z`)
+          : new Date(s);
       }
       if (filter.endDate) {
-        where.issueDate.lte = new Date(filter.endDate);
+        const e = filter.endDate.trim();
+        where.issueDate.lte = /^\d{4}-\d{2}-\d{2}$/.test(e)
+          ? new Date(`${e}T23:59:59.999Z`)
+          : new Date(e);
       }
     }
 

@@ -720,5 +720,41 @@ describe('MovementsService', () => {
         }),
       );
     });
+
+    it('debe calcular skip, take, meta y filtrar por search y rango de fechas YYYY-MM-DD en findAll', async () => {
+      prisma.movement.count.mockResolvedValue(45);
+      prisma.movement.findMany.mockResolvedValue([]);
+
+      const res = await service.findAll(
+        {
+          page: '3' as unknown as number,
+          limit: '15' as unknown as number,
+          search: 'MOV-2026',
+          startDate: '2026-11-01',
+          endDate: '2026-11-22',
+        },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(prisma.movement.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skip: 30,
+          take: 15,
+          where: expect.objectContaining({
+            AND: expect.any(Array),
+            createdAt: {
+              gte: new Date('2026-11-01T00:00:00.000Z'),
+              lte: new Date('2026-11-22T23:59:59.999Z'),
+            },
+          }),
+        }),
+      );
+      expect(res.meta).toEqual({
+        total: 45,
+        page: 3,
+        limit: 15,
+        totalPages: 3,
+      });
+    });
   });
 });

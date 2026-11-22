@@ -5,6 +5,7 @@ import {
   IsEnum,
   IsInt,
   IsOptional,
+  IsString,
   IsUUID,
   Max,
   Min,
@@ -38,10 +39,26 @@ export class MovementFilterDto {
   limit?: number = 20;
 
   @ApiPropertyOptional({
+    description: 'Termino de busqueda por codigo MOV, receptor, DNI, observacion o insumo',
+    example: 'MOV-2026',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
+  @IsString({ message: 'El parametro de busqueda debe ser una cadena' })
+  search?: string;
+
+  @ApiPropertyOptional({
     description: 'Filtrar por identificador de almacen (origen o destino)',
     example: 'b0000000-0000-0000-0000-000000000001',
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && (value.trim() === '' || value === 'ALL')
+      ? undefined
+      : value,
+  )
   @IsUUID('4', { message: 'El warehouseId debe ser un UUID valido' })
   warehouseId?: string;
 
@@ -50,6 +67,11 @@ export class MovementFilterDto {
     example: 'a0000000-0000-0000-0000-000000000001',
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && (value.trim() === '' || value === 'ALL')
+      ? undefined
+      : value,
+  )
   @IsUUID('4', { message: 'El itemId debe ser un UUID valido' })
   itemId?: string;
 
@@ -58,6 +80,11 @@ export class MovementFilterDto {
     example: 'c0000000-0000-0000-0000-000000000001',
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && (value.trim() === '' || value === 'ALL')
+      ? undefined
+      : value,
+  )
   @IsUUID('4', { message: 'El projectId debe ser un UUID valido' })
   projectId?: string;
 
@@ -66,6 +93,11 @@ export class MovementFilterDto {
     enum: MovementType,
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && (value.trim() === '' || value === 'ALL')
+      ? undefined
+      : value,
+  )
   @IsEnum(MovementType, { message: 'Tipo de movimiento no valido' })
   type?: MovementType;
 
@@ -74,6 +106,9 @@ export class MovementFilterDto {
     example: '2026-09-01T00:00:00.000Z',
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
   @IsDateString(
     {},
     { message: 'La fecha inicial debe tener un formato ISO 8601 valido' },
@@ -85,6 +120,9 @@ export class MovementFilterDto {
     example: '2026-09-30T23:59:59.999Z',
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
   @IsDateString(
     {},
     { message: 'La fecha final debe tener un formato ISO 8601 valido' },

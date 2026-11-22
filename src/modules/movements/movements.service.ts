@@ -40,8 +40,8 @@ export class MovementsService {
     filter: MovementFilterDto,
     user: { id: string; role: Role },
   ) {
-    const page = filter.page ?? 1;
-    const limit = filter.limit ?? 20;
+    const page = Math.max(1, Number(filter.page) || 1);
+    const limit = Math.max(1, Math.min(100, Number(filter.limit) || 20));
     const skip = (page - 1) * limit;
 
     const where: Prisma.MovementWhereInput = {};
@@ -64,7 +64,7 @@ export class MovementsService {
       ];
     }
 
-    if (filter.warehouseId) {
+    if (filter.warehouseId && filter.warehouseId !== 'ALL') {
       const whCondition: Prisma.MovementWhereInput = {
         OR: [
           { originWarehouseId: filter.warehouseId },
@@ -75,6 +75,35 @@ export class MovementsService {
         (where.AND as Prisma.MovementWhereInput[]).push(whCondition);
       } else {
         where.AND = [whCondition];
+      }
+    }
+
+    if (filter.search && filter.search.trim()) {
+      const term = filter.search.trim();
+      const searchCondition: Prisma.MovementWhereInput = {
+        OR: [
+          { movementNumber: { contains: term, mode: 'insensitive' } },
+          { recipientName: { contains: term, mode: 'insensitive' } },
+          { recipientDni: { contains: term, mode: 'insensitive' } },
+          { observation: { contains: term, mode: 'insensitive' } },
+          {
+            items: {
+              some: {
+                item: {
+                  OR: [
+                    { sku: { contains: term, mode: 'insensitive' } },
+                    { name: { contains: term, mode: 'insensitive' } },
+                  ],
+                },
+              },
+            },
+          },
+        ],
+      };
+      if (where.AND) {
+        (where.AND as Prisma.MovementWhereInput[]).push(searchCondition);
+      } else {
+        where.AND = [searchCondition];
       }
     }
 
@@ -95,10 +124,16 @@ export class MovementsService {
     if (filter.startDate || filter.endDate) {
       where.createdAt = {};
       if (filter.startDate) {
-        where.createdAt.gte = new Date(filter.startDate);
+        const s = filter.startDate.trim();
+        where.createdAt.gte = /^\d{4}-\d{2}-\d{2}$/.test(s)
+          ? new Date(`${s}T00:00:00.000Z`)
+          : new Date(s);
       }
       if (filter.endDate) {
-        where.createdAt.lte = new Date(filter.endDate);
+        const e = filter.endDate.trim();
+        where.createdAt.lte = /^\d{4}-\d{2}-\d{2}$/.test(e)
+          ? new Date(`${e}T23:59:59.999Z`)
+          : new Date(e);
       }
     }
 

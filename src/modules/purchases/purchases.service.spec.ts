@@ -1839,4 +1839,43 @@ describe('PurchasesService', () => {
       });
     });
   });
+
+  describe('Fase B5: Paginacion estandarizada en compras', () => {
+    it('debe convertir page y limit numericamente y calcular skip, take y meta.totalPages', async () => {
+      prisma.purchase.count.mockResolvedValue(32);
+      prisma.purchase.findMany.mockResolvedValue([]);
+      prisma.purchase.aggregate?.mockResolvedValue({
+        _sum: { subtotalPEN: 1000, igvAmountPEN: 180, totalAmountPEN: 1180 },
+      });
+
+      const res = await service.findAll(
+        {
+          page: '2' as unknown as number,
+          limit: '15' as unknown as number,
+          startDate: '2026-11-01',
+          endDate: '2026-11-22',
+        },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(prisma.purchase.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skip: 15,
+          take: 15,
+          where: expect.objectContaining({
+            issueDate: {
+              gte: new Date('2026-11-01T00:00:00.000Z'),
+              lte: new Date('2026-11-22T23:59:59.999Z'),
+            },
+          }),
+        }),
+      );
+      expect(res.meta).toEqual({
+        total: 32,
+        page: 2,
+        limit: 15,
+        totalPages: 3,
+      });
+    });
+  });
 });
