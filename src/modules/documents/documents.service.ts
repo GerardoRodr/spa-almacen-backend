@@ -362,4 +362,28 @@ export class DocumentsService {
       deleted: true,
     };
   }
+
+  // Eliminar adjunto validando pertenencia a una compra especifica
+  async removePurchaseAttachment(purchaseId: string, attachmentId: string) {
+    const doc = await this.prisma.documentAttachment.findUnique({
+      where: { id: attachmentId },
+    });
+
+    if (!doc || doc.purchaseId !== purchaseId) {
+      throw new NotFoundException(
+        'Adjunto no encontrado para el comprobante de compra especificado',
+      );
+    }
+
+    await this.storageService.deleteFile(doc.storedPath);
+    await this.prisma.documentAttachment.delete({
+      where: { id: attachmentId },
+    });
+
+    return {
+      id: doc.id,
+      purchaseId,
+      deleted: true,
+    };
+  }
 }

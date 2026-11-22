@@ -1,6 +1,7 @@
 import {
   IsBoolean,
   IsDateString,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -9,6 +10,8 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+
+export type PurchaseVoidFilter = 'ACTIVE_ONLY' | 'ALL' | 'VOIDED_ONLY';
 
 export class PurchaseFilterDto {
   @ApiPropertyOptional({
@@ -36,6 +39,11 @@ export class PurchaseFilterDto {
     description: 'Filtrar por identificador de proveedor',
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && (value.trim() === '' || value === 'ALL')
+      ? undefined
+      : value,
+  )
   @IsUUID('4', { message: 'El supplierId debe ser un UUID valido' })
   supplierId?: string;
 
@@ -52,6 +60,9 @@ export class PurchaseFilterDto {
     description: 'Filtrar por serie o numero de comprobante',
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
   @IsString({ message: 'La serie de factura debe ser una cadena' })
   invoiceSeries?: string;
 
@@ -60,6 +71,11 @@ export class PurchaseFilterDto {
     description: 'Filtrar compras que incluyan un insumo o producto especifico por ID',
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && (value.trim() === '' || value === 'ALL')
+      ? undefined
+      : value,
+  )
   @IsUUID('4', { message: 'El itemId debe ser un UUID valido' })
   itemId?: string;
 
@@ -68,6 +84,9 @@ export class PurchaseFilterDto {
     description: 'Filtrar compras por nombre o SKU del insumo adquirido',
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
   @IsString({ message: 'El termino de busqueda de producto debe ser una cadena' })
   itemSearch?: string;
 
@@ -76,6 +95,9 @@ export class PurchaseFilterDto {
     description: 'Fecha minima de emision',
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
   @IsDateString({}, { message: 'La fecha de inicio debe ser una fecha ISO valida' })
   startDate?: string;
 
@@ -84,6 +106,9 @@ export class PurchaseFilterDto {
     description: 'Fecha maxima de emision',
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
   @IsDateString({}, { message: 'La fecha de fin debe ser una fecha ISO valida' })
   endDate?: string;
 
@@ -104,4 +129,34 @@ export class PurchaseFilterDto {
   })
   @IsBoolean({ message: 'includeReverted debe ser un valor booleano' })
   includeReverted?: boolean = true;
+
+  @ApiPropertyOptional({
+    enum: ['ACTIVE_ONLY', 'ALL', 'VOIDED_ONLY'],
+    description: 'Filtro explicito de anulacion: ACTIVE_ONLY, ALL o VOIDED_ONLY',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
+  @IsIn(['ACTIVE_ONLY', 'ALL', 'VOIDED_ONLY'], {
+    message: 'voidFilter debe ser ACTIVE_ONLY, ALL o VOIDED_ONLY',
+  })
+  voidFilter?: PurchaseVoidFilter;
+
+  @ApiPropertyOptional({
+    example: false,
+    description: 'Si es true, filtra unicamente compras editadas/modificadas (isEdited = true)',
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'false' || value === false || value === '0' || value === 0) {
+      return false;
+    }
+    if (value === 'true' || value === true || value === '1' || value === 1) {
+      return true;
+    }
+    return undefined;
+  })
+  @IsBoolean({ message: 'onlyEdited debe ser un valor booleano' })
+  onlyEdited?: boolean;
 }

@@ -539,5 +539,31 @@ describe('DocumentsService', () => {
       });
       expect(result.deleted).toBe(true);
     });
+
+    it('debe eliminar adjunto de compra solo si pertenece a esa compra', async () => {
+      prisma.documentAttachment.findUnique.mockResolvedValueOnce({
+        id: 'doc-1',
+        purchaseId: 'otra-compra',
+        storedPath: 'purchases/2026/11/doc.pdf',
+      });
+
+      await expect(
+        service.removePurchaseAttachment('purch-1', 'doc-1'),
+      ).rejects.toThrow(NotFoundException);
+
+      prisma.documentAttachment.findUnique.mockResolvedValueOnce({
+        id: 'doc-1',
+        purchaseId: 'purch-1',
+        storedPath: 'purchases/2026/11/doc.pdf',
+      });
+      storageService.deleteFile.mockResolvedValue(undefined);
+      prisma.documentAttachment.delete.mockResolvedValue({});
+
+      const res = await service.removePurchaseAttachment('purch-1', 'doc-1');
+      expect(storageService.deleteFile).toHaveBeenCalledWith(
+        'purchases/2026/11/doc.pdf',
+      );
+      expect(res.deleted).toBe(true);
+    });
   });
 });

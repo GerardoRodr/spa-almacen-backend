@@ -3,20 +3,27 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
   UseGuards,
   UseInterceptors,
+  UploadedFiles,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { Role } from '@prisma/client';
 import { PurchasesService } from './purchases.service.js';
+import { DocumentsService } from '../documents/documents.service.js';
 import { CreatePurchaseDto } from './dto/create-purchase.dto.js';
 import { PurchaseFilterDto } from './dto/purchase-filter.dto.js';
 import { PriceComparisonQueryDto } from './dto/price-comparison-query.dto.js';
@@ -36,7 +43,10 @@ import { CostMaskingInterceptor } from '../../common/interceptors/cost-masking.i
 @UseInterceptors(CostMaskingInterceptor)
 @Controller('purchases')
 export class PurchasesController {
-  constructor(private readonly purchasesService: PurchasesService) {}
+  constructor(
+    private readonly purchasesService: PurchasesService,
+    private readonly documentsService: DocumentsService,
+  ) {}
 
   @Get()
   @Roles(Role.ADMIN, Role.MODERATOR, Role.WAREHOUSE_KEEPER)
@@ -207,5 +217,83 @@ export class PurchasesController {
     @CurrentUser() user: { id: string; role: Role },
   ) {
     return this.purchasesService.replacePurchase(id, dto, user);
+  }
+
+  @Post(':id/attachments')
+  @Roles(Role.ADMIN, Role.MODERATOR, Role.WAREHOUSE_KEEPER)
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'files', maxCount: 10 },
+      { name: 'file', maxCount: 1 },
+    ]),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        files: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: 'Archivos PDF o imagenes (JPG, PNG, WebP) a adjuntar a la compra',
+        },
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Archivo unico alternativo (PDF o imagen)',
+        },
+      },
+    },
+  })
+  @ApiOperation({
+    summary: 'Adjuntar nuevas fotos (optimizadas a WebP) o PDFs a una compra existente',
+  })
+  @ApiResponse({ status: 201, description: 'Adjuntos cargados exitosamente' })
+  @ApiResponse({ status: 400, description: 'Archivo faltante, formato invalido o limite excedido' })
+  uploadAttachments(
+    @Param('id') id: string,
+    @UploadedFiles()
+    uploaded: {
+      files?: Array<{
+        buffer?: Buffer;
+        originalname?: string;
+        mimetype?: string;
+        size?: number;
+      }>;
+      file?: Array<{
+        buffer?: Buffer;
+        originalname?: string;
+        mimetype?: string;
+        size?: number;
+      }>;
+    },
+    @CurrentUser() user: { id: string; role: Role },
+  ) {
+    const allFiles = [...(uploaded?.files ?? []), ...(uploaded?.file ?? [])];
+    if (allFiles.length === 0) {
+      throw new BadRequestException(
+        'Debe proporcionar al menos un archivo para adjuntar a la compra',
+      );
+    }
+
+    return this.documentsService.uploadMultiple(
+      allFiles,
+      { purchaseId: id, isConfidential: true },
+      user,
+    );
+  }
+
+  @Delete(':id/attachments/:attachmentId')
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Eliminar un adjunto fisico y su registro DocumentAttachment de una compra (solo ADMIN)',
+  })
+  @ApiResponse({ status: 200, description: 'Adjunto eliminado exitosamente' })
+  @ApiResponse({ status: 404, description: 'Adjunto no encontrado para esta compra' })
+  removeAttachment(
+    @Param('id') id: string,
+    @Param('attachmentId') attachmentId: string,
+  ) {
+    return this.documentsService.removePurchaseAttachment(id, attachmentId);
   }
 }

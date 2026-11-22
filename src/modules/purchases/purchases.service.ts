@@ -136,6 +136,10 @@ export class PurchasesService {
       };
     }
 
+    if (filter.supplierId && filter.supplierId !== 'ALL') {
+      where.supplierId = filter.supplierId;
+    }
+
     if (filter.startDate || filter.endDate) {
       where.issueDate = {};
       if (filter.startDate) {
@@ -146,8 +150,18 @@ export class PurchasesService {
       }
     }
 
-    if (filter.includeReverted === false) {
+    if (filter.voidFilter === 'ACTIVE_ONLY') {
       where.isReverted = false;
+    } else if (filter.voidFilter === 'VOIDED_ONLY') {
+      where.isReverted = true;
+    } else if (filter.voidFilter === 'ALL') {
+      // Incluir activas y anuladas sin filtro de isReverted
+    } else if (filter.includeReverted === false) {
+      where.isReverted = false;
+    }
+
+    if (filter.onlyEdited === true) {
+      where.isEdited = true;
     }
 
     // Filtros por insumo (itemId o busqueda por SKU / nombre del item)
@@ -173,7 +187,12 @@ export class PurchasesService {
       };
     }
 
-    const [total, data] = await Promise.all([
+    const summaryWhere: Prisma.PurchaseWhereInput = {
+      ...where,
+      isReverted: false,
+    };
+
+    const [total, data, aggregateResult] = await Promise.all([
       this.prisma.purchase.count({ where }),
       this.prisma.purchase.findMany({
         where,
@@ -222,6 +241,18 @@ export class PurchasesService {
           },
         },
       }),
+      filter.voidFilter === 'VOIDED_ONLY'
+        ? Promise.resolve(null)
+        : this.prisma.purchase.aggregate
+          ? this.prisma.purchase.aggregate({
+              where: summaryWhere,
+              _sum: {
+                subtotalPEN: true,
+                igvAmountPEN: true,
+                totalAmountPEN: true,
+              },
+            })
+          : Promise.resolve(null),
     ]);
 
     return {
@@ -231,6 +262,12 @@ export class PurchasesService {
         page,
         limit,
         totalPages: Math.ceil(total / limit) || 1,
+      },
+      summary: {
+        totalCount: total,
+        totalSubtotalPEN: Number(aggregateResult?._sum?.subtotalPEN ?? 0),
+        totalIgvPEN: Number(aggregateResult?._sum?.igvAmountPEN ?? 0),
+        totalAmountPEN: Number(aggregateResult?._sum?.totalAmountPEN ?? 0),
       },
     };
   }
@@ -439,6 +476,7 @@ export class PurchasesService {
       igvAmount: number;
       exchangeRate: number;
       itemMap: Map<string, { id: string; sku: string; name: string; baseUnit: string; type?: ItemType }>;
+      isEdited?: boolean;
     },
   ) {
     const {
@@ -449,6 +487,7 @@ export class PurchasesService {
       igvAmount,
       exchangeRate,
       itemMap,
+      isEdited = false,
     } = params;
 
     // Crear encabezado de Purchase con warehouseId y notes
@@ -466,6 +505,7 @@ export class PurchasesService {
         igvAmountPEN: hasIgv ? igvAmount : 0,
         totalAmountPEN: dto.totalAmountPEN,
         notes: dto.notes ? dto.notes.trim() : null,
+        isEdited,
       },
       include: {
         warehouse: {
@@ -1441,6 +1481,7 @@ export class PurchasesService {
             dto.notes !== undefined
               ? dto.notes.trim() || null
               : undefined,
+          isEdited: true,
         },
       });
 
@@ -1509,12 +1550,23 @@ export class PurchasesService {
 
     return this.prisma.$transaction(async (tx) => {
       await this.revertInTransaction(tx, id, dto.reversalReason, user);
-      const newPurchase = await this.createInTransaction(tx, dto, validated);
+      const newPurchase = await this.createInTransaction(tx, dto, {
+        ...validated,
+        isEdited: true,
+      });
 
       await tx.purchase.update({
         where: { id },
         data: { replacedById: newPurchase.id },
       });
+
+      // Conservar adjuntos previos vinculandolos al nuevo comprobante corregido
+      if (tx.documentAttachment?.updateMany) {
+        await tx.documentAttachment.updateMany({
+          where: { purchaseId: id },
+          data: { purchaseId: newPurchase.id },
+        });
+      }
 
       return newPurchase;
     });

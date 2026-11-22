@@ -52,6 +52,7 @@ describe('PurchasesService', () => {
       findMany: ReturnType<typeof vi.fn>;
       findUnique: ReturnType<typeof vi.fn>;
       count: ReturnType<typeof vi.fn>;
+      aggregate?: ReturnType<typeof vi.fn>;
       create: ReturnType<typeof vi.fn>;
       update?: ReturnType<typeof vi.fn>;
     };
@@ -96,6 +97,9 @@ describe('PurchasesService', () => {
         findMany: vi.fn(),
         findUnique: vi.fn(),
         count: vi.fn(),
+        aggregate: vi.fn().mockResolvedValue({
+          _sum: { subtotalPEN: 0, igvAmountPEN: 0, totalAmountPEN: 0 },
+        }),
         create: vi.fn(),
         update: vi.fn(),
       },
@@ -1640,6 +1644,199 @@ describe('PurchasesService', () => {
           { id: 'admin-1', role: Role.ADMIN },
         ),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('Fase B4: Filtros voidFilter/onlyEdited, summary global e isEdited', () => {
+    it('debe soportar voidFilter ACTIVE_ONLY, VOIDED_ONLY, onlyEdited y supplierId en findAll', async () => {
+      prisma.purchase.count.mockResolvedValue(2);
+      prisma.purchase.findMany.mockResolvedValue([]);
+      prisma.purchase.aggregate?.mockResolvedValue({
+        _sum: { subtotalPEN: 2000, igvAmountPEN: 360, totalAmountPEN: 2360 },
+      });
+
+      const res = await service.findAll(
+        {
+          page: 1,
+          limit: 15,
+          supplierId: 'sup-99',
+          voidFilter: 'ALL',
+          onlyEdited: true,
+        },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(prisma.purchase.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            supplierId: 'sup-99',
+            isEdited: true,
+          }),
+        }),
+      );
+      expect(prisma.purchase.aggregate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            supplierId: 'sup-99',
+            isEdited: true,
+            isReverted: false,
+          }),
+        }),
+      );
+      expect(res.summary).toEqual({
+        totalCount: 2,
+        totalSubtotalPEN: 2000,
+        totalIgvPEN: 360,
+        totalAmountPEN: 2360,
+      });
+    });
+
+    it('debe devolver sumas monetarias en cero en summary cuando voidFilter es VOIDED_ONLY', async () => {
+      prisma.purchase.count.mockResolvedValue(3);
+      prisma.purchase.findMany.mockResolvedValue([]);
+
+      const res = await service.findAll(
+        { voidFilter: 'VOIDED_ONLY' },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(prisma.purchase.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ isReverted: true }),
+        }),
+      );
+      expect(res.summary).toEqual({
+        totalCount: 3,
+        totalSubtotalPEN: 0,
+        totalIgvPEN: 0,
+        totalAmountPEN: 0,
+      });
+    });
+
+    it('debe marcar isEdited: true al actualizar metadatos de una compra', async () => {
+      prisma.purchase.findUnique.mockResolvedValue({
+        id: 'purch-edit-1',
+        warehouseId: 'wh-central',
+        isReverted: false,
+        details: [],
+      });
+      const mockTx = {
+        purchase: {
+          update: vi.fn().mockResolvedValue({}),
+          findUnique: vi.fn().mockResolvedValue({
+            id: 'purch-edit-1',
+            isEdited: true,
+          }),
+        },
+        purchaseDetail: {
+          update: vi.fn(),
+        },
+      };
+      prisma.$transaction.mockImplementation(async (cb) => cb(mockTx));
+
+      const result = await service.updateMetadata(
+        'purch-edit-1',
+        { notes: 'Correccion de serie' },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(mockTx.purchase.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            isEdited: true,
+          }),
+        }),
+      );
+      expect(result?.isEdited).toBe(true);
+    });
+
+    it('debe marcar isEdited: true y conservar adjuntos al reemplazar compra', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'sup-1' });
+      prisma.warehouse.findUnique.mockResolvedValue({
+        id: 'wh-central',
+        type: WarehouseType.CENTRAL,
+        isActive: true,
+      });
+      prisma.item.findMany.mockResolvedValue([
+        {
+          id: 'item-1',
+          sku: 'MAT-0001',
+          name: 'Cemento',
+          baseUnit: 'BOLSA',
+          type: ItemType.CONSUMABLE,
+          isActive: true,
+        },
+      ]);
+
+      const mockTx = {
+        purchase: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: 'purch-old',
+            warehouseId: 'wh-central',
+            invoiceSeries: 'F001-01',
+            voucherType: 'FACTURA',
+            isReverted: false,
+            createdAt: new Date(),
+            details: [],
+          }),
+          update: vi.fn().mockResolvedValue({}),
+          create: vi.fn().mockImplementation((args) => ({ id: 'purch-new', ...args.data })),
+        },
+        purchaseDetail: {
+          create: vi.fn().mockImplementation((args) => ({ id: 'det-new', ...args.data })),
+        },
+        stock: {
+          findUnique: vi.fn().mockResolvedValue(null),
+          upsert: vi.fn().mockResolvedValue({}),
+        },
+        movement: {
+          findFirst: vi.fn().mockResolvedValue(null),
+          create: vi.fn().mockResolvedValue({ id: 'mov-new', movementNumber: 'MOV-2026-00020' }),
+        },
+        documentAttachment: {
+          updateMany: vi.fn().mockResolvedValue({ count: 2 }),
+        },
+      };
+      prisma.$transaction.mockImplementation(async (cb) => cb(mockTx));
+
+      await service.replacePurchase(
+        'purch-old',
+        {
+          supplierId: 'sup-1',
+          warehouseId: 'wh-central',
+          invoiceSeries: 'F001-01',
+          currency: Currency.USD,
+          exchangeRate: 3.75,
+          hasIgv: true,
+          issueDate: '2026-11-22T10:00:00.000Z',
+          subtotalPEN: 375,
+          igvAmountPEN: 67.5,
+          totalAmountPEN: 442.5,
+          reversalReason: 'Corregir tipo de cambio USD',
+          items: [
+            {
+              itemId: 'item-1',
+              purchaseUnit: 'BOLSA',
+              conversionFactor: 1,
+              purchaseQty: 10,
+              unitPriceOriginal: 10,
+            },
+          ],
+        },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(mockTx.purchase.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            isEdited: true,
+          }),
+        }),
+      );
+      expect(mockTx.documentAttachment.updateMany).toHaveBeenCalledWith({
+        where: { purchaseId: 'purch-old' },
+        data: { purchaseId: 'purch-new' },
+      });
     });
   });
 });
