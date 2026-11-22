@@ -1,4 +1,6 @@
 import {
+  IsDateString,
+  IsEnum,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -7,7 +9,9 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { DiscountType } from '@prisma/client';
 
 export class PurchaseItemDto {
   @ApiProperty({
@@ -50,6 +54,50 @@ export class PurchaseItemDto {
   @IsNumber({}, { message: 'El precio unitario original debe ser un numero' })
   @Min(0, { message: 'El precio unitario original no puede ser negativo' })
   unitPriceOriginal: number;
+
+  @ApiPropertyOptional({
+    enum: DiscountType,
+    default: DiscountType.NONE,
+    description: 'Tipo de descuento comercial aplicado a la linea (NONE, PERCENTAGE o FIXED)',
+  })
+  @IsOptional()
+  @IsEnum(DiscountType, { message: 'El tipo de descuento debe ser NONE, PERCENTAGE o FIXED' })
+  discountType?: DiscountType = DiscountType.NONE;
+
+  @ApiPropertyOptional({
+    example: 10,
+    default: 0,
+    description: 'Valor del descuento: porcentaje (0-100) o monto fijo en moneda original',
+  })
+  @IsOptional()
+  @IsNumber({}, { message: 'El valor de descuento debe ser un numero' })
+  @Min(0, { message: 'El valor de descuento no puede ser negativo' })
+  discountValue?: number = 0;
+
+  @ApiPropertyOptional({
+    example: 'LOT-2026-A1',
+    description: 'Numero de lote del insumo adquirido (cuando aplica trazabilidad de lote)',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
+  @IsString({ message: 'El numero de lote debe ser una cadena de texto' })
+  @MaxLength(100, {
+    message: 'El numero de lote no puede exceder 100 caracteres',
+  })
+  lotNumber?: string;
+
+  @ApiPropertyOptional({
+    example: '2027-06-30T00:00:00.000Z',
+    description: 'Fecha de caducidad del insumo (cuando aplica trazabilidad de vencimiento)',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  )
+  @IsDateString({}, { message: 'La fecha de caducidad debe ser una fecha valida ISO' })
+  expirationDate?: string;
 
   @ApiPropertyOptional({
     example: 'Lote CEM-2026-X vence: 20/12/2026',

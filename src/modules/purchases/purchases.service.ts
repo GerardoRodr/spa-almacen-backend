@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import {
   Currency,
+  DiscountType,
+  ItemType,
   MovementType,
   Prisma,
   Role,
@@ -27,6 +29,68 @@ export class PurchasesService {
     private readonly prisma: PrismaService,
     private readonly sequenceGenerator: SequenceGeneratorService,
   ) {}
+
+  // Helper matematico unico para calcular descuentos, costo unitario neto en PEN y subtotal de linea
+  private computePurchaseLineFinancials(input: {
+    purchaseQty: number;
+    conversionFactor: number;
+    unitPriceOriginal: number;
+    exchangeRate: number;
+    discountType?: DiscountType;
+    discountValue?: number;
+  }) {
+    const purchaseQty = Number(input.purchaseQty);
+    const factor = Number(input.conversionFactor ?? 1.0);
+    const unitPriceOrig = Number(input.unitPriceOriginal);
+    const rate = Number(input.exchangeRate ?? 1.0);
+    const discountType = input.discountType ?? DiscountType.NONE;
+    const rawDiscountVal = Number(input.discountValue ?? 0);
+
+    if (rawDiscountVal < 0) {
+      throw new BadRequestException('El valor del descuento no puede ser negativo');
+    }
+
+    const grossLineOriginal = purchaseQty * unitPriceOrig;
+    let effectiveDiscountVal = 0;
+    let discountAmountOriginal = 0;
+
+    if (discountType === DiscountType.PERCENTAGE) {
+      if (rawDiscountVal > 100) {
+        throw new BadRequestException(
+          'El porcentaje de descuento no puede superar el 100%',
+        );
+      }
+      effectiveDiscountVal = rawDiscountVal;
+      discountAmountOriginal = grossLineOriginal * (rawDiscountVal / 100);
+    } else if (discountType === DiscountType.FIXED) {
+      if (rawDiscountVal > grossLineOriginal + 0.0001) {
+        throw new BadRequestException(
+          'El descuento fijo no puede superar el importe bruto de la linea',
+        );
+      }
+      effectiveDiscountVal = rawDiscountVal;
+      discountAmountOriginal = Math.min(rawDiscountVal, grossLineOriginal);
+    }
+
+    const netLineOriginal = Math.max(0, grossLineOriginal - discountAmountOriginal);
+    const baseQty = Number((purchaseQty * factor).toFixed(4));
+    const discountAmountPEN = Number((discountAmountOriginal * rate).toFixed(2));
+    const unitCostBasePEN =
+      baseQty > 0 ? Number(((netLineOriginal * rate) / baseQty).toFixed(4)) : 0;
+    const subtotalPEN = Number((netLineOriginal * rate).toFixed(2));
+
+    return {
+      factor,
+      purchaseQty,
+      baseQty,
+      unitPriceOrig,
+      discountType,
+      discountValue: effectiveDiscountVal,
+      discountAmountPEN,
+      unitCostBasePEN,
+      subtotalPEN,
+    };
+  }
 
   // Helper para obtener almacenes autorizados para un usuario
   private async getAllowedWarehouseIds(userId: string): Promise<string[]> {
@@ -145,6 +209,7 @@ export class PurchasesService {
                   sku: true,
                   name: true,
                   baseUnit: true,
+                  type: true,
                 },
               },
             },
@@ -269,16 +334,57 @@ export class PurchasesService {
       );
     }
 
-    // 3. Validar existencia de todos los items en catalogo maestro
+    // 3. Validar moneda, tipo de cambio y existencia de todos los items activos
+    const currency = dto.currency ?? Currency.PEN;
+    if (currency === Currency.USD) {
+      if (
+        dto.exchangeRate === undefined ||
+        dto.exchangeRate === null ||
+        Number(dto.exchangeRate) <= 0
+      ) {
+        throw new BadRequestException(
+          'Para compras en dolares (USD) el tipo de cambio debe ser mayor a cero',
+        );
+      }
+    }
+    const resolvedExchangeRate =
+      currency === Currency.PEN ? Number(dto.exchangeRate ?? 1.0) : Number(dto.exchangeRate);
+
     const itemIds = Array.from(new Set(dto.items.map((i) => i.itemId)));
     const existingItems = await this.prisma.item.findMany({
       where: { id: { in: itemIds } },
-      select: { id: true, sku: true, name: true, baseUnit: true },
+      select: {
+        id: true,
+        sku: true,
+        name: true,
+        baseUnit: true,
+        type: true,
+        isActive: true,
+      },
     });
     if (existingItems.length !== itemIds.length) {
       throw new BadRequestException(
         'Uno o mas items especificados no existen en el catalogo maestro',
       );
+    }
+    const inactiveItem = existingItems.find((i) => i.isActive === false);
+    if (inactiveItem) {
+      throw new BadRequestException(
+        `El insumo "${inactiveItem.name}" (${inactiveItem.sku}) se encuentra inactivo en el catalogo`,
+      );
+    }
+    const itemMap = new Map(existingItems.map((i) => [i.id, i]));
+
+    // Validar reglas de descuento por linea antes de abrir transaccion
+    for (const itemDto of dto.items) {
+      this.computePurchaseLineFinancials({
+        purchaseQty: itemDto.purchaseQty,
+        conversionFactor: itemDto.conversionFactor ?? 1.0,
+        unitPriceOriginal: itemDto.unitPriceOriginal,
+        exchangeRate: resolvedExchangeRate,
+        discountType: itemDto.discountType,
+        discountValue: itemDto.discountValue,
+      });
     }
 
     // 4. Validar coherencia contable segun tipo de compra (con o sin IGV)
@@ -310,7 +416,15 @@ export class PurchasesService {
       }
     }
 
-    return { userId, userRole, targetWarehouseId, hasIgv, igvAmount };
+    return {
+      userId,
+      userRole,
+      targetWarehouseId,
+      hasIgv,
+      igvAmount,
+      exchangeRate: resolvedExchangeRate,
+      itemMap,
+    };
   }
 
   // Persistir compra y recalcular CPP dentro de una transaccion activa
@@ -323,12 +437,19 @@ export class PurchasesService {
       targetWarehouseId: string;
       hasIgv: boolean;
       igvAmount: number;
+      exchangeRate: number;
+      itemMap: Map<string, { id: string; sku: string; name: string; baseUnit: string; type?: ItemType }>;
     },
   ) {
-    const { userId, userRole, targetWarehouseId, hasIgv, igvAmount } = params;
-
-    // Generar correlativo inmutable para el movimiento de inventario MOV-YYYY-NNNNN
-    const movementNumber = await this.sequenceGenerator.getNextCode(tx, 'MOV');
+    const {
+      userId,
+      userRole,
+      targetWarehouseId,
+      hasIgv,
+      igvAmount,
+      exchangeRate,
+      itemMap,
+    } = params;
 
     // Crear encabezado de Purchase con warehouseId y notes
     const purchase = await tx.purchase.create({
@@ -339,7 +460,7 @@ export class PurchasesService {
         voucherType: dto.voucherType?.trim() || 'FACTURA',
         hasIgv,
         currency: dto.currency ?? Currency.PEN,
-        exchangeRate: dto.exchangeRate ?? 1.0,
+        exchangeRate,
         issueDate: new Date(dto.issueDate),
         subtotalPEN: dto.subtotalPEN,
         igvAmountPEN: hasIgv ? igvAmount : 0,
@@ -361,34 +482,64 @@ export class PurchasesService {
     const movementItemsData = [];
 
     for (const itemDto of dto.items) {
-      const factor = Number(itemDto.conversionFactor ?? 1.0);
-      const purchaseQty = Number(itemDto.purchaseQty);
-      const baseQty = Number((purchaseQty * factor).toFixed(4));
-      const rate = Number(dto.exchangeRate ?? 1.0);
-      const unitPriceOrig = Number(itemDto.unitPriceOriginal);
+      const masterItem = itemMap.get(itemDto.itemId);
+      const isService = masterItem?.type === ItemType.SERVICE;
 
-      // Costo unitario neto por unidad base en Soles:
-      // C_unitPEN = (unitPriceOriginal * exchangeRate) / conversionFactor
-      const unitCostBasePEN = Number(
-        ((unitPriceOrig * rate) / factor).toFixed(4),
-      );
-      const detailSubtotalPEN = Number((baseQty * unitCostBasePEN).toFixed(2));
+      const calc = this.computePurchaseLineFinancials({
+        purchaseQty: itemDto.purchaseQty,
+        conversionFactor: itemDto.conversionFactor ?? 1.0,
+        unitPriceOriginal: itemDto.unitPriceOriginal,
+        exchangeRate,
+        discountType: itemDto.discountType,
+        discountValue: itemDto.discountValue,
+      });
 
-      // Insertar PurchaseDetail con notes
+      const lotNumber = itemDto.lotNumber ? itemDto.lotNumber.trim() : null;
+      const expirationDate = itemDto.expirationDate
+        ? new Date(itemDto.expirationDate)
+        : null;
+
+      // Insertar PurchaseDetail con descuentos, lote, caducidad y notas
       const detail = await tx.purchaseDetail.create({
         data: {
           purchaseId: purchase.id,
           itemId: itemDto.itemId,
           purchaseUnit: itemDto.purchaseUnit.trim(),
-          conversionFactor: factor,
-          purchaseQty,
-          baseQty,
-          unitPriceOriginal: unitPriceOrig,
-          unitCostBasePEN,
-          subtotalPEN: detailSubtotalPEN,
+          conversionFactor: calc.factor,
+          purchaseQty: calc.purchaseQty,
+          baseQty: calc.baseQty,
+          unitPriceOriginal: calc.unitPriceOrig,
+          unitCostBasePEN: calc.unitCostBasePEN,
+          subtotalPEN: calc.subtotalPEN,
+          discountType: calc.discountType,
+          discountValue: calc.discountValue,
+          discountAmountPEN: calc.discountAmountPEN,
+          lotNumber,
+          expirationDate,
           notes: itemDto.notes ? itemDto.notes.trim() : null,
         },
       });
+
+      if (isService) {
+        // Regla critica: items tipo SERVICE no generan stock, CPP ni Kardex
+        const detailEntry: Record<string, unknown> = {
+          id: detail.id,
+          itemId: itemDto.itemId,
+          itemType: ItemType.SERVICE,
+          purchaseQty: calc.purchaseQty,
+          baseQty: calc.baseQty,
+          unitCostBasePEN: calc.unitCostBasePEN,
+          discountType: calc.discountType,
+          discountValue: calc.discountValue,
+          discountAmountPEN: calc.discountAmountPEN,
+          lotNumber,
+          expirationDate,
+          newWarehousePhysicalQty: null,
+          notes: detail.notes,
+        };
+        processedDetails.push(detailEntry);
+        continue;
+      }
 
       // Recuperar stock previo en el almacen de destino de la compra
       const existingStock = await tx.stock.findUnique({
@@ -403,22 +554,22 @@ export class PurchasesService {
       const prevQty = existingStock ? Number(existingStock.physicalQty) : 0;
       const prevCPP = existingStock ? Number(existingStock.averageCost) : 0;
 
-      // Formula de Costo Promedio Ponderado (CPP / WAC)
+      // Formula de Costo Promedio Ponderado (CPP / WAC) sobre costo neto descontado
       // Si ingresa sin valorizar (unitCostBasePEN <= 0 ej. Guia de Remision a costo 0), se preserva el CPP previo
       let newCPP: number;
-      if (unitCostBasePEN <= 0) {
+      if (calc.unitCostBasePEN <= 0) {
         newCPP = prevCPP > 0 ? prevCPP : 0;
       } else if (prevQty <= 0 || prevCPP <= 0) {
-        newCPP = unitCostBasePEN;
+        newCPP = calc.unitCostBasePEN;
       } else {
         const prevTotalVal = prevQty * prevCPP;
-        const incomingVal = baseQty * unitCostBasePEN;
+        const incomingVal = calc.baseQty * calc.unitCostBasePEN;
         newCPP = Number(
-          ((prevTotalVal + incomingVal) / (prevQty + baseQty)).toFixed(4),
+          ((prevTotalVal + incomingVal) / (prevQty + calc.baseQty)).toFixed(4),
         );
       }
 
-      const newPhysicalQty = Number((prevQty + baseQty).toFixed(4));
+      const newPhysicalQty = Number((prevQty + calc.baseQty).toFixed(4));
 
       // Actualizar o crear registro de Stock en el almacen de destino
       await tx.stock.upsert({
@@ -443,9 +594,15 @@ export class PurchasesService {
       const detailEntry: Record<string, unknown> = {
         id: detail.id,
         itemId: itemDto.itemId,
-        purchaseQty,
-        baseQty,
-        unitCostBasePEN,
+        itemType: masterItem?.type ?? null,
+        purchaseQty: calc.purchaseQty,
+        baseQty: calc.baseQty,
+        unitCostBasePEN: calc.unitCostBasePEN,
+        discountType: calc.discountType,
+        discountValue: calc.discountValue,
+        discountAmountPEN: calc.discountAmountPEN,
+        lotNumber,
+        expirationDate,
         newWarehousePhysicalQty: newPhysicalQty,
         notes: detail.notes,
       };
@@ -456,28 +613,32 @@ export class PurchasesService {
 
       movementItemsData.push({
         itemId: itemDto.itemId,
-        quantity: baseQty,
-        unitCostSnapshot: unitCostBasePEN,
-        totalCostSnapshot: detailSubtotalPEN,
+        quantity: calc.baseQty,
+        unitCostSnapshot: calc.unitCostBasePEN,
+        totalCostSnapshot: calc.subtotalPEN,
       });
     }
 
-    // Crear movimiento inmutable de Kardex tipo PURCHASE_ENTRY
-    const movement = await tx.movement.create({
-      data: {
-        movementNumber,
-        type: MovementType.PURCHASE_ENTRY,
-        originWarehouseId: null,
-        destWarehouseId: targetWarehouseId,
-        userId,
-        observation: `Ingreso por compra segun ${purchase.voucherType} ${dto.invoiceSeries.trim()}${
-          dto.notes ? ` - ${dto.notes.trim()}` : ''
-        }`,
-        items: {
-          create: movementItemsData,
+    // Crear movimiento inmutable de Kardex tipo PURCHASE_ENTRY solo si existen bienes fisicos
+    let movement: { id: string; movementNumber: string } | null = null;
+    if (movementItemsData.length > 0) {
+      const movementNumber = await this.sequenceGenerator.getNextCode(tx, 'MOV');
+      movement = await tx.movement.create({
+        data: {
+          movementNumber,
+          type: MovementType.PURCHASE_ENTRY,
+          originWarehouseId: null,
+          destWarehouseId: targetWarehouseId,
+          userId,
+          observation: `Ingreso por compra segun ${purchase.voucherType} ${dto.invoiceSeries.trim()}${
+            dto.notes ? ` - ${dto.notes.trim()}` : ''
+          }`,
+          items: {
+            create: movementItemsData,
+          },
         },
-      },
-    });
+      });
+    }
 
     return {
       id: purchase.id,
@@ -494,8 +655,8 @@ export class PurchasesService {
       igvAmountPEN: purchase.igvAmountPEN,
       totalAmountPEN: purchase.totalAmountPEN,
       notes: purchase.notes,
-      movementId: movement.id,
-      movementNumber: movement.movementNumber,
+      movementId: movement?.id ?? null,
+      movementNumber: movement?.movementNumber ?? null,
       details: processedDetails,
     };
   }
@@ -638,6 +799,11 @@ export class PurchasesService {
         exchangeRate: Number(p.exchangeRate),
         unitCostBasePEN: Number(pd.unitCostBasePEN),
         subtotalPEN: Number(pd.subtotalPEN),
+        discountType: pd.discountType,
+        discountValue: Number(pd.discountValue ?? 0),
+        discountAmountPEN: Number(pd.discountAmountPEN ?? 0),
+        lotNumber: pd.lotNumber ?? null,
+        expirationDate: pd.expirationDate ?? null,
         notes: pd.notes || p.notes || null,
       };
     });
@@ -687,7 +853,13 @@ export class PurchasesService {
     const purchase = await this.prisma.purchase.findUnique({
       where: { id },
       include: {
-        details: true,
+        details: {
+          include: {
+            item: {
+              select: { type: true },
+            },
+          },
+        },
         warehouse: true,
       },
     });
@@ -722,6 +894,18 @@ export class PurchasesService {
       }
     }
 
+    const effectiveCurrency = dto.currency ?? purchase.currency;
+    const rawRate =
+      dto.exchangeRate !== undefined
+        ? Number(dto.exchangeRate)
+        : Number(purchase.exchangeRate ?? 1.0);
+    if (effectiveCurrency === Currency.USD && rawRate <= 0) {
+      throw new BadRequestException(
+        'Para compras en dolares (USD) el tipo de cambio debe ser mayor a cero',
+      );
+    }
+    const exchangeRate = rawRate > 0 ? rawRate : 1.0;
+
     const hasIgv = dto.hasIgv !== undefined ? dto.hasIgv : purchase.hasIgv;
     let igvAmount = Number(dto.igvAmountPEN ?? 0);
     const subtotal = Number(dto.subtotalPEN);
@@ -750,14 +934,35 @@ export class PurchasesService {
       }
     }
 
+    // Validar descuentos antes de iniciar la transaccion
+    for (const itemDto of dto.items) {
+      const existingDetail = detailMap.get(itemDto.detailId)!;
+      const factor = Number(existingDetail.conversionFactor ?? 1.0) || 1.0;
+      const purchaseQty =
+        existingDetail.purchaseQty !== undefined && existingDetail.purchaseQty !== null
+          ? Number(existingDetail.purchaseQty)
+          : Number(existingDetail.baseQty) / factor;
+      this.computePurchaseLineFinancials({
+        purchaseQty,
+        conversionFactor: factor,
+        unitPriceOriginal: itemDto.unitPriceOriginal,
+        exchangeRate,
+        discountType: itemDto.discountType ?? existingDetail.discountType,
+        discountValue:
+          itemDto.discountValue !== undefined
+            ? itemDto.discountValue
+            : Number(existingDetail.discountValue ?? 0),
+      });
+    }
+
     return this.prisma.$transaction(async (tx) => {
       await tx.purchase.update({
         where: { id },
         data: {
           invoiceSeries: dto.invoiceSeries?.trim() || purchase.invoiceSeries,
           voucherType: dto.voucherType?.trim() || purchase.voucherType,
-          currency: dto.currency ?? purchase.currency,
-          exchangeRate: dto.exchangeRate ?? purchase.exchangeRate,
+          currency: effectiveCurrency,
+          exchangeRate,
           hasIgv,
           subtotalPEN: dto.subtotalPEN,
           igvAmountPEN: hasIgv ? igvAmount : 0,
@@ -771,27 +976,64 @@ export class PurchasesService {
         },
       });
 
-      const exchangeRate = Number(dto.exchangeRate ?? purchase.exchangeRate);
       const targetWarehouseId = purchase.warehouseId;
+
+      // Buscar movimiento PURCHASE_ENTRY asociado para sincronizar unitCostSnapshot
+      let associatedMovement: { id: string } | null = null;
+      if (targetWarehouseId && tx.movement?.findFirst) {
+        associatedMovement = await tx.movement.findFirst({
+          where: {
+            type: MovementType.PURCHASE_ENTRY,
+            destWarehouseId: targetWarehouseId,
+            isReverted: false,
+            observation: {
+              startsWith: `Ingreso por compra segun ${purchase.voucherType} ${purchase.invoiceSeries}`,
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true },
+        });
+      }
 
       for (const itemDto of dto.items) {
         const existingDetail = detailMap.get(itemDto.detailId)!;
-        const factor = Number(existingDetail.conversionFactor);
+        const factor = Number(existingDetail.conversionFactor ?? 1.0) || 1.0;
+        const purchaseQty =
+          existingDetail.purchaseQty !== undefined && existingDetail.purchaseQty !== null
+            ? Number(existingDetail.purchaseQty)
+            : Number(existingDetail.baseQty) / factor;
+        const calc = this.computePurchaseLineFinancials({
+          purchaseQty,
+          conversionFactor: factor,
+          unitPriceOriginal: itemDto.unitPriceOriginal,
+          exchangeRate,
+          discountType: itemDto.discountType ?? existingDetail.discountType,
+          discountValue:
+            itemDto.discountValue !== undefined
+              ? itemDto.discountValue
+              : Number(existingDetail.discountValue ?? 0),
+        });
         const baseQty = Number(existingDetail.baseQty);
-        const newUnitPriceOrig = Number(itemDto.unitPriceOriginal);
-        const newUnitCostBasePEN = Number(
-          ((newUnitPriceOrig * exchangeRate) / factor).toFixed(4),
-        );
-        const newDetailSubtotalPEN = Number(
-          (baseQty * newUnitCostBasePEN).toFixed(2),
-        );
 
         await tx.purchaseDetail.update({
           where: { id: itemDto.detailId },
           data: {
-            unitPriceOriginal: newUnitPriceOrig,
-            unitCostBasePEN: newUnitCostBasePEN,
-            subtotalPEN: newDetailSubtotalPEN,
+            unitPriceOriginal: calc.unitPriceOrig,
+            unitCostBasePEN: calc.unitCostBasePEN,
+            subtotalPEN: calc.subtotalPEN,
+            discountType: calc.discountType,
+            discountValue: calc.discountValue,
+            discountAmountPEN: calc.discountAmountPEN,
+            lotNumber:
+              itemDto.lotNumber !== undefined
+                ? itemDto.lotNumber.trim() || null
+                : existingDetail.lotNumber,
+            expirationDate:
+              itemDto.expirationDate !== undefined
+                ? itemDto.expirationDate
+                  ? new Date(itemDto.expirationDate)
+                  : null
+                : existingDetail.expirationDate,
             notes:
               itemDto.notes !== undefined
                 ? itemDto.notes
@@ -800,6 +1042,23 @@ export class PurchasesService {
                 : existingDetail.notes,
           },
         });
+
+        if (existingDetail.item?.type === ItemType.SERVICE) {
+          continue;
+        }
+
+        if (associatedMovement && tx.movementItem?.updateMany) {
+          await tx.movementItem.updateMany({
+            where: {
+              movementId: associatedMovement.id,
+              itemId: existingDetail.itemId,
+            },
+            data: {
+              unitCostSnapshot: calc.unitCostBasePEN,
+              totalCostSnapshot: calc.subtotalPEN,
+            },
+          });
+        }
 
         if (targetWarehouseId) {
           const stock = await tx.stock.findUnique({
@@ -816,12 +1075,12 @@ export class PurchasesService {
             const currentCPP = Number(stock.averageCost);
             let newCPP: number;
             if (currentQty <= 0 || currentCPP <= 0 || currentQty <= baseQty) {
-              newCPP = newUnitCostBasePEN;
+              newCPP = calc.unitCostBasePEN;
             } else {
               const priorQty = currentQty - baseQty;
               newCPP = Number(
                 (
-                  (priorQty * currentCPP + baseQty * newUnitCostBasePEN) /
+                  (priorQty * currentCPP + baseQty * calc.unitCostBasePEN) /
                   currentQty
                 ).toFixed(4),
               );
@@ -884,7 +1143,7 @@ export class PurchasesService {
         details: {
           include: {
             item: {
-              select: { id: true, sku: true, name: true },
+              select: { id: true, sku: true, name: true, type: true },
             },
           },
         },
@@ -920,6 +1179,10 @@ export class PurchasesService {
     const reversalItemsData = [];
 
     for (const detail of purchase.details) {
+      if (detail.item?.type === ItemType.SERVICE) {
+        continue;
+      }
+
       const stock = await tx.stock.findUnique({
         where: {
           warehouseId_itemId: {
@@ -995,60 +1258,68 @@ export class PurchasesService {
       });
     }
 
-    // Buscar movimiento PURCHASE_ENTRY original para marcarlo como revertido
-    let originalMovement = await tx.movement.findFirst({
-      where: {
-        type: MovementType.PURCHASE_ENTRY,
-        destWarehouseId: warehouseId,
-        isReverted: false,
-        observation: {
-          startsWith: `Ingreso por compra segun ${purchase.voucherType} ${purchase.invoiceSeries}`,
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    let reversalMovement: {
+      id: string;
+      movementNumber: string;
+      type: MovementType;
+    } | null = null;
 
-    if (!originalMovement && purchase.createdAt) {
-      const windowStart = new Date(purchase.createdAt.getTime() - 5000);
-      const windowEnd = new Date(purchase.createdAt.getTime() + 5000);
-      originalMovement = await tx.movement.findFirst({
+    if (reversalItemsData.length > 0) {
+      // Buscar movimiento PURCHASE_ENTRY original para marcarlo como revertido
+      let originalMovement = await tx.movement.findFirst({
         where: {
           type: MovementType.PURCHASE_ENTRY,
           destWarehouseId: warehouseId,
           isReverted: false,
-          createdAt: { gte: windowStart, lte: windowEnd },
+          observation: {
+            startsWith: `Ingreso por compra segun ${purchase.voucherType} ${purchase.invoiceSeries}`,
+          },
         },
         orderBy: { createdAt: 'desc' },
       });
-    }
 
-    if (originalMovement) {
-      await tx.movement.update({
-        where: { id: originalMovement.id },
+      if (!originalMovement && purchase.createdAt) {
+        const windowStart = new Date(purchase.createdAt.getTime() - 5000);
+        const windowEnd = new Date(purchase.createdAt.getTime() + 5000);
+        originalMovement = await tx.movement.findFirst({
+          where: {
+            type: MovementType.PURCHASE_ENTRY,
+            destWarehouseId: warehouseId,
+            isReverted: false,
+            createdAt: { gte: windowStart, lte: windowEnd },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+      }
+
+      if (originalMovement) {
+        await tx.movement.update({
+          where: { id: originalMovement.id },
+          data: {
+            isReverted: true,
+            revertedAt: now,
+            revertedById: user.id,
+            reversalReason: reasonTrimmed,
+          },
+        });
+      }
+
+      const movementNumber = await this.sequenceGenerator.getNextCode(tx, 'MOV');
+      reversalMovement = await tx.movement.create({
         data: {
-          isReverted: true,
-          revertedAt: now,
-          revertedById: user.id,
-          reversalReason: reasonTrimmed,
+          movementNumber,
+          type: MovementType.REVERSAL_EXIT,
+          originWarehouseId: warehouseId,
+          destWarehouseId: null,
+          userId: user.id,
+          reversesMovementId: originalMovement?.id ?? null,
+          observation: `Anulacion de compra ${purchase.invoiceSeries}: ${reasonTrimmed}`,
+          items: {
+            create: reversalItemsData,
+          },
         },
       });
     }
-
-    const movementNumber = await this.sequenceGenerator.getNextCode(tx, 'MOV');
-    const reversalMovement = await tx.movement.create({
-      data: {
-        movementNumber,
-        type: MovementType.REVERSAL_EXIT,
-        originWarehouseId: warehouseId,
-        destWarehouseId: null,
-        userId: user.id,
-        reversesMovementId: originalMovement?.id ?? null,
-        observation: `Anulacion de compra ${purchase.invoiceSeries}: ${reasonTrimmed}`,
-        items: {
-          create: reversalItemsData,
-        },
-      },
-    });
 
     const updatedPurchase = await tx.purchase.update({
       where: { id: purchase.id },
@@ -1057,7 +1328,7 @@ export class PurchasesService {
         revertedAt: now,
         revertedById: user.id,
         reversalReason: reasonTrimmed,
-        reversalMovementId: reversalMovement.id,
+        reversalMovementId: reversalMovement?.id ?? null,
       },
       include: {
         supplier: true,
@@ -1085,11 +1356,13 @@ export class PurchasesService {
 
     return {
       ...updatedPurchase,
-      reversalMovement: {
-        id: reversalMovement.id,
-        movementNumber: reversalMovement.movementNumber,
-        type: reversalMovement.type,
-      },
+      reversalMovement: reversalMovement
+        ? {
+            id: reversalMovement.id,
+            movementNumber: reversalMovement.movementNumber,
+            type: reversalMovement.type,
+          }
+        : null,
     };
   }
 
@@ -1176,7 +1449,22 @@ export class PurchasesService {
           await tx.purchaseDetail.update({
             where: { id: noteItem.detailId },
             data: {
-              notes: noteItem.notes.trim() || null,
+              notes:
+                noteItem.notes !== undefined
+                  ? noteItem.notes.trim() || null
+                  : undefined,
+              lotNumber:
+                noteItem.lotNumber !== undefined
+                  ? noteItem.lotNumber
+                    ? noteItem.lotNumber.trim()
+                    : null
+                  : undefined,
+              expirationDate:
+                noteItem.expirationDate !== undefined
+                  ? noteItem.expirationDate
+                    ? new Date(noteItem.expirationDate)
+                    : null
+                  : undefined,
             },
           });
         }

@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import {
   Currency,
+  DiscountType,
+  ItemType,
   MovementType,
   WarehouseType,
   Role,
@@ -1300,6 +1302,344 @@ describe('PurchasesService', () => {
           where: expect.objectContaining({ isReverted: false }),
         }),
       );
+    });
+  });
+
+  describe('Fase B3: Servicios, Lotes, Descuentos y USD', () => {
+    it('debe omitir Stock, CPP y Kardex cuando la compra contiene unicamente items SERVICE', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'sup-1' });
+      prisma.warehouse.findUnique.mockResolvedValue({
+        id: 'wh-central',
+        type: WarehouseType.CENTRAL,
+        isActive: true,
+      });
+      prisma.item.findMany.mockResolvedValue([
+        {
+          id: 'item-srv',
+          sku: 'SER-0001',
+          name: 'Flete de Transporte',
+          baseUnit: 'GLB',
+          type: ItemType.SERVICE,
+          isActive: true,
+        },
+      ]);
+
+      const mockTx = {
+        purchase: {
+          create: vi.fn().mockImplementation((args) => ({ id: 'purch-srv', ...args.data })),
+        },
+        purchaseDetail: {
+          create: vi.fn().mockImplementation((args) => ({ id: 'det-srv', ...args.data })),
+        },
+        stock: {
+          findUnique: vi.fn(),
+          upsert: vi.fn(),
+        },
+        movement: {
+          create: vi.fn(),
+        },
+      };
+      prisma.$transaction.mockImplementation(async (cb) => cb(mockTx));
+
+      const result = await service.create(
+        {
+          supplierId: 'sup-1',
+          warehouseId: 'wh-central',
+          invoiceSeries: 'F001-00900',
+          currency: Currency.PEN,
+          exchangeRate: 1,
+          hasIgv: true,
+          issueDate: '2026-11-22T10:00:00.000Z',
+          subtotalPEN: 500,
+          igvAmountPEN: 90,
+          totalAmountPEN: 590,
+          items: [
+            {
+              itemId: 'item-srv',
+              purchaseUnit: 'GLB',
+              conversionFactor: 1,
+              purchaseQty: 1,
+              unitPriceOriginal: 500,
+            },
+          ],
+        },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(result.subtotalPEN).toBe(500);
+      expect(result.movementId).toBeNull();
+      expect(mockTx.stock.upsert).not.toHaveBeenCalled();
+      expect(mockTx.movement.create).not.toHaveBeenCalled();
+    });
+
+    it('debe generar PURCHASE_ENTRY solo para bienes fisicos en compra mixta (consumible + servicio)', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'sup-1' });
+      prisma.warehouse.findUnique.mockResolvedValue({
+        id: 'wh-central',
+        type: WarehouseType.CENTRAL,
+        isActive: true,
+      });
+      prisma.item.findMany.mockResolvedValue([
+        {
+          id: 'item-cem',
+          sku: 'MAT-0001',
+          name: 'Cemento',
+          baseUnit: 'BOLSA',
+          type: ItemType.CONSUMABLE,
+          isActive: true,
+        },
+        {
+          id: 'item-srv',
+          sku: 'SER-0001',
+          name: 'Flete',
+          baseUnit: 'GLB',
+          type: ItemType.SERVICE,
+          isActive: true,
+        },
+      ]);
+
+      const mockTx = {
+        purchase: {
+          create: vi.fn().mockImplementation((args) => ({ id: 'purch-mix', ...args.data })),
+        },
+        purchaseDetail: {
+          create: vi.fn().mockImplementation((args) => ({ id: 'det', ...args.data })),
+        },
+        stock: {
+          findUnique: vi.fn().mockResolvedValue(null),
+          upsert: vi.fn().mockResolvedValue({}),
+        },
+        movement: {
+          create: vi.fn().mockResolvedValue({
+            id: 'mov-mix',
+            movementNumber: 'MOV-2026-00010',
+          }),
+        },
+      };
+      prisma.$transaction.mockImplementation(async (cb) => cb(mockTx));
+
+      const result = await service.create(
+        {
+          supplierId: 'sup-1',
+          warehouseId: 'wh-central',
+          invoiceSeries: 'F001-00901',
+          currency: Currency.PEN,
+          exchangeRate: 1,
+          hasIgv: true,
+          issueDate: '2026-11-22T10:00:00.000Z',
+          subtotalPEN: 400,
+          igvAmountPEN: 72,
+          totalAmountPEN: 472,
+          items: [
+            {
+              itemId: 'item-cem',
+              purchaseUnit: 'BOLSA',
+              conversionFactor: 1,
+              purchaseQty: 10,
+              unitPriceOriginal: 30,
+              lotNumber: 'LOT-26-A',
+              expirationDate: '2027-05-01T00:00:00.000Z',
+            },
+            {
+              itemId: 'item-srv',
+              purchaseUnit: 'GLB',
+              conversionFactor: 1,
+              purchaseQty: 1,
+              unitPriceOriginal: 100,
+            },
+          ],
+        },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(result.movementId).toBe('mov-mix');
+      expect(mockTx.stock.upsert).toHaveBeenCalledTimes(1);
+      expect(mockTx.movement.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            items: {
+              create: [
+                expect.objectContaining({
+                  itemId: 'item-cem',
+                  quantity: 10,
+                  unitCostSnapshot: 30,
+                }),
+              ],
+            },
+          }),
+        }),
+      );
+      expect(mockTx.purchaseDetail.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            itemId: 'item-cem',
+            lotNumber: 'LOT-26-A',
+          }),
+        }),
+      );
+    });
+
+    it('debe aplicar descuento porcentual y fijo en moneda original antes de calcular unitCostBasePEN y CPP', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'sup-1' });
+      prisma.warehouse.findUnique.mockResolvedValue({
+        id: 'wh-central',
+        type: WarehouseType.CENTRAL,
+        isActive: true,
+      });
+      prisma.item.findMany.mockResolvedValue([
+        {
+          id: 'item-cem',
+          sku: 'MAT-0001',
+          name: 'Cemento',
+          baseUnit: 'BOLSA',
+          type: ItemType.CONSUMABLE,
+          isActive: true,
+        },
+        {
+          id: 'item-adh',
+          sku: 'MAT-0002',
+          name: 'Aditivo',
+          baseUnit: 'GLN',
+          type: ItemType.CONSUMABLE,
+          isActive: true,
+        },
+      ]);
+
+      const mockTx = {
+        purchase: {
+          create: vi.fn().mockImplementation((args) => ({ id: 'purch-disc', ...args.data })),
+        },
+        purchaseDetail: {
+          create: vi.fn().mockImplementation((args) => ({ id: 'det', ...args.data })),
+        },
+        stock: {
+          findUnique: vi.fn().mockResolvedValue(null),
+          upsert: vi.fn().mockResolvedValue({}),
+        },
+        movement: {
+          create: vi.fn().mockResolvedValue({
+            id: 'mov-disc',
+            movementNumber: 'MOV-2026-00011',
+          }),
+        },
+      };
+      prisma.$transaction.mockImplementation(async (cb) => cb(mockTx));
+
+      // Linea 1 USD: 10 * 100 USD = 1000 USD - 10% = 900 USD * 3.80 = 3420 PEN -> 342 PEN/u
+      // Linea 2 USD: 5 * 50 USD = 250 USD - 50 USD fijo = 200 USD * 3.80 = 760 PEN -> 152 PEN/u
+      const result = await service.create(
+        {
+          supplierId: 'sup-1',
+          warehouseId: 'wh-central',
+          invoiceSeries: 'E001-00200',
+          currency: Currency.USD,
+          exchangeRate: 3.8,
+          hasIgv: false,
+          issueDate: '2026-11-22T10:00:00.000Z',
+          subtotalPEN: 4180,
+          igvAmountPEN: 0,
+          totalAmountPEN: 4180,
+          items: [
+            {
+              itemId: 'item-cem',
+              purchaseUnit: 'BOLSA',
+              conversionFactor: 1,
+              purchaseQty: 10,
+              unitPriceOriginal: 100,
+              discountType: DiscountType.PERCENTAGE,
+              discountValue: 10,
+            },
+            {
+              itemId: 'item-adh',
+              purchaseUnit: 'GLN',
+              conversionFactor: 1,
+              purchaseQty: 5,
+              unitPriceOriginal: 50,
+              discountType: DiscountType.FIXED,
+              discountValue: 50,
+            },
+          ],
+        },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(result.details[0].unitCostBasePEN).toBe(342);
+      expect(result.details[0].discountAmountPEN).toBe(380);
+      expect(result.details[0].newWarehouseAverageCost).toBe(342);
+      expect(result.details[1].unitCostBasePEN).toBe(152);
+      expect(result.details[1].discountAmountPEN).toBe(190);
+      expect(result.details[1].newWarehouseAverageCost).toBe(152);
+    });
+
+    it('debe exigir exchangeRate > 0 cuando currency es USD', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'sup-1' });
+      prisma.warehouse.findUnique.mockResolvedValue({
+        id: 'wh-central',
+        type: WarehouseType.CENTRAL,
+        isActive: true,
+      });
+
+      await expect(
+        service.create(
+          {
+            supplierId: 'sup-1',
+            warehouseId: 'wh-central',
+            invoiceSeries: 'E001-00300',
+            currency: Currency.USD,
+            issueDate: '2026-11-22T10:00:00.000Z',
+            subtotalPEN: 100,
+            totalAmountPEN: 118,
+            items: [
+              {
+                itemId: 'item-1',
+                purchaseUnit: 'UND',
+                purchaseQty: 1,
+                unitPriceOriginal: 100,
+              },
+            ],
+          },
+          { id: 'admin-1', role: Role.ADMIN },
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('debe rechazar descuento porcentual mayor a 100 o descuento fijo mayor al importe bruto', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'sup-1' });
+      prisma.warehouse.findUnique.mockResolvedValue({
+        id: 'wh-central',
+        type: WarehouseType.CENTRAL,
+        isActive: true,
+      });
+      prisma.item.findMany.mockResolvedValue([
+        { id: 'item-1', sku: 'MAT-0001', name: 'Cemento', baseUnit: 'BOLSA', type: ItemType.CONSUMABLE },
+      ]);
+
+      await expect(
+        service.create(
+          {
+            supplierId: 'sup-1',
+            warehouseId: 'wh-central',
+            invoiceSeries: 'F001-00301',
+            currency: Currency.PEN,
+            exchangeRate: 1,
+            hasIgv: false,
+            issueDate: '2026-11-22T10:00:00.000Z',
+            subtotalPEN: 0,
+            totalAmountPEN: 0,
+            items: [
+              {
+                itemId: 'item-1',
+                purchaseUnit: 'BOLSA',
+                purchaseQty: 1,
+                unitPriceOriginal: 100,
+                discountType: DiscountType.PERCENTAGE,
+                discountValue: 120,
+              },
+            ],
+          },
+          { id: 'admin-1', role: Role.ADMIN },
+        ),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

@@ -91,7 +91,7 @@ export class CreatePurchaseDto {
   @IsOptional()
   @IsNumber({}, { message: 'El tipo de cambio debe ser un numero' })
   @Min(0.0001, { message: 'El tipo de cambio debe ser estrictamente positivo' })
-  exchangeRate?: number = 1.0;
+  exchangeRate?: number;
 
   @ApiProperty({
     example: '2026-09-22T10:00:00.000Z',

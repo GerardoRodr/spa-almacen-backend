@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsDateString,
@@ -8,6 +8,7 @@ import {
   IsString,
   IsUUID,
   MaxLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -19,15 +20,40 @@ export class PurchaseDetailNoteInputDto {
   @IsUUID('4', { message: 'El detailId debe ser un UUID valido' })
   detailId: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 'Lote 2026-10 / Vence 30/12/2026',
-    description: 'Nota, lote o fecha de vencimiento del renglon',
+    description: 'Nota del renglon',
   })
+  @IsOptional()
   @IsString({ message: 'Las notas del renglon deben ser una cadena de texto' })
   @MaxLength(1000, {
     message: 'Las notas del renglon no pueden exceder 1000 caracteres',
   })
-  notes: string;
+  notes?: string;
+
+  @ApiPropertyOptional({
+    example: 'LOT-2026-10',
+    description: 'Numero de lote actualizado',
+  })
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @IsString({ message: 'El numero de lote debe ser una cadena de texto' })
+  @MaxLength(100, {
+    message: 'El numero de lote no puede exceder 100 caracteres',
+  })
+  lotNumber?: string | null;
+
+  @ApiPropertyOptional({
+    example: '2026-12-30T00:00:00.000Z',
+    description: 'Fecha de caducidad actualizada (ISO 8601 o null)',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() === '' ? null : value,
+  )
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @IsDateString({}, { message: 'La fecha de caducidad debe ser una fecha ISO valida' })
+  expirationDate?: string | null;
 }
 
 export class UpdatePurchaseMetadataDto {
