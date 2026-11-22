@@ -16,11 +16,12 @@ Toda la infraestructura se aloja en una unica instancia VPS KVM 2 (100 GB SSD NV
            │                                                           │
            ▼                                                           ▼
  [ Backend: NestJS 12+ (ESM) ]                              [ Almacenamiento Local Seguro ]
-   ├── Auth & RBAC Guard (Admin / WarehouseKeeper)            /var/www/almacen-erp/uploads/
-   ├── WarehouseAccessGuard (Filtro por Obra)                 ├── Facturas y Comprobantes (Auth Admin)
-   ├── Sharp Compression Pipe (WebP / 80%)                    ├── Guias y Fotos Operativas (Auth)
+   ├── Auth & RBAC Guard (Admin / Moderator / Keeper)         UPLOAD_DIR (ej. /app/uploads/)
+   ├── WarehouseAccessGuard (Filtro por Obra)                 ├── purchases/ (Facturas, Auth)
+   ├── CostMaskingInterceptor (Ceguera Financiera)            ├── transfers|movements|custody/
+   ├── Sharp Compression Pipe (WebP / 80%)                    ├── s10/ (CSV/TXT Presupuestos)
    ├── S10 Engine (CSV Parser & Gap Analysis)                 └── Backups Locales (Rotacion 7d)
-   └── Prisma ORM v6
+   └── Prisma ORM v6 (Migraciones Aditivas)
            │
            ▼
 [ Base de Datos: PostgreSQL 16+ ]
@@ -33,9 +34,9 @@ Toda la infraestructura se aloja en una unica instancia VPS KVM 2 (100 GB SSD NV
 
 ### 2.1. Frontend: Angular 22 (SPA Multi-Dispositivo)
 * **Framework:** Angular 22 basado en Standalone Components (sin `NgModule`).
-* **Gestion de Estado:** Angular Signals (`signal()`, `computed()`, `effect()`, `model()`) como estándar reactivo primario. RxJS restringido a flujos asincronos complejos (debounces de busqueda, cancelacion de solicitudes HTTP).
+* **Gestion de Estado:** Angular Signals (`signal()`, `computed()`, `effect()`, `model()`) como estandar reactivo primario. RxJS restringido a flujos asincronos complejos (debounces de busqueda, cancelacion de solicitudes HTTP).
 * **Sintaxis de Plantillas:** Control Flow nativo (`@if`, `@for`, `@switch`).
-* **Estilos y UI:** Tailwind CSS v4, estructurado para ofrecer botones y objetivos táctiles minimos de 48×48 px en caseta de obra y tablas de alta densidad en oficina tecnica.
+* **Estilos y UI:** Tailwind CSS v4, estructurado para ofrecer botones y objetivos tactiles minimos de 48x48 px en caseta de obra y tablas de alta densidad en oficina tecnica.
 * **Componentes Base:** Angular Material / PrimeNG integrados modularmente para modales, selectores de fecha y autocompletados con *virtual scrolling* para catalogos extensos.
 * **Iconografia:** Lucide Angular.
 * **Graficos:** Chart.js con `ng2-charts` para comparativas de presupuesto S10 vs. gasto real y distribucion de stock.
@@ -47,7 +48,7 @@ Toda la infraestructura se aloja en una unica instancia VPS KVM 2 (100 GB SSD NV
 * **Estandar ESM y Reglas de Codificacion para el Agente:**
   - `package.json`: Debe incluir `"type": "module"`.
   - `tsconfig.json`: Debe configurar `"module": "NodeNext"` y `"moduleResolution": "NodeNext"` (o `"target": "ES2023"`).
-  - **Imports Relativos Obligatorios con Extension `.js`:** En TypeScript bajo resolución NodeNext ESM, toda importación relativa local debe incluir explícitamente la extensión `.js`:
+  - **Imports Relativos Obligatorios con Extension `.js`:** En TypeScript bajo resolucion NodeNext ESM, toda importacion relativa local debe incluir explicitamente la extension `.js`:
     ```typescript
     // Correcto (ESM NodeNext):
     import { StockService } from './stock.service.js';
@@ -67,24 +68,29 @@ Toda la infraestructura se aloja en una unica instancia VPS KVM 2 (100 GB SSD NV
   - `JwtAuthGuard`: Autenticacion sin estado (Access Token de 15 min + Refresh Token de 7 dias).
   - `RolesGuard`: Segregacion de permisos (`ADMIN`, `MODERATOR` y `WAREHOUSE_KEEPER`).
   - `WarehouseAccessGuard`: Valida que el almacenero solo opere sobre almacenes donde tiene autorizacion activa en `UserWarehouse`.
-  - `CostMaskingInterceptor`: Serializador que omite campos monetarios en respuestas hacia roles no administrativos (`WAREHOUSE_KEEPER`). `ADMIN` y `MODERATOR` reciben cifras financieras completas. Preserva de manera estricta las instancias de `Prisma.Decimal` en existencias fisicas (`physicalQty`, `reservedQty`, `loanedQty`), serializandolas como escalares numericos para evitar descomposiciones de objetos en tiempo de serializacion JSON.
+  - `CostMaskingInterceptor`: Serializador recursivo que omite campos monetarios y de descuento en respuestas hacia `WAREHOUSE_KEEPER` (incluyendo `averageCost`, `unitPriceOriginal`, `unitCostBasePEN`, `subtotalPEN`, `igvAmountPEN`, `totalAmountPEN`, `totalSubtotalPEN`, `totalIgvPEN`, `discountValue`, `discountAmountPEN`, `unitCostSnapshot`, `totalCostSnapshot`, valorizaciones de dashboard, comparativas de precios y totales presupuestales S10). `ADMIN` y `MODERATOR` reciben cifras financieras completas. Preserva de manera estricta las instancias de `Date` y `Prisma.Decimal` en existencias fisicas (`physicalQty`, `reservedQty`, `loanedQty`), evitando descomposiciones de objetos en tiempo de serializacion JSON.
   - `helmet` y `@nestjs/throttler` para proteccion de cabeceras y control de tasa de peticiones.
-* **Procesamiento Multimedia:** `Multer` junto a `Sharp` para convertir y comprimir imagenes de guias y evidencias a formato `.webp` al 80% (reduciendo archivos de 10 MB a menos de 350 KB).
-* **Motor de Presupuestos S10:** Pipeline de streaming con soporte de codificacion `Windows-1252` y `UTF-8`, con deteccion automatica de delimitador (`;` o `,`).
+* **Procesamiento Multimedia:** `Multer` junto a `Sharp` para redimensionar (max 1920x1080) y comprimir imagenes de guias y evidencias a formato `.webp` al 80% (reduciendo archivos de 10 MB a menos de 350 KB), ademas de validacion de cabecera `%PDF-` para documentos PDF (hasta 15 MB).
+* **Motor de Presupuestos S10:** Pipeline de decodificacion `Windows-1252` / `UTF-8` con deteccion automatica de delimitador (`;` o `,`), homologacion `1:N` contra `ItemAlias`, persistencia local del archivo CSV/TXT en `UPLOAD_DIR/s10/` (`StorageService.saveS10File`) y calculo en tiempo real de Matriz de Brechas.
 * **Documentacion:** OpenAPI 3 / Swagger en `/api/docs`.
 
 ### 2.3. Persistencia: PostgreSQL 16+ & Prisma ORM v6
 * **Motor:** PostgreSQL 16+ con cumplimiento estricto de propiedades ACID.
-* **Precision Numerica:** Cantidades modeladas como `DECIMAL(12, 4)` y montos monetarios como `DECIMAL(14, 4)` para evitar discrepancias por redondeo.
-* **ORM:** Prisma v6 con transacciones atómicas garantizadas (`prisma.$transaction`) en compras, transferencias y reservas.
+* **Precision Numerica:** Cantidades modeladas como `DECIMAL(12, 4)`, factores/descuentos como `DECIMAL(10, 4)` / `DECIMAL(12, 4)` y montos monetarios como `DECIMAL(14, 4)` / `DECIMAL(14, 2)` para evitar discrepancias por redondeo.
+* **ORM:** Prisma v6 con transacciones atomicas garantizadas (`prisma.$transaction`) en compras, reemplazos, reversiones, transferencias, reservas y cambios de almacen de proyecto.
+* **Migraciones Aditivas Compatibles con Produccion:** Toda evolucion del esquema de base de datos (como `20261122225515_add_post_meeting_observations`) se construye mediante instrucciones SQL estrictamente aditivas (`CREATE TYPE`, `ALTER TYPE ... ADD VALUE`, `ALTER TABLE ... ADD COLUMN` con valores por defecto seguros o nulables y `CREATE INDEX`) que preservan intactos los registros existentes. En despliegues productivos, `docker-entrypoint.sh` aplica automaticamente las migraciones pendientes mediante `npx prisma migrate deploy` (`npm run prisma:migrate:deploy`) antes de iniciar NestJS.
 
 ### 2.4. Infraestructura y Seguridad de Archivos
 * **VPS KVM 2:** Ubuntu 24.04 LTS, Docker Compose orquestado con Dokploy.
+* **Estructura de Almacenamiento Local (`UPLOAD_DIR`):**
+  - Directorio base configurable mediante `UPLOAD_DIR` (por defecto `./uploads`, mapeado a volumen persistente `/app/uploads` en contenedor).
+  - Adjuntos operativos y comprobantes organizados por categoria y periodo (`purchases/YYYY/MM`, `transfers/YYYY/MM`, `movements/YYYY/MM`, `custody/YYYY/MM`, `general/YYYY/MM`), con proteccion contra *path traversal*.
+  - Subdirectorio dedicado `UPLOAD_DIR/s10/` para almacenar los archivos originales CSV/TXT de presupuestos S10 vinculados a proyectos (`Project.s10FilePath`, `s10FileName`, `s10UploadedAt`).
 * **Seguridad de Documentos Sensibles:**
-  - Las **facturas de compra** y adjuntos confidenciales (`isConfidential = true`) estan autorizados para `ADMIN` y `MODERATOR`. Un usuario `WAREHOUSE_KEEPER` solo puede consultar o descargar documentos confidenciales vinculados a compras de sus almacenes asignados en `UserWarehouse`; el resto recibe `403 Forbidden`.
-  - Nginx **no** sirve la carpeta `/uploads/invoices/*` de manera estatica y publica.
-  - La descarga de comprobantes financieros se realiza mediante el endpoint autenticado `GET /api/v1/documents/:id/download`, validando el token y rol antes de emitir el archivo en streaming o delegarlo mediante la cabecera `X-Accel-Redirect` de Nginx.
-* **Respaldos de Base de Datos:** Tarea programada diaria a las 02:00 UTC con `pg_dump`, compresion `.tar.gz`, retencion local de 7 dias y endpoint con boton de descarga directa para roles `ADMIN` y `MODERATOR`.
+  - Las **facturas de compra** y adjuntos confidenciales (`isConfidential = true`) estan autorizados para `ADMIN` y `MODERATOR`. Un usuario `WAREHOUSE_KEEPER` solo puede cargar (`POST /api/v1/purchases/:id/attachments`), consultar o descargar documentos confidenciales vinculados a compras de sus almacenes asignados en `UserWarehouse`; el resto recibe `403 Forbidden`. La eliminacion de adjuntos de compras (`DELETE /api/v1/purchases/:id/attachments/:attachmentId`) es exclusiva de `ADMIN`.
+  - Nginx **no** sirve la carpeta `/uploads/*` de manera estatica y publica.
+  - La descarga de comprobantes financieros y archivos S10 se realiza mediante endpoints autenticados (`GET /api/v1/documents/:id/download` y `GET /api/v1/projects/:id/s10-file`), validando el token, rol y acceso por almacen antes de emitir el archivo en streaming.
+* **Respaldos de Base de Datos:** Tarea programada diaria a las 02:00 UTC con `pg_dump`, compresion `.tar.gz`, retencion local de 7 dias y endpoint con descarga directa para roles `ADMIN` y `MODERATOR`.
 
 ---
 
@@ -94,22 +100,23 @@ Toda la infraestructura se aloja en una unica instancia VPS KVM 2 (100 GB SSD NV
 | :--- | :---: | :---: | :---: |
 | **Administracion de Usuarios (`/users`)** | **Total (Gestion, Altas, Bajas y Roles)** | **Bloqueado (403 Forbidden)** | **Bloqueado (403 Forbidden)** |
 | **Selector de Almacen Activo** | Acceso Global a Todos los Almacenes | Acceso Global a Todos los Almacenes | Solo Almacenes Asignados (`UserWarehouse`) con soporte multisede |
-| **Catalogo Maestro (Crear / Editar SKU)** | Total (edicion completa y confirmacion) | Total (edicion completa y confirmacion) | Alta Rapida Descentralizada (SKU automatico, sin edicion maestra) |
-| **Gestion de Alias S10 (`ItemAlias`)** | Total | Total | Acceso Denegado |
-| **Visualizacion de Costos, Precios y CPP** | **Visible** | **Visible** | **Bloqueado / Ciego** |
-| **Registro de Compras a Proveedores** | Total (con costos, IGV, facturas y valorizacion) | Total (con costos, IGV, facturas y valorizacion) | Registro Operativo Descentralizado (recepcion directa, precio cero y proveedores) |
+| **Catalogo Maestro (Crear / Editar / Eliminar SKU)** | **Total (creacion, edicion, confirmacion `baseUnit` y `DELETE /items/:id`)** | Creacion, edicion y confirmacion `baseUnit` (sin `DELETE /items/:id`) | Alta Rapida Descentralizada (SKU automatico, sin edicion ni baja maestra) |
+| **Gestion CRUD de Alias S10 (`ItemAlias` 1:N)** | Total (`GET`, `POST`, `PUT`, `DELETE`) | Total (`GET`, `POST`, `PUT`, `DELETE`) | Acceso Denegado (`403 Forbidden`) |
+| **Visualizacion de Costos, Descuentos, Precios y CPP** | **Visible** | **Visible** | **Bloqueado / Ciego (`CostMaskingInterceptor`)** |
+| **Compras a Proveedores y Adjuntos** | **Total (costos, descuentos, IGV, valorizacion, carga y `DELETE` de adjuntos)** | Total (costos, descuentos, IGV, valorizacion y carga de adjuntos; sin `DELETE` de adjuntos) | Registro operativo en sedes asignadas (recepcion, carga de adjuntos, precio cero y proveedores; cifras ocultas) |
 | **Despacho de Transferencias (Fase 1)** | Autorizacion / Auditoria | Autorizacion / Auditoria | Registro Operativo (Almacen Origen) |
 | **Recepcion de Transferencias (Fase 2)** | Auditoria de Discrepancias | Auditoria de Discrepancias | Conteo Fisico y Confirmacion (Almacen Destino) |
 | **Salida por Consumo en Obra** | Auditoria por Partida/Frente | Auditoria por Partida/Frente | Registro Diario de Entrega a Capataces |
 | **Vales de Custodia de Herramientas** | Auditoria General | Auditoria General | Prestamo y Retorno con DNI y Calificacion |
-| **Presupuestos S10 y Matriz de Brechas** | Carga CSV, Mapeo y Reserva Logica | Carga CSV, Mapeo y Reserva Logica | Acceso Denegado |
+| **Proyectos, Almacen `PROJECT_SITE` y Archivo S10** | Creacion, vinculacion/cambio de almacen, carga/descarga/eliminacion CSV S10 y reservas | Creacion, vinculacion/cambio de almacen, carga/descarga/eliminacion CSV S10 y reservas | Lectura de proyectos asignados y descarga de archivo S10 de su sede (costos enmascarados) |
+| **Edicion Manual de Matriz de Brechas (`/requirements`)** | **Exclusivo (`POST`, `PUT`, `DELETE`)** | **Bloqueado (403 Forbidden)** | **Bloqueado (403 Forbidden)** |
 | **Aprobacion de Mermas y Ajustes** | Exclusivo (Aprobacion y Cierre) | Exclusivo (Aprobacion y Cierre) | Solo Solicitud con Evidencia Fotografica |
 | **Cierre y Liquidacion de Obra** | Exclusivo | Exclusivo | Acceso Denegado |
 | **Descarga de Copias de Seguridad** | Exclusivo (1 Clic) | Exclusivo (1 Clic) | Acceso Denegado |
 
 ---
 
-## 4. Esquema de Base de Datos Definitivo (Prisma ORM v6 - 21 Modelos y 9 Enums)
+## 4. Esquema de Base de Datos Definitivo (Prisma ORM v6 - 21 Modelos y 10 Enums)
 
 ```prisma
 datasource db {
@@ -122,7 +129,7 @@ generator client {
 }
 
 // --------------------------------------------------------
-// ENUMS DE DOMINIO (9)
+// ENUMS DE DOMINIO (10)
 // --------------------------------------------------------
 
 enum Role {
@@ -136,6 +143,13 @@ enum ItemType {
   TOOL
   EQUIPMENT
   MACHINERY
+  SERVICE
+}
+
+enum DiscountType {
+  NONE
+  PERCENTAGE
+  FIXED
 }
 
 enum MeterType {
@@ -157,7 +171,7 @@ enum TransferStatus {
 }
 
 enum MovementType {
-  PURCHASE_ENTRY       // Ingreso por compra a proveedor
+  PURCHASE_ENTRY       // Ingreso a Almacen Central por compra a proveedor
   CONSUMPTION_EXIT     // Salida definitiva entregada a cuadrilla en obra
   TRANSFER_DISPATCH    // Salida fisica desde origen hacia transito
   TRANSFER_RECEIPT     // Entrada fisica en destino confirmada
@@ -313,6 +327,9 @@ model Item {
   meterType       MeterType?           // Solo aplica cuando type == MACHINERY (HOUR_METER | KILOMETER)
   minStockAlert   Decimal              @default(0) @db.Decimal(12, 4)
   isPerishable    Boolean              @default(false)
+  isActive        Boolean              @default(true)
+  trackLot        Boolean              @default(false)
+  trackExpiration Boolean              @default(false)
   categoryId      String?
   category        ItemCategory?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
@@ -330,6 +347,7 @@ model Item {
 
   @@index([type])
   @@index([isPerishable])
+  @@index([isActive])
   @@index([categoryId])
 }
 
@@ -342,6 +360,8 @@ model ItemAlias {
   conversionFactor Decimal  @default(1.0000) @db.Decimal(10, 4) // Multiplicador para llevar a Item.baseUnit
 
   item             Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
 }
 
 // --------------------------------------------------------
@@ -351,18 +371,25 @@ model ItemAlias {
 model Project {
   id                    String               @id @default(uuid())
   name                  String
-  budgetCode            String?              // Codigo del presupuesto S10
+  budgetCode            String?              // Codigo del presupuesto S10 (ej. 1101024)
   status                ProjectStatus        @default(PLANNING)
 
-  s10Location           String?
-  s10Ubigeo             String?
-  s10BudgetDate         DateTime?
+  // Metadatos del Expediente S10
+  s10Location           String?              // Ej: "LA LIBERTAD - SANTIAGO DE CHUCO - QUIRUVILCA"
+  s10Ubigeo             String?              // Ej: "131006"
+  s10BudgetDate         DateTime?            // Fecha original del presupuesto S10
 
-  s10TotalBudget        Decimal?             @db.Decimal(14, 2)
-  s10MaterialsBudget    Decimal?             @db.Decimal(14, 2)
-  s10EquipmentBudget    Decimal?             @db.Decimal(14, 2)
-  s10LaborBudget        Decimal?             @db.Decimal(14, 2)
-  s10SubcontractsBudget Decimal?             @db.Decimal(14, 2)
+  // Totales y KPIs Financieros S10 (PEN)
+  s10TotalBudget        Decimal?             @db.Decimal(14, 2) // Costo Directo Total de Recursos
+  s10MaterialsBudget    Decimal?             @db.Decimal(14, 2) // Subtotal Grupo 02 (Materiales)
+  s10EquipmentBudget    Decimal?             @db.Decimal(14, 2) // Subtotal Grupo 03 (Equipos/Herramientas)
+  s10LaborBudget        Decimal?             @db.Decimal(14, 2) // Subtotal Grupo 01 (Mano de Obra)
+  s10SubcontractsBudget Decimal?             @db.Decimal(14, 2) // Subtotal Grupo 04 (Subcontratos)
+
+  // Archivo S10 persistido en almacenamiento local
+  s10FilePath           String?
+  s10FileName           String?
+  s10UploadedAt         DateTime?
 
   warehouse             Warehouse?
   requirements          ProjectRequirement[]
@@ -377,10 +404,10 @@ model ProjectRequirement {
   id           String   @id @default(uuid())
   projectId    String
   itemId       String
-  requiredQty  Decimal  @db.Decimal(12, 4)
-  allocatedQty Decimal  @default(0) @db.Decimal(12, 4)
-  consumedQty  Decimal  @default(0) @db.Decimal(12, 4)
-  s10UnitPrice Decimal? @db.Decimal(14, 4)
+  requiredQty  Decimal  @db.Decimal(12, 4) // Demanda total segun S10
+  allocatedQty Decimal  @default(0) @db.Decimal(12, 4) // Stock reservado en Almacen Central
+  consumedQty  Decimal  @default(0) @db.Decimal(12, 4) // Stock consumido definitivamente en obra
+  s10UnitPrice Decimal? @db.Decimal(14, 4) // Costo unitario programado en expediente S10
 
   project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   item         Item     @relation(fields: [itemId], references: [id])
@@ -408,17 +435,18 @@ model Supplier {
 model Purchase {
   id                 String               @id @default(uuid())
   supplierId         String
-  warehouseId        String?
-  invoiceSeries      String
+  warehouseId        String?              // Almacen de destino (CENTRAL o caseta de obra)
+  invoiceSeries      String               // Factura o comprobante ej. F001-0004523
   voucherType        String               @default("FACTURA")
   hasIgv             Boolean              @default(true)
   currency           Currency             @default(PEN)
   exchangeRate       Decimal              @default(1.0000) @db.Decimal(8, 4)
   issueDate          DateTime
-  subtotalPEN        Decimal              @db.Decimal(14, 2)
-  igvAmountPEN       Decimal              @default(0) @db.Decimal(14, 2)
+  subtotalPEN        Decimal              @db.Decimal(14, 2) // Base imponible neta computable a stock
+  igvAmountPEN       Decimal              @default(0) @db.Decimal(14, 2) // IGV 18% para cotejo contable
   totalAmountPEN     Decimal              @db.Decimal(14, 2)
-  notes              String?              @db.Text
+  notes              String?              @db.Text // Observaciones generales de compra / fechas de caducidad
+  isEdited           Boolean              @default(false)
   isReverted         Boolean              @default(false)
   revertedAt         DateTime?
   revertedById       String?
@@ -442,20 +470,25 @@ model Purchase {
 }
 
 model PurchaseDetail {
-  id                String   @id @default(uuid())
+  id                String       @id @default(uuid())
   purchaseId        String
   itemId            String
-  purchaseUnit      String
-  conversionFactor  Decimal  @default(1.0000) @db.Decimal(10, 4)
-  purchaseQty       Decimal  @db.Decimal(12, 4)
-  baseQty           Decimal  @db.Decimal(12, 4)
-  unitPriceOriginal Decimal  @db.Decimal(14, 4)
-  unitCostBasePEN   Decimal  @db.Decimal(14, 4)
-  subtotalPEN       Decimal  @db.Decimal(14, 2)
-  notes             String?  @db.Text
+  purchaseUnit      String       // Unidad de compra ej. PALLET, MILLAR, BOLSA
+  conversionFactor  Decimal      @default(1.0000) @db.Decimal(10, 4) // Factor hacia Item.baseUnit
+  purchaseQty       Decimal      @db.Decimal(12, 4)
+  baseQty           Decimal      @db.Decimal(12, 4) // purchaseQty * conversionFactor
+  unitPriceOriginal Decimal      @db.Decimal(14, 4) // Precio unitario neto en moneda original
+  unitCostBasePEN   Decimal      @db.Decimal(14, 4) // Costo neto por unidad base en Soles
+  subtotalPEN       Decimal      @db.Decimal(14, 2)
+  discountType      DiscountType @default(NONE)
+  discountValue     Decimal      @default(0) @db.Decimal(12, 4)
+  discountAmountPEN Decimal      @default(0) @db.Decimal(14, 2)
+  lotNumber         String?
+  expirationDate    DateTime?
+  notes             String?      @db.Text // Observacion especifica de linea / lote o vencimiento
 
-  purchase          Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
-  item              Item     @relation(fields: [itemId], references: [id])
+  purchase          Purchase     @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  item              Item         @relation(fields: [itemId], references: [id])
 
   @@index([purchaseId])
   @@index([itemId])
@@ -534,9 +567,9 @@ model Movement {
   userId             String
   transferId         String?
 
-  recipientName      String?
-  recipientDni       String?
-  shrinkageReason    String?
+  recipientName      String?              // Operario o capataz receptor
+  recipientDni       String?              // DNI del operario
+  shrinkageReason    String?              // Requerido en SHRINKAGE_EXIT
   observation        String?
   isReverted         Boolean              @default(false)
   revertedAt         DateTime?
@@ -573,9 +606,9 @@ model MovementItem {
   id                String   @id @default(uuid())
   movementId        String
   itemId            String
-  quantity          Decimal  @db.Decimal(12, 4)
-  unitCostSnapshot  Decimal  @db.Decimal(14, 4)
-  totalCostSnapshot Decimal  @db.Decimal(14, 2)
+  quantity          Decimal  @db.Decimal(12, 4) // En baseUnit
+  unitCostSnapshot  Decimal  @db.Decimal(14, 4) // CPP congelado al momento del movimiento
+  totalCostSnapshot Decimal  @db.Decimal(14, 2) // quantity * unitCostSnapshot
 
   movement          Movement @relation(fields: [movementId], references: [id], onDelete: Cascade)
   item              Item     @relation(fields: [itemId], references: [id])
@@ -593,10 +626,10 @@ model ToolCustody {
   custodyNumber       String               @unique // VALE-2026-00001
   itemId              String
   warehouseId         String
-  quantity            Decimal              @default(1) @db.Decimal(12, 4)
-  serialOrCode        String?
-  assignedToName      String
-  assignedToDni       String
+  quantity            Decimal              @default(1) @db.Decimal(12, 4) // Soporta N unidades de herramientas menores
+  serialOrCode        String?              // Codigo patrimonial o serie de equipo mayor
+  assignedToName      String               // Operario
+  assignedToDni       String               // DNI del operario
 
   dispatchedById      String
   receivedById        String?
@@ -645,10 +678,10 @@ model DocumentAttachment {
   proofType      String?      // DISPATCH | RETURN
 
   originalName   String
-  storedPath     String
+  storedPath     String       // Ruta interna segura
   mimeType       String
   fileSizeBytes  Int
-  isConfidential Boolean      @default(false)
+  isConfidential Boolean      @default(false) // True si contiene precios ej. facturas
 
   purchase       Purchase?    @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   transfer       Transfer?    @relation(fields: [transferId], references: [id], onDelete: Cascade)
@@ -719,7 +752,7 @@ model DocumentSequence {
 
 ## 5. Catalogo Exhaustivo de Endpoints REST (`/api/v1/*`)
 
-Todos los endpoints estan protegidos por defecto con `JwtAuthGuard` (salvo rutas `@Public()` como `/auth/login`, `/auth/refresh` y `/health`) y aplican validacion de roles (`RolesGuard`) y control de acceso por almacen (`WarehouseAccessGuard`).
+Todos los endpoints estan protegidos por defecto con `JwtAuthGuard` (salvo rutas publicas como `/auth/login`, `/auth/refresh` y `/health`) y aplican validacion de roles (`RolesGuard`) y control de acceso por almacen (`WarehouseAccessGuard`).
 
 ### 5.1. Autenticacion y Usuarios
 - `POST   /auth/login`                          -> [Publico] Emision de JWT (Access + Refresh Token) y perfil de usuario.
@@ -733,6 +766,7 @@ Todos los endpoints estan protegidos por defecto con `JwtAuthGuard` (salvo rutas
 
 ### 5.2. Almacenes y Stocks
 - `GET    /warehouses`                          -> Listado de almacenes activos (global para `ADMIN`/`MODERATOR`, filtrado por `UserWarehouse` para `WAREHOUSE_KEEPER`).
+- `GET    /warehouses/available-for-project`    -> [ADMIN, MODERATOR] Listado de almacenes activos de tipo `PROJECT_SITE` sin proyecto asignado (`projectId = null`).
 - `POST   /warehouses`                          -> [ADMIN, MODERATOR] Creacion de almacen Central o de Obra.
 - `GET    /warehouses/:id`                      -> Detalle del almacen.
 - `PUT    /warehouses/:id`                      -> [ADMIN, MODERATOR] Actualizacion del almacen.
@@ -741,14 +775,17 @@ Todos los endpoints estan protegidos por defecto con `JwtAuthGuard` (salvo rutas
 - `PATCH  /warehouses/:id/stock/:itemId/valuation` -> [ADMIN, MODERATOR] Valorizacion manual de CPP en stock.
 
 ### 5.3. Catalogo de Items, Categorias, Alias S10 y Unidades de Medida
-- `GET    /items`                               -> Lista paginada de insumos (filtros por SKU/nombre, tipo, categoria y `isPerishable`).
-- `GET    /items/next-sku`                      -> Previsualizacion de siguiente SKU sugerido (`MAT`/`HER`/`EQU`/`MAQ`).
-- `POST   /items`                               -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Alta de item (almacenero con SKU automatico y costo inicial cero).
-- `GET    /items/perishable-alerts`             -> Alertas de perecibles con stock positivo y fecha de ultima compra vigente (`isReverted = false`).
+- `GET    /items`                               -> Lista paginada de insumos (filtros por SKU/nombre, tipo incluyendo `SERVICE`, categoria, `isPerishable`, `includeInactive`, `lowStockOnly` y `warehouseId`; `lowStockOnly` excluye inactivos y `SERVICE`).
+- `GET    /items/next-sku`                      -> Previsualizacion de siguiente SKU sugerido (`MAT`/`HER`/`EQU`/`MAQ`/`SER`).
+- `POST   /items`                               -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Alta de item con soporte de `trackLot` y `trackExpiration` (almacenero con SKU automatico y costo inicial cero; rechaza `initialStock` positivo para `SERVICE`).
+- `GET    /items/perishable-alerts`             -> Alertas de perecibles activos con stock positivo y fecha de ultima compra vigente (`isReverted = false`).
+- `GET    /items/aliases`                       -> [ADMIN, MODERATOR] Listado paginado de equivalencias S10 (`ItemAlias`) con busqueda y filtro por `itemId`.
+- `POST   /items/aliases`                       -> [ADMIN, MODERATOR] Registro de equivalencia S10 (`ItemAlias`, relacion `1:N` por `itemId`, `s10RawName` unico; rechaza items inactivos).
+- `PUT    /items/aliases/:id`                   -> [ADMIN, MODERATOR] Actualizacion de equivalencia S10 (`itemId`, `s10RawName`, `s10Code`, `s10Unit`, `conversionFactor`).
+- `DELETE /items/aliases/:id`                   -> [ADMIN, MODERATOR] Eliminacion de alias S10.
 - `GET    /items/:id`                           -> Detalle de item con consolidado de stock, alias y estadisticas transaccionales.
-- `PUT    /items/:id`                           -> [ADMIN, MODERATOR] Modificacion de datos base y doble confirmacion para cambio de `baseUnit`.
-- `POST   /items/aliases`                       -> [ADMIN, MODERATOR] Registro de equivalencia S10 (`ItemAlias`).
-- `DELETE /items/aliases/:id`                   -> [ADMIN, MODERATOR] Eliminacion de alias.
+- `PUT    /items/:id`                           -> [ADMIN, MODERATOR] Modificacion de datos base (`trackLot`, `trackExpiration`, etc.) y doble confirmacion para cambio de `baseUnit`.
+- `DELETE /items/:id`                           -> [ADMIN] Eliminacion segura de item (exige stock fisico = 0, reservado = 0 y cero custodias abiertas; borrado fisico sin historial o borrado logico `isActive = false` con historial).
 - `GET    /item-categories`                     -> Listado de clasificaciones personalizadas.
 - `POST   /item-categories`                     -> [ADMIN, MODERATOR] Crear clasificacion personalizada.
 - `PATCH  /item-categories/:id`                 -> [ADMIN, MODERATOR] Actualizar clasificacion.
@@ -764,14 +801,16 @@ Todos los endpoints estan protegidos por defecto con `JwtAuthGuard` (salvo rutas
 - `POST   /suppliers`                           -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Registro de proveedor.
 - `GET    /suppliers/:id`                       -> Detalle de proveedor.
 - `PUT    /suppliers/:id`                       -> [ADMIN, MODERATOR] Actualizacion de proveedor.
-- `GET    /purchases`                           -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Historial de compras (almacenero restringido a sus sedes y costos enmascarados; soporta `includeReverted`).
-- `GET    /purchases/price-comparison`          -> [ADMIN, MODERATOR] Cuadro comparativo de precios historicos por insumo.
-- `POST   /purchases`                           -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Registro de compra y recalculo atomico de CPP en sede destino.
+- `GET    /purchases`                           -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Historial de compras con filtros `voidFilter` (`ACTIVE_ONLY`, `ALL`, `VOIDED_ONLY`), `includeReverted`, `onlyEdited` y objeto `summary` global calculado via `aggregate` (almacenero restringido a sus sedes y montos enmascarados).
+- `GET    /purchases/price-comparison`          -> [ADMIN, MODERATOR] Cuadro comparativo de precios historicos por insumo (incluye descuentos, lote y caducidad).
+- `POST   /purchases`                           -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Registro de compra con descuentos comerciales por linea (NIC 2), `lotNumber`/`expirationDate`, validacion `exchangeRate > 0` en USD y recalculo atomico de CPP (excluye `SERVICE` de Stock/CPP/Kardex).
 - `GET    /purchases/:id`                       -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Detalle de factura.
-- `PATCH  /purchases/:id/valuation`             -> [ADMIN, MODERATOR] Valorizacion formal de compra ingresada a precio cero.
-- `POST   /purchases/:id/revert`                -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Reversion de compra (Nivel 1): valida stock, recalcula CPP inverso y emite `REVERSAL_EXIT`.
-- `PATCH  /purchases/:id`                       -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Edicion no contable de metadatos de compra y notas por renglon (Nivel 2).
-- `POST   /purchases/:id/replace`               -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Reemplazo atomico de compra (Nivel 3).
+- `PATCH  /purchases/:id/valuation`             -> [ADMIN, MODERATOR] Valorizacion formal de compra ingresada a precio cero con soporte de descuentos, lote/caducidad y sincronizacion de snapshot en Kardex.
+- `POST   /purchases/:id/revert`                -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Reversion de compra (Nivel 1): valida stock, recalcula CPP inverso y emite `REVERSAL_EXIT` (omite lineas `SERVICE`).
+- `PATCH  /purchases/:id`                       -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Edicion no contable de metadatos de compra, notas, `lotNumber` y `expirationDate` por renglon (Nivel 2; marca `isEdited = true`).
+- `POST   /purchases/:id/replace`               -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Reemplazo atomico de compra (Nivel 3; marca `isEdited = true` y preserva adjuntos previos en el nuevo comprobante).
+- `POST   /purchases/:id/attachments`           -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Carga de fotos (WebP) o PDFs adicionales a una compra existente (`isConfidential = true`; almacenero limitado a sus sedes).
+- `DELETE /purchases/:id/attachments/:attachmentId` -> [ADMIN] Eliminacion fisica y logica de un adjunto especifico de la compra.
 
 ### 5.5. Transferencias en Dos Fases
 - `GET    /transfers`                           -> Listado de transferencias (filtros por origen, destino, estado, `projectId` e `includeReverted`).
@@ -787,11 +826,11 @@ Todos los endpoints estan protegidos por defecto con `JwtAuthGuard` (salvo rutas
 ### 5.6. Salidas de Consumo y Kardex
 - `GET    /movements`                           -> Consulta del Kardex (`includeReverted`; oculta costos a almaceneros).
 - `GET    /movements/:id`                       -> Detalle completo de movimiento.
-- `POST   /movements/consumption`               -> Salida por consumo en obra a cuadrilla/capataz.
+- `POST   /movements/consumption`               -> Salida por consumo en obra a cuadrilla/capataz (solo `CONSUMABLE`).
 - `POST   /movements/shrinkage`                 -> Registro directo de merma o perdida fisica.
 - `POST   /movements/initial-stock`             -> Carga de stock fisico inicial en caseta o sede.
 - `POST   /movements/adjustment`                -> [ADMIN, MODERATOR] Ajuste formal de inventario fisico.
-- `POST   /movements/:id/revert`                -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Reversion contable de movimiento directo (`INVENTORY_ADJUSTMENT` restringido a `ADMIN`/`MODERATOR`).
+- `POST   /movements/:id/revert`                -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Reversion contable de movimiento directo (`INVENTORY_ADJUSTMENT` formal restringido a `ADMIN`/`MODERATOR`).
 - `PATCH  /movements/:id`                       -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Edicion no contable de metadatos del movimiento (Nivel 2).
 - `POST   /movements/:id/replace-consumption`   -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Reemplazo atomico de salida por consumo (Nivel 3).
 - `POST   /movements/:id/replace-shrinkage`     -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Reemplazo atomico de salida por merma (Nivel 3).
@@ -809,11 +848,16 @@ Todos los endpoints estan protegidos por defecto con `JwtAuthGuard` (salvo rutas
 
 ### 5.8. Proyectos y Motor S10
 - `GET    /projects`                            -> Listado de proyectos accesibles.
-- `POST   /projects`                            -> [ADMIN, MODERATOR] Creacion de proyecto y su Almacen de Obra temporal.
-- `GET    /projects/:id`                        -> Detalle de proyecto y requerimientos S10.
-- `PUT    /projects/:id`                        -> [ADMIN, MODERATOR] Actualizacion de proyecto.
+- `POST   /projects`                            -> [ADMIN, MODERATOR] Creacion de proyecto vinculando un almacen `PROJECT_SITE` existente (`warehouseId`) o creando automaticamente su almacen temporal.
+- `GET    /projects/:id`                        -> Detalle de proyecto, archivo S10 y requerimientos presupuestados.
+- `PUT    /projects/:id`                        -> [ADMIN, MODERATOR] Actualizacion de proyecto y cambio seguro de almacen `PROJECT_SITE` (validacion estricta `409 Conflict`).
 - `POST   /projects/:id/ingest-s10`             -> [ADMIN, MODERATOR] Ingesta JSON estructurada de presupuesto S10.
-- `POST   /projects/:id/s10-import`             -> [ADMIN, MODERATOR] Carga y parseo de archivo CSV S10.
+- `POST   /projects/:id/s10-import`             -> [ADMIN, MODERATOR] Carga, parseo y persistencia local (`UPLOAD_DIR/s10/`) de archivo CSV/TXT S10.
+- `GET    /projects/:id/s10-file`               -> Descarga en streaming del archivo CSV/TXT S10 persistido (almacenero limitado a sus sedes).
+- `DELETE /projects/:id/s10-file`               -> [ADMIN, MODERATOR] Eliminacion fisica del archivo S10 y limpieza de metadatos en `Project`.
+- `POST   /projects/:id/requirements`           -> [ADMIN] Alta manual de un insumo activo en la Matriz de Brechas del proyecto.
+- `PUT    /projects/:id/requirements/:reqId`    -> [ADMIN] Edicion de `requiredQty`, `s10UnitPrice` o reasignacion de `itemId` en la Matriz de Brechas.
+- `DELETE /projects/:id/requirements/:reqId`    -> [ADMIN] Eliminacion de una fila de requerimiento sin reserva ni consumo en la Matriz de Brechas.
 - `GET    /projects/:id/gap-analysis`           -> Matriz de brechas (costos ocultos a almaceneros; excluye compras revertidas en `minHistoricalUnitCost`).
 - `POST   /projects/:id/allocate-stock`         -> [ADMIN, MODERATOR] Reserva logica en Almacen Central.
 - `POST   /projects/:id/release-stock`          -> [ADMIN, MODERATOR] Liberacion de reserva de stock.
@@ -844,7 +888,7 @@ Todos los endpoints estan protegidos por defecto con `JwtAuthGuard` (salvo rutas
 - `POST   /machinery/shifts/:id/revert`         -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Anulacion de jornada (`isReverted = true`) (Nivel 1).
 
 ### 5.12. Dashboard y Analitica
-- `GET    /dashboard/metrics`                   -> Indicadores ejecutivos consolidados (oculta cifras financieras a almaceneros; excluye anulados).
-- `GET    /dashboard/stock-comparison`          -> Comparativa de existencias y top valorizacion por sede.
+- `GET    /dashboard/metrics`                   -> Indicadores ejecutivos consolidados (oculta cifras financieras a almaceneros; excluye items inactivos, anulados y excluye `SERVICE` en `criticalItemsCount`).
+- `GET    /dashboard/stock-comparison`          -> Comparativa de existencias entre Central y Obras (excluye items inactivos).
 - `GET    /dashboard/urgent-replenishments`     -> Listado de alertas de stock minimo prioritario.
 - `GET    /dashboard/logical-reservations`      -> Resumen de reservas logicas activas en Central.

@@ -58,7 +58,46 @@ Retorna los almacenes a los que el usuario tiene acceso.
 
 ---
 
-### 2.2 Crear Nuevo Almacen
+### 2.2 Listar Almacenes Disponibles para Proyecto
+Retorna los almacenes de obra (`PROJECT_SITE`) que se encuentran activos (`isActive: true`) y aun no han sido vinculados a ningun proyecto (`projectId: null`), ordenados alfabeticamente por nombre. Se utiliza al crear o editar proyectos civiles para ofrecer sedes de caseta disponibles.
+
+- **Metodo:** `GET`
+- **Ruta:** `/api/v1/warehouses/available-for-project`
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken_admin>`
+
+*Nota de Enrutamiento:* Esta ruta estatica se registra antes de `GET /api/v1/warehouses/:id` para evitar colisiones con el parametro dinamico `:id`.
+
+#### Respuestas
+**200 OK - Listado de almacenes disponibles:**
+```json
+[
+  {
+    "id": "55555555-5555-5555-5555-555555555555",
+    "name": "Almacen Obra Puente Sur",
+    "type": "PROJECT_SITE",
+    "isTemporary": true,
+    "isActive": true,
+    "projectId": null,
+    "createdAt": "2026-11-20T14:00:00.000Z",
+    "updatedAt": "2026-11-20T14:00:00.000Z"
+  }
+]
+```
+
+**403 Forbidden - Rol sin autorizacion (ej. `WAREHOUSE_KEEPER`):**
+```json
+{
+  "statusCode": 403,
+  "message": "Forbidden resource",
+  "error": "Forbidden"
+}
+```
+
+---
+
+### 2.3 Crear Nuevo Almacen
 Registra una nueva sede de almacenamiento en el sistema. Permite vincular un proyecto civil para almacenes temporales de obra.
 
 - **Metodo:** `POST`
@@ -114,7 +153,7 @@ Registra una nueva sede de almacenamiento en el sistema. Permite vincular un pro
 
 ---
 
-### 2.3 Obtener Detalle de un Almacen
+### 2.4 Obtener Detalle de un Almacen
 Consulta la ficha tecnica de un almacen por su identificador. Si el usuario es `WAREHOUSE_KEEPER`, se valida mediante `WarehouseAccessGuard` que tenga asignado dicho almacen.
 
 - **Metodo:** `GET`
@@ -159,7 +198,7 @@ Consulta la ficha tecnica de un almacen por su identificador. Si el usuario es `
 
 ---
 
-### 2.4 Actualizar Almacen
+### 2.5 Actualizar Almacen
 Modifica nombre, estado o proyecto vinculado de una instalacion.
 
 - **Metodo:** `PUT`
@@ -203,7 +242,7 @@ Modifica nombre, estado o proyecto vinculado de una instalacion.
 
 ---
 
-### 2.5 Consultar Existencias de Stock
+### 2.6 Consultar Existencias de Stock
 Retorna el inventario en piso del almacen con filtro opcional por termino de busqueda y tipo de item.
 Aplica `CostMaskingInterceptor` para proteger costos financieros ante usuarios de caseta. Las cantidades fisicas (`physicalQty`, `reservedQty`, `loanedQty`) se preservan de forma estricta como instancias escalares y nunca se desglosan en estructuras de objeto, garantizando que el almacenero consulte existencias legitimas sin bloqueos tecnicos.
 
@@ -216,7 +255,7 @@ Aplica `CostMaskingInterceptor` para proteger costos financieros ante usuarios d
 #### Parametros
 - `id` (URL Path): UUID del almacen.
 - `search` (Query Param, opcional): Termino de texto para filtrar por SKU o nombre de item.
-- `type` (Query Param, opcional): `CONSUMABLE`, `TOOL`, `EQUIPMENT` o `MACHINERY`.
+- `type` (Query Param, opcional): `CONSUMABLE`, `TOOL`, `EQUIPMENT`, `MACHINERY` o `SERVICE`.
 
 **Ejemplo de URL con filtros:**
 ```http
@@ -272,7 +311,7 @@ GET /api/v1/warehouses/44444444-4444-4444-4444-444444444444/stock?search=cemento
 
 ---
 
-### 2.6 Consultar Alertas de Stock Minimo
+### 2.7 Consultar Alertas de Stock Minimo
 Determina y lista de manera reactiva todos los insumos cuyo stock fisico (`physicalQty`) es menor o igual al umbral minimo configurado (`minStockAlert`), indicando la cantidad faltante para reposicion inmediata.
 
 - **Metodo:** `GET`
@@ -317,7 +356,7 @@ Determina y lista de manera reactiva todos los insumos cuyo stock fisico (`physi
 
 ---
 
-### 2.7 Actualizar Manualmente Valoracion de Stock (CPP)
+### 2.8 Actualizar Manualmente Valoracion de Stock (CPP)
 Permite al Administrador corporativo fijar o actualizar el Costo Promedio Ponderado (`averageCost`) de un insumo especifico en una sede determinada. Se utiliza para valorizar contablemente inventarios fisicos levantados en caseta a costo cero o para corregir desviaciones de costeo.
 
 - **Metodo:** `PATCH`

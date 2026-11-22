@@ -1,19 +1,23 @@
 # Modulo 10 - Documentos Seguros y Evidencias (Documents & Storage)
 
 ## 1. Descripcion General
-Este modulo proporciona almacenamiento seguro para evidencias fisicas, guias de remision, facturas SUNAT y actas de rotura/extravio de herramientas.
+Este modulo proporciona almacenamiento seguro en disco local para evidencias fisicas, guias de remision, facturas SUNAT, actas de rotura/extravio de herramientas y archivos fuente de presupuestos S10.
 
 ### Caracteristicas de Seguridad y Procesamiento:
 - **Proteccion de Confidencialidad (`isConfidential`):**
   - Los documentos marcados como confidenciales (como facturas de proveedores con precios unitarios) son accesibles para `ADMIN` y `MODERATOR`. Un usuario `WAREHOUSE_KEEPER` solo puede consultar o descargar adjuntos confidenciales vinculados a compras de sus almacenes asignados en `UserWarehouse`.
   - Si un `WAREHOUSE_KEEPER` intenta descargar un archivo confidencial sin autorizacion de sede o de otro modulo, el servidor responde `403 Forbidden`.
 - **Pipeline de Optimizacion de Imagenes con Sharp:**
-  - Las fotos capturadas desde smartphones en obra (formatos JPEG, PNG) se procesan y convierten automaticamente al formato optimizado WebP con calidad del 85% para reducir el consumo de datos moviles.
-- **Validacion Estricta de Mime-Type:**
-  - Tipos permitidos: `image/jpeg`, `image/png`, `image/webp`, `application/pdf`. Tamano maximo por archivo: 10 MB para fotografias e imagenes, 15 MB para expedientes tecnicos y facturas PDF.
+  - Las fotos capturadas desde smartphones en obra (formatos JPEG, PNG, WebP) se procesan, redimensionan hasta un maximo de `1920x1080` px (`fit: 'inside'`, sin ampliacion) y se convierten automaticamente al formato optimizado WebP con calidad del 80% para reducir el consumo de datos moviles y almacenamiento.
+- **Validacion Estricta de Mime-Type y Cabecera Magica:**
+  - Tipos permitidos en endpoints de evidencias: `image/jpeg`, `image/png`, `image/webp`, `application/pdf`. Tamano maximo por archivo: 10 MB para fotografias e imagenes, 15 MB para expedientes tecnicos y facturas PDF (verificados contra cabecera `%PDF-`).
+- **Almacenamiento Organizado y Proteccion contra Path Traversal:**
+  - Los archivos se almacenan bajo el directorio configurado en la variable de entorno `UPLOAD_DIR` (por defecto `./uploads`), organizados por categoria y fecha (`purchases/YYYY/MM/`, `transfers/YYYY/MM/`, `movements/YYYY/MM/`, `custody/YYYY/MM/`, `general/YYYY/MM/`) y en el subdirectorio dedicado `s10/` para archivos de presupuesto S10 (`.csv`/`.txt`).
+  - `StorageService.getAbsoluteFilePath` valida que toda ruta resuelta permanezca estrictamente dentro de `UPLOAD_DIR`.
 
 - **Ruta Base:** `/api/v1/documents`
-- **Entidades Vinculadas:** `DocumentAttachment`, `Purchase`, `Transfer`, `Movement`, `ToolCustody`
+- **Entidades Vinculadas:** `DocumentAttachment`, `Purchase`, `Transfer`, `Movement`, `ToolCustody`, `Project`
+- **Servicios Exportados:** `DocumentsService`, `StorageService` (exportados por `DocumentsModule` para consumo de `PurchasesModule` y `ProjectsModule`)
 
 ---
 
@@ -55,7 +59,7 @@ curl -X POST "http://localhost:3000/api/v1/documents/upload" \
 {
   "id": "doc-uuid-1",
   "originalName": "guia_remision_obra.jpg",
-  "storedPath": "uploads/transfers/2026/09/transf-uuid-1-1784745600.webp",
+  "storedPath": "transfers/2026/09/uuid-generado.webp",
   "mimeType": "image/webp",
   "fileSizeBytes": 184200,
   "isConfidential": false,
@@ -77,7 +81,7 @@ curl -X POST "http://localhost:3000/api/v1/documents/upload" \
 ---
 
 ### 2.2 Cargar Multiples Archivos y Evidencias Simultaneas (Upload Multiple)
-Permite subir hasta 10 archivos de forma paralela en una unica transaccion HTTP. Cada fotografia es procesada concurrentemente por Sharp hacia WebP (calidad 80%, maximo 1920x1080 px) y los PDFs son verificados contra cabecera magica.
+Permite subir hasta 10 archivos de forma paralela en una unica transaccion HTTP. Cada fotografia es procesada concurrentemente por Sharp hacia WebP (calidad 80%, maximo 1920x1080 px) y los PDFs son verificados contra cabecera magica (`%PDF-`).
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/documents/upload-multiple`
@@ -113,7 +117,7 @@ curl -X POST "http://localhost:3000/api/v1/documents/upload-multiple" \
   {
     "id": "doc-uuid-1",
     "originalName": "factura.pdf",
-    "storedPath": "uploads/purchases/2026/10/pur-uuid-1-factura.pdf",
+    "storedPath": "purchases/2026/10/uuid-factura.pdf",
     "mimeType": "application/pdf",
     "fileSizeBytes": 450200,
     "isConfidential": true,
@@ -124,7 +128,7 @@ curl -X POST "http://localhost:3000/api/v1/documents/upload-multiple" \
   {
     "id": "doc-uuid-2",
     "originalName": "voucher_banco.jpg",
-    "storedPath": "uploads/purchases/2026/10/pur-uuid-1-voucher.webp",
+    "storedPath": "purchases/2026/10/uuid-voucher.webp",
     "mimeType": "image/webp",
     "fileSizeBytes": 128400,
     "isConfidential": true,
@@ -147,7 +151,7 @@ curl -X POST "http://localhost:3000/api/v1/documents/upload-multiple" \
 ---
 
 ### 2.3 Listar Documentos Registrados
-Consulta el listado de documentos y evidencias adjuntas con filtros por entidad foranea y paginacion. Si el usuario tiene rol `WAREHOUSE_KEEPER`, el backend filtra de forma transparente los documentos marcados como confidenciales (`isConfidential = false`).
+Consulta el listado de documentos y evidencias adjuntas con filtros por entidad foranea y paginacion. Si el usuario tiene rol `WAREHOUSE_KEEPER`, el backend limita de forma transparente los resultados a documentos no confidenciales (`isConfidential = false`) o adjuntos vinculados a compras pertenecientes a sus almacenes autorizados en `UserWarehouse`.
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/documents`
@@ -164,7 +168,7 @@ Consulta el listado de documentos y evidencias adjuntas con filtros por entidad 
 | `custodyId` | UUID | opcional | Filtrar por vale de custodia o acta de dano. |
 | `proofType` | string (`DISPATCH` \| `RETURN`) | opcional | Filtrar por tipo de evidencia de custodia. |
 | `page` | integer | `1` | Numero de pagina. |
-| `limit` | integer | `20` | Cantidad de registros por pagina. |
+| `limit` | integer | `20` | Cantidad de registros por pagina (maximo `100`). |
 
 #### Respuestas
 **200 OK - Listado obtenido:**
@@ -174,7 +178,7 @@ Consulta el listado de documentos y evidencias adjuntas con filtros por entidad 
     {
       "id": "doc-uuid-1",
       "originalName": "guia_remision_obra.jpg",
-      "storedPath": "uploads/transfers/2026/09/transf-uuid-1-1784745600.webp",
+      "storedPath": "transfers/2026/09/uuid-generado.webp",
       "mimeType": "image/webp",
       "fileSizeBytes": 184200,
       "isConfidential": false,
@@ -242,7 +246,7 @@ Obtiene la ficha JSON de metadatos de un archivo adjunto sin transmitir el flujo
 {
   "id": "doc-uuid-1",
   "originalName": "guia_remision_obra.jpg",
-  "storedPath": "uploads/transfers/2026/09/transf-uuid-1-1784745600.webp",
+  "storedPath": "transfers/2026/09/uuid-generado.webp",
   "mimeType": "image/webp",
   "fileSizeBytes": 184200,
   "isConfidential": false,
@@ -276,3 +280,47 @@ Elimina el registro de la base de datos y borra el archivo fisico del almacenami
   "deleted": true
 }
 ```
+
+---
+
+## 3. Servicios Internos Exportados y Almacenamiento Especializado
+
+`DocumentsModule` exporta `DocumentsService` y `StorageService` para ofrecer operaciones especializadas de almacenamiento y control de integridad a otros modulos del ERP.
+
+### 3.1 `DocumentsService.removePurchaseAttachment(purchaseId, attachmentId)`
+Metodo de servicio invocado por el endpoint `DELETE /api/v1/purchases/:id/attachments/:attachmentId` (exclusivo `ADMIN`, ver Modulo 05) para garantizar aislamiento entre compras al eliminar evidencias.
+
+- **Firma:** `removePurchaseAttachment(purchaseId: string, attachmentId: string)`
+- **Logica Ejecutada:**
+  1. Busca el registro `DocumentAttachment` por `attachmentId`.
+  2. Valida que el registro exista y que pertenezca exactamente a la compra indicada (`doc.purchaseId === purchaseId`). En caso contrario, lanza `NotFoundException` (`404 Not Found`: `"Adjunto no encontrado para el comprobante de compra especificado"`).
+  3. Elimina el archivo fisico en disco mediante `storageService.deleteFile(doc.storedPath)`.
+  4. Elimina el registro en la tabla `DocumentAttachment`.
+- **Retorno:**
+```json
+{
+  "id": "doc-uuid-1",
+  "purchaseId": "purch-uuid-1",
+  "deleted": true
+}
+```
+
+---
+
+### 3.2 `StorageService.saveS10File(buffer, projectId, originalName?)`
+Metodo de almacenamiento dedicado para persistir los archivos fuente de presupuestos S10 (`.csv` o `.txt`) subidos desde el modulo de proyectos (`ProjectsModule`).
+
+- **Firma:** `saveS10File(buffer: Buffer, projectId: string, originalName?: string): Promise<SavedFileResult>`
+- **Comportamiento y Reglas:**
+  - **Ubicacion en Disco:** Guarda el archivo en el subdirectorio `s10/` dentro de `UPLOAD_DIR` (`config.uploads.dir`, por defecto `./uploads`), creando el directorio de forma recursiva si no existe.
+  - **Normalizacion de Extension y MIME:** Evalua `path.extname(originalName || '').toLowerCase()`. Si es `.txt`, conserva extension `.txt` con `mimeType: "text/plain"`; en cualquier otro caso asigna extension `.csv` con `mimeType: "text/csv"`.
+  - **Nomenclatura Segura:** Genera un nombre unico `s10-<projectId>-<uuid><ext>`, devolviendo como ruta relativa `storedPath = "s10/s10-<projectId>-<uuid><ext>"`.
+  - **Retorno (`SavedFileResult`):**
+```json
+{
+  "storedPath": "s10/s10-proj-uuid-1-8a9b7c6d-1234-4abc-9def-0123456789ab.csv",
+  "mimeType": "text/csv",
+  "fileSizeBytes": 42150
+}
+```
+  - **Integracion:** La ruta resultante se persiste en la entidad `Project` (`s10FilePath`, `s10FileName`, `s10UploadedAt`) y puede descargarse posteriormente de forma segura via `StorageService.getFileStream(storedPath)`.

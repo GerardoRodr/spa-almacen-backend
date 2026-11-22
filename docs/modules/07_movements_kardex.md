@@ -14,7 +14,7 @@ Este modulo implementa el libro mayor contable y operativo del inventario (Karde
   - `LOAN_DISPATCH`: Salida de herramienta para custodia temporal.
   - `LOAN_RETURN`: Retorno fisico de herramienta a caseta.
   - `SHRINKAGE_EXIT`: Perdida, merma en ruta o rotura no recuperable.
-  - `INVENTORY_ADJUSTMENT`: Regularizacion por toma fisica (`ADMIN` o `MODERATOR` en `/adjustment`) o carga inicial de inventario (`/initial-stock`).
+  - `INVENTORY_ADJUSTMENT`: Regularizacion por toma fisica (`ADMIN` o `MODERATOR` en `/adjustment`, mantenido por compatibilidad interna) o carga inicial de inventario (`/initial-stock`).
   - `REVERSAL_ENTRY`: Contra-asiento de reingreso al stock por anulacion de una salida, merma o despacho.
   - `REVERSAL_EXIT`: Contra-asiento de egreso de stock por anulacion de una compra, recepcion o ajuste positivo.
 
@@ -272,6 +272,8 @@ Permite registrar tomas fisicas masivas o iniciales de existencias al momento de
 ### 2.4 Registrar Ajuste de Inventario Fisico (`INVENTORY_ADJUSTMENT`)
 Permite regularizar sobrantes (`INCREASE`) o faltantes (`DECREASE`) tras un inventario ciclico o general formal. Operacion reservada exclusivamente a la administracion.
 
+> Nota Operativa: El endpoint `POST /api/v1/movements/adjustment` permanece disponible en el backend por compatibilidad interna y regularizaciones excepcionales de administracion, aunque el ajuste manual de inventario se retirara de la interfaz de usuario (UI).
+
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/movements/adjustment`
 - **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
@@ -415,14 +417,24 @@ Consulta el libro de movimientos con filtros avanzados. Aplica `CostMaskingInter
   - `Authorization: Bearer <accessToken>`
 
 #### Parametros Query (`MovementFilterDto`)
-- `warehouseId` (UUID, opcional): Filtrar por almacen origen/destino.
-- `itemId` (UUID, opcional): Filtrar por insumo o herramienta.
-- `type` (enum `MovementType`, opcional): Tipo de movimiento especifico (incluye `REVERSAL_ENTRY` y `REVERSAL_EXIT`).
-- `startDate` (ISO Date, opcional): Fecha desde.
-- `endDate` (ISO Date, opcional): Fecha hasta.
-- `includeReverted` (boolean, default: `true`): Si se envia `false`, excluye movimientos compensados (`isReverted = true`).
-- `page` (integer, default: 1): Pagina actual.
-- `limit` (integer, default: 20): Registros por pagina.
+| Parametro | Tipo | Por Defecto | Descripcion |
+|---|---|---|---|
+| `search` | string | opcional | Busqueda parcial insensible a mayusculas por `movementNumber`, `recipientName`, `recipientDni`, `observation` e insumos asociados (`item.sku` o `item.name`). Se combina mediante `AND` sin colisionar con la restriccion de almacenes por rol (`WAREHOUSE_KEEPER`). |
+| `warehouseId` | UUID \| `'ALL'` | opcional | Filtrar por almacen origen o destino. |
+| `itemId` | UUID \| `'ALL'` | opcional | Filtrar por insumo o herramienta. |
+| `projectId` | UUID \| `'ALL'` | opcional | Filtrar por proyecto civil imputado. |
+| `type` | enum `MovementType` \| `'ALL'` | opcional | Tipo de movimiento especifico (incluye `REVERSAL_ENTRY` y `REVERSAL_EXIT`). |
+| `startDate` | ISO 8601 \| `YYYY-MM-DD` | opcional | Fecha inicial sobre `createdAt`. Si se envia en formato `YYYY-MM-DD`, se normaliza a `YYYY-MM-DDT00:00:00.000Z`. |
+| `endDate` | ISO 8601 \| `YYYY-MM-DD` | opcional | Fecha final sobre `createdAt`. Si se envia en formato `YYYY-MM-DD`, se normaliza a fin de dia `YYYY-MM-DDT23:59:59.999Z`. |
+| `includeReverted` | boolean | `true` | Si se envia `false`, excluye movimientos compensados (`isReverted = true`). |
+| `page` | integer (`>= 1`) | `1` | Pagina actual. |
+| `limit` | integer (`1..100`) | `20` | Registros por pagina. |
+
+**Reglas de Saneamiento, Fechas y Paginacion:**
+- **Saneamiento de Query Params:** Cadenas vacias (`""` o solo espacios) en `search`, `warehouseId`, `itemId`, `projectId`, `type`, `startDate` y `endDate` se normalizan automaticamente a `undefined`. El valor `'ALL'` en `warehouseId`, `itemId`, `projectId` y `type` tambien se sanea a `undefined` para admitir filtros globales sin errores de validacion UUID/Enum.
+- **Normalizacion de Fechas `YYYY-MM-DD`:** Cuando `startDate` o `endDate` llegan sin componente horario (`YYYY-MM-DD`), el servicio aplica limites inclusivos del dia completo en UTC (`00:00:00.000Z` en `startDate` y `23:59:59.999Z` en `endDate`).
+- **Aislamiento de Rol con `search`:** Para `WAREHOUSE_KEEPER`, la restriccion por sedes autorizadas (`originWarehouseId` o `destWarehouseId` en `UserWarehouse`), el filtro `warehouseId` y la busqueda `search` se apilan como clausulas independientes dentro de `where.AND`, evitando que el `OR` interno de `search` exponga movimientos de almacenes ajenos.
+- **Paginacion Estandarizada:** `page` y `limit` se normalizan a enteros seguros (`page >= 1`, `1 <= limit <= 100`) y la respuesta retorna siempre `meta: { total, page, limit, totalPages }` con `totalPages = Math.ceil(total / limit) || 1`.
 
 #### Respuestas Segun Rol
 

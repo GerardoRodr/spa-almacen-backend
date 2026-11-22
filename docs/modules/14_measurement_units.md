@@ -1,13 +1,13 @@
 # Modulo 14 - Unidades de Medida Maestras (Measurement Units)
 
 ## 1. Descripcion General
-El modulo de Unidades de Medida centraliza el catalogo maestro corporativo de magnitudes y unidades base (`UND`, `BOLSA`, `KG`, `M3`, `VARILLA`, `LITRO`, etc.) utilizadas para el control de inventario, compras, kardex y presupuestos S10.
+El modulo de Unidades de Medida centraliza el catalogo maestro corporativo de magnitudes y unidades base constructivas (`UND`, `KG`, `BOLSA`, `M3`, `M2`, `M`, `VAR`, `PZA`, `CJA`, `GLB`, `GLN`, `JGO`, `LITRO`, etc.) utilizadas para el control de inventario, compras, kardex y presupuestos S10.
 
 Este modulo permite:
 - **Listar Unidades:** Proveer la lista de unidades activas para alimentar selectores, dropdowns y autocompletes en toda la aplicacion frontend.
 - **Administrar Unidades (CRUD):** Permitir a usuarios con rol `ADMIN` o `MODERATOR` crear nuevas unidades maestras, actualizar su nombre o descripcion, y desactivar o eliminar unidades en desuso.
 - **Proteccion Referencial:** Si una unidad ya esta asociada a uno o mas insumos (`Item.baseUnit`), la eliminacion fisica se bloquea automaticamente y el sistema realiza una desactivacion logica (`isActive = false`), preservando la integridad historica del inventario.
-- **Auto-registro:** Al registrar o actualizar un insumo con una unidad no existente previamente, el sistema la incorpora de forma automatica al catalogo maestro con estado activo.
+- **Auto-registro Seguro desde Catalogo de Items:** Al registrar (`POST /api/v1/items`) o actualizar (`PUT /api/v1/items/:id`) un insumo con una unidad base no existente previamente en `MeasurementUnit`, el sistema la incorpora automaticamente al catalogo maestro con estado activo (`isActive = true`), sin alterar datos ni registros preexistentes en produccion. Si la unidad ya existe pero fue desactivada (`isActive = false`), la operacion es rechazada con `400 Bad Request`.
 
 - **Ruta Base:** `/api/v1/measurement-units`
 - **Entidades Vinculadas:** `MeasurementUnit`, `Item`
@@ -215,7 +215,7 @@ Elimina la unidad si no cuenta con insumos asociados; si ya tiene insumos vincul
 
 ## 3. Protocolo de Doble Confirmacion al Modificar `baseUnit` en Insumos
 
-Al modificar la unidad base de un insumo existente (`PATCH /api/v1/items/:id`):
+Al modificar la unidad base de un insumo existente (`PUT /api/v1/items/:id`):
 
 1. **Consulta Previa:**
    Al invocar `GET /api/v1/items/:id`, la respuesta incluye:
@@ -263,3 +263,44 @@ Al modificar la unidad base de un insumo existente (`PATCH /api/v1/items/:id`):
      }
      ```
    - El backend autoriza la modificacion y actualiza el insumo con exito (`200 OK`).
+
+---
+
+## 4. Catalogo Semilla de Unidades Constructivas y Convivencia en Produccion
+
+El script semilla (`prisma/seed.ts`) define un catalogo estandar de **27 unidades constructivas** (`DEFAULT_MEASUREMENT_UNITS`) incorporando abreviaturas habituales de obra y presupuestos S10 (`M`, `VAR`, `PZA`, `CJA`, `GLB`) junto a las unidades base clasicas (`UND`, `KG`, `BOLSA`, `M3`, `M2`, `GLN`, `JGO`, entre otras):
+
+| Codigo | Nombre | Descripcion |
+|---|---|---|
+| `UND` | Unidad | Unidad de pieza o articulo individual |
+| `UNIDAD` | Unidad | Equivalente textual de unidad |
+| `BOLSA` | Bolsa | Bolsa (ej. Cemento 42.5 kg) |
+| `KG` | Kilogramo | Unidad de masa en kilogramos |
+| `M3` | Metro Cubico | Unidad de volumen para agregados o concreto |
+| `M2` | Metro Cuadrado | Unidad de area para encofrados o acabados |
+| `M` | Metro Lineal | Metro lineal (abreviatura estandar) |
+| `METRO` | Metro Lineal | Unidad de longitud lineal |
+| `VAR` | Varilla | Varilla de acero o construccion |
+| `VARILLA` | Varilla de Acero | Varilla de construccion |
+| `PZA` | Pieza | Pieza individual |
+| `GLN` | Galon | Galon de combustible o liquido |
+| `GALON` | Galon | Equivalente textual de galon |
+| `MILLAR` | Millar | Mil unidades (ej. ladrillos) |
+| `TUBO` | Tubo | Tubo PVC, conduit o fierro |
+| `PQTE` | Paquete | Paquete de articulos agrupados |
+| `ROLLO` | Rollo | Rollo de alambre o geomembrana |
+| `LITRO` | Litro | Unidad de volumen liquido |
+| `CIENTO` | Ciento | Cien unidades |
+| `CJA` | Caja | Caja contenedora (abreviatura estandar) |
+| `CAJA` | Caja | Caja contenedora |
+| `PLIEGO` | Pliego | Pliego de lija o lamina |
+| `LATA` | Lata | Lata de pintura, solvente o pegamento |
+| `BALDE` | Balde | Balde de pintura o aditivo |
+| `PAR` | Par | Par de guantes o calzado |
+| `JGO` | Juego | Juego de herramientas o llaves |
+| `GLB` | Global | Unidad global para partidas y servicios |
+
+### Comportamiento Seguro sin Afectar Produccion
+1. **Entornos Nuevos (`prisma/seed.ts`):** El seed realiza una siembra limpia inicial utilizando `upsert` por `code` para poblar todas las unidades estandar en estado activo (`isActive: true`). No debe ejecutarse sobre una base de datos de produccion con datos operativos vigentes porque limpia tablas antes de sembrar.
+2. **Entornos Existentes en Produccion (Autocreacion Segura):** Cuando un usuario crea (`POST /api/v1/items`) o edita (`PUT /api/v1/items/:id`) un insumo empleando una unidad constructiva aun ausente en `MeasurementUnit` (como `M`, `VAR`, `PZA`, `CJA` o `GLB`), el servicio `ItemsService` normaliza el codigo (`trim().toUpperCase()`), verifica su existencia y, si no existe, la crea automaticamente como registro activo (`isActive: true`). Este mecanismo garantiza compatibilidad inmediata sin migraciones destructivas ni alteracion de unidades o existencias ya almacenadas en produccion.
+3. **Alta Administrativa Directa:** Adicionalmente, `ADMIN` y `MODERATOR` pueden registrar cualquier unidad con nombre y descripcion personalizados en `POST /api/v1/measurement-units` (validando unicidad de `code` y `name`).

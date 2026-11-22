@@ -5,10 +5,14 @@ Este modulo centraliza los calculos analiticos, consolidacion multi-sede y metri
 
 ### Reglas Clave y Metricas:
 - **Separacion de Inversion Patrimonial vs Consumibles:**
-  - `inventoryValuationPEN`: Valorizacion neta total de todas las existencias en soles (consumibles, herramientas, equipos y maquinaria).
-  - `suppliesValuationPEN`: Valorizacion neta exclusiva de materiales consumibles (`Item.type = 'CONSUMABLE'`). Corresponde al valor contable de existencias gastables en stock (cemento, aditivos, tuberias, etc.).
-  - `toolsInvestmentPEN`: Inversion patrimonial acumulada exclusivamente para bienes de activo clasificados como `TOOL`, `EQUIPMENT` o `MACHINERY`. Los consumibles (`CONSUMABLE`) quedan excluidos de esta metrica.
-  - Relacion de balance: `inventoryValuationPEN = suppliesValuationPEN + toolsInvestmentPEN`.
+  - `inventoryValuationPEN`: Valorizacion neta total de todas las existencias activas en soles (`physicalQty > 0` e `Item.isActive = true`).
+  - `suppliesValuationPEN`: Valorizacion neta exclusiva de materiales consumibles activos (`Item.type = 'CONSUMABLE'` e `Item.isActive = true`). Corresponde al valor contable de existencias gastables en stock (cemento, aditivos, tuberias, etc.).
+  - `toolsInvestmentPEN`: Inversion patrimonial acumulada exclusivamente para bienes patrimoniales activos clasificados como `TOOL`, `EQUIPMENT` o `MACHINERY` (`Item.isActive = true`). Los consumibles (`CONSUMABLE`) y servicios (`SERVICE`) quedan excluidos de esta metrica.
+  - `totalActiveSkus`: Conteo de SKUs distintos con `physicalQty > 0` e `Item.isActive = true`.
+  - Relacion de balance: `inventoryValuationPEN = suppliesValuationPEN + toolsInvestmentPEN` (en ausencia de stock en otros tipos).
+- **Exclusiones por Estado y Tipo en Consultas SQL:**
+  - Las consultas SQL nativas de **valorizacion y SKUs activos** (`GET /metrics`), **comparativa de stock** (`GET /stock-comparison`) y **conteo de insumos criticos** (`GET /metrics`) filtran estrictamente `Item.isActive = true`, excluyendo items desactivados logicamente.
+  - Adicionalmente, el conteo de insumos criticos (`criticalItemsCount`) excluye explicitamente items de tipo `SERVICE` (`Item.type != 'SERVICE'`).
 - **Proteccion Financiera RBAC (`CostMaskingInterceptor`):**
   - Los usuarios con rol `ADMIN` y `MODERATOR` acceden a las cifras monetarias completas (`inventoryValuationPEN`, `suppliesValuationPEN`, `toolsInvestmentPEN`).
   - Los usuarios con rol `WAREHOUSE_KEEPER` reciben las respuestas con los campos monetarios completamente purgados, visualizando unicamente los volumenes fisicos, SKUs y conteos operativos.
@@ -18,7 +22,7 @@ Este modulo centraliza los calculos analiticos, consolidacion multi-sede y metri
 - **Herramientas en Campo (`toolsInField`):**
   - Conteo directo de vales de custodia activos (`ToolCustody`) donde la devolucion aun esta pendiente (`returnDate === null`) y el vale no fue revertido (`isReverted === false`).
 - **Alertas de Reposicion Critica (`criticalItemsCount`):**
-  - Conteo de insumos cuyo stock fisico se encuentra en o por debajo del umbral de alerta configurado (`physicalQty <= minStockAlert` con `minStockAlert > 0`).
+  - Conteo calculado en motor SQL de insumos activos (`Item.isActive = true`), distintos de `SERVICE` (`Item.type != 'SERVICE'`) y con `minStockAlert > 0`, cuyo stock fisico se encuentra en o por debajo del umbral configurado (`physicalQty <= minStockAlert` para una sede especifica, o `SUM(physicalQty) <= minStockAlert` consolidado para `ALL`).
 
 - **Ruta Base:** `/api/v1/dashboard`
 - **Entidades Vinculadas:** `Stock`, `Item`, `Warehouse`, `ToolCustody`, `ProjectRequirement`
@@ -28,7 +32,7 @@ Este modulo centraliza los calculos analiticos, consolidacion multi-sede y metri
 ## 2. Endpoints
 
 ### 2.1 Consultar Metricas y KPIs Analiticos (`GET /metrics`)
-Retorna los indicadores de inventario, valorizacion e inversion en herramientas.
+Retorna los indicadores de inventario, valorizacion, inversion en herramientas y conteo de alertas criticas. Las consultas SQL de valorizacion y SKUs activos filtran `Item.isActive = true` y `physicalQty > 0`; la consulta SQL de `criticalItemsCount` filtra `Item.isActive = true`, `Item.type != 'SERVICE'` y `minStockAlert > 0`.
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/dashboard/metrics`
@@ -77,7 +81,7 @@ Authorization: Bearer <accessToken>
 ---
 
 ### 2.2 Comparativa de Stock Central vs Obras (`GET /stock-comparison`)
-Compara el volumen fisico almacenado en el Almacen Central respecto a todos los Almacenes de Obra para los insumos con mayor rotacion o volumen.
+Compara el volumen fisico almacenado en el Almacen Central (`Warehouse.type = 'CENTRAL'`) respecto a todos los Almacenes de Obra (`Warehouse.type != 'CENTRAL'`) para los 8 insumos activos (`Item.isActive = true`) con mayor volumen fisico total (`HAVING SUM(physicalQty) > 0`, `LIMIT 8`).
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/dashboard/stock-comparison`
