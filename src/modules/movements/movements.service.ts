@@ -419,6 +419,12 @@ export class MovementsService {
           },
         },
         include: {
+          originWarehouse: {
+            select: { id: true, name: true, type: true },
+          },
+          user: {
+            select: { id: true, fullName: true, email: true },
+          },
           items: {
             include: {
               item: {
@@ -463,7 +469,7 @@ export class MovementsService {
       );
     }
 
-    // 3. Validar existencia de todos los items en catalogo maestro
+    // 3. Validar existencia, estado activo y tipo fisico de todos los items
     const existingItems = await this.prisma.item.findMany({
       where: { id: { in: itemIds } },
     });
@@ -472,9 +478,19 @@ export class MovementsService {
         'Uno o mas items especificados no existen en el catalogo maestro',
       );
     }
+    const invalidItem = existingItems.find(
+      (i) => i.isActive === false || i.type === ItemType.SERVICE,
+    );
+    if (invalidItem) {
+      throw new BadRequestException(
+        invalidItem.type === ItemType.SERVICE
+          ? `El item ${invalidItem.sku} (${invalidItem.name}) es de tipo Servicio y no maneja inventario fisico`
+          : `El item ${invalidItem.sku} (${invalidItem.name}) se encuentra inactivo en el catalogo maestro`,
+      );
+    }
     const itemMap = new Map(existingItems.map((i) => [i.id, i]));
 
-    // 4. Validar existencia y stock previo para los items que disminuyen (DECREASE)
+    // 4. Validar existencia y stock disponible para los items que disminuyen (DECREASE)
     const stocks = await this.prisma.stock.findMany({
       where: {
         warehouseId: dto.warehouseId,
@@ -488,10 +504,15 @@ export class MovementsService {
         const stock = stockMap.get(itemDto.itemId);
         const itemInfo = itemMap.get(itemDto.itemId)!;
         const physicalQty = stock ? Number(stock.physicalQty) : 0;
+        const reservedQty = stock ? Number(stock.reservedQty ?? 0) : 0;
+        const loanedQty = stock ? Number(stock.loanedQty ?? 0) : 0;
+        const availableQty = Number(
+          Math.max(0, physicalQty - reservedQty - loanedQty).toFixed(4),
+        );
 
-        if (!stock || physicalQty < itemDto.quantity) {
+        if (!stock || availableQty < itemDto.quantity) {
           throw new BadRequestException(
-            `No es posible realizar un ajuste de disminucion para el item ${itemInfo.sku} (${itemInfo.name}) por superar el stock fisico existente. Disponible: ${physicalQty}, Ajuste solicitado: ${itemDto.quantity}`,
+            `No es posible realizar un ajuste de disminucion para el item ${itemInfo.sku} (${itemInfo.name}) por superar el stock disponible. Disponible: ${availableQty}, Ajuste solicitado: ${itemDto.quantity}`,
           );
         }
       }
@@ -590,6 +611,12 @@ export class MovementsService {
           },
         },
         include: {
+          originWarehouse: {
+            select: { id: true, name: true, type: true },
+          },
+          user: {
+            select: { id: true, fullName: true, email: true },
+          },
           items: {
             include: {
               item: {

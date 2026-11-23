@@ -561,6 +561,81 @@ describe('MovementsService', () => {
       expect(result.type).toBe(MovementType.INVENTORY_ADJUSTMENT);
       expect(result.observation).toBe('Inventario ciclico mensual');
     });
+
+    it('debe rechazar ajuste de inventario si incluye un item tipo SERVICE o inactivo', async () => {
+      prisma.warehouse.findUnique.mockResolvedValue({
+        id: 'wh-obra',
+        isActive: true,
+      });
+      prisma.item.findMany.mockResolvedValue([
+        {
+          id: 'item-cem',
+          sku: 'SER-01',
+          name: 'Flete de Obra',
+          type: ItemType.SERVICE,
+          isActive: true,
+        },
+        {
+          id: 'item-yeso',
+          sku: 'YES-01',
+          name: 'Yeso',
+          type: ItemType.CONSUMABLE,
+          isActive: true,
+        },
+      ]);
+
+      await expect(
+        service.createInventoryAdjustment(adjustmentDto, 'admin-1'),
+      ).rejects.toThrow(BadRequestException);
+
+      prisma.item.findMany.mockResolvedValue([
+        {
+          id: 'item-cem',
+          sku: 'CEM-01',
+          name: 'Cemento',
+          type: ItemType.CONSUMABLE,
+          isActive: false,
+        },
+        {
+          id: 'item-yeso',
+          sku: 'YES-01',
+          name: 'Yeso',
+          type: ItemType.CONSUMABLE,
+          isActive: true,
+        },
+      ]);
+
+      await expect(
+        service.createInventoryAdjustment(adjustmentDto, 'admin-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('debe rechazar DECREASE si compromete stock reservado o prestado', async () => {
+      prisma.warehouse.findUnique.mockResolvedValue({
+        id: 'wh-obra',
+        isActive: true,
+      });
+      prisma.item.findMany.mockResolvedValue([
+        { id: 'item-cem', sku: 'CEM-01', name: 'Cemento', isActive: true },
+        { id: 'item-yeso', sku: 'YES-01', name: 'Yeso', isActive: true },
+      ]);
+      // physicalQty=5 pero reservedQty=4 -> disponible real = 1 < 2 solicitado
+      prisma.stock.findMany.mockResolvedValue([
+        { itemId: 'item-cem', warehouseId: 'wh-obra', physicalQty: 10, averageCost: 28 },
+        {
+          itemId: 'item-yeso',
+          warehouseId: 'wh-obra',
+          physicalQty: 5,
+          reservedQty: 4,
+          loanedQty: 0,
+          averageCost: 15,
+        },
+      ]);
+
+      await expect(
+        service.createInventoryAdjustment(adjustmentDto, 'admin-1'),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 
   describe('revertMovement, updateMetadata, replace y findAll includeReverted', () => {
