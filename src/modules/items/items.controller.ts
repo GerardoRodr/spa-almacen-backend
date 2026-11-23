@@ -90,6 +90,17 @@ export class ItemsController {
     return this.itemsService.findAllAliases(filter);
   }
 
+  @Get('aliases/grouped')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MODERATOR)
+  @ApiOperation({
+    summary: 'Listar insumos maestros agrupados con sus alias S10 (1:N) y resumen global',
+  })
+  @ApiResponse({ status: 200, description: 'Listado agrupado de alias S10 obtenido' })
+  findGroupedAliases(@Query() filter: ItemAliasFilterDto) {
+    return this.itemsService.findGroupedAliases(filter);
+  }
+
   @Post('aliases')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.MODERATOR)

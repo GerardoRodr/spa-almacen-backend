@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 export class ItemAliasFilterDto {
   @ApiPropertyOptional({ default: 1, description: 'Numero de pagina' })
@@ -41,4 +41,17 @@ export class ItemAliasFilterDto {
   )
   @IsUUID('4', { message: 'El itemId debe ser un UUID valido' })
   itemId?: string;
+
+  @ApiPropertyOptional({
+    example: false,
+    description: 'Filtrar unicamente insumos con multiples alias S10',
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true || value === 1 || value === '1') return true;
+    if (value === 'false' || value === false || value === 0 || value === '0') return false;
+    return undefined;
+  })
+  @IsBoolean({ message: 'onlyMultiple debe ser un valor booleano' })
+  onlyMultiple?: boolean;
 }

@@ -4,7 +4,7 @@ import {
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
-import { ItemType, MeterType, MovementType, Role } from '@prisma/client';
+import { ItemType, MeterType, MovementType, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { SequenceGeneratorService } from '../../common/services/sequence-generator.service.js';
 import { CreateItemDto } from './dto/create-item.dto.js';
@@ -318,7 +318,9 @@ export class ItemsService {
       where: { id },
       include: {
         category: true,
-        aliases: true,
+        aliases: {
+          orderBy: { s10RawName: 'asc' },
+        },
         stocks: {
           include: {
             warehouse: {
@@ -573,16 +575,200 @@ export class ItemsService {
     };
   }
 
+  // Calcular resumen global de alias y lista de insumos con multiples alias
+  private async getAliasesSummaryAndMultipleIds() {
+    const grouped =
+      (await this.prisma.itemAlias.groupBy({
+        by: ['itemId'],
+        _count: { _all: true },
+      })) ?? [];
+
+    const totalAliases = grouped.reduce((acc, g) => acc + g._count._all, 0);
+    const totalItemsWithAliases = grouped.length;
+    const multipleAliasItemIds = grouped
+      .filter((g) => g._count._all > 1)
+      .map((g) => g.itemId);
+    const itemsWithMultipleAliases = multipleAliasItemIds.length;
+
+    return {
+      summary: {
+        totalAliases,
+        totalItemsWithAliases,
+        itemsWithMultipleAliases,
+      },
+      multipleAliasItemIds,
+    };
+  }
+
+  // Resolver filtro de itemId considerando bandera onlyMultiple y cortocircuito vacio
+  private resolveAliasItemIdFilter(
+    onlyMultiple: boolean | undefined,
+    itemId: string | undefined,
+    multipleAliasItemIds: string[],
+  ): { empty: true } | { empty: false; filter?: string | { in: string[] } } {
+    if (onlyMultiple) {
+      if (itemId) {
+        if (!multipleAliasItemIds.includes(itemId)) {
+          return { empty: true };
+        }
+        return { empty: false, filter: itemId };
+      }
+
+      if (multipleAliasItemIds.length === 0) {
+        return { empty: true };
+      }
+      return { empty: false, filter: { in: multipleAliasItemIds } };
+    }
+
+    if (itemId) {
+      return { empty: false, filter: itemId };
+    }
+
+    return { empty: false };
+  }
+
+  // Listar insumos maestros agrupados con sus alias S10 (1:N) paginados
+  async findGroupedAliases(filter: ItemAliasFilterDto) {
+    const page = Math.max(1, Number(filter.page) || 1);
+    const limit = Math.max(1, Math.min(100, Number(filter.limit) || 20));
+    const skip = (page - 1) * limit;
+
+    const { summary, multipleAliasItemIds } =
+      await this.getAliasesSummaryAndMultipleIds();
+
+    const resolvedIdFilter = this.resolveAliasItemIdFilter(
+      filter.onlyMultiple,
+      filter.itemId,
+      multipleAliasItemIds,
+    );
+
+    if (resolvedIdFilter.empty) {
+      return {
+        data: [],
+        meta: {
+          total: 0,
+          page,
+          limit,
+          totalPages: 1,
+        },
+        summary,
+      };
+    }
+
+    const where: Prisma.ItemWhereInput = {
+      aliases: { some: {} },
+    };
+
+    if (resolvedIdFilter.filter !== undefined) {
+      where.id = resolvedIdFilter.filter;
+    }
+
+    if (filter.search?.trim()) {
+      const term = filter.search.trim();
+      where.OR = [
+        { sku: { contains: term, mode: 'insensitive' } },
+        { name: { contains: term, mode: 'insensitive' } },
+        {
+          aliases: {
+            some: {
+              OR: [
+                { s10RawName: { contains: term, mode: 'insensitive' } },
+                { s10Code: { contains: term, mode: 'insensitive' } },
+                { s10Unit: { contains: term, mode: 'insensitive' } },
+              ],
+            },
+          },
+        },
+      ];
+    }
+
+    const [total, items] = await Promise.all([
+      this.prisma.item.count({ where }),
+      this.prisma.item.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { name: 'asc' },
+        select: {
+          id: true,
+          sku: true,
+          name: true,
+          baseUnit: true,
+          type: true,
+          isActive: true,
+          aliases: {
+            orderBy: { s10RawName: 'asc' },
+            select: {
+              id: true,
+              itemId: true,
+              s10RawName: true,
+              s10Code: true,
+              s10Unit: true,
+              conversionFactor: true,
+            },
+          },
+          _count: {
+            select: { aliases: true },
+          },
+        },
+      }),
+    ]);
+
+    const data = items.map((item) => ({
+      id: item.id,
+      sku: item.sku,
+      name: item.name,
+      baseUnit: item.baseUnit,
+      type: item.type,
+      isActive: item.isActive,
+      aliasCount: item._count?.aliases ?? item.aliases.length,
+      aliases: item.aliases,
+    }));
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+      summary,
+    };
+  }
+
   // Listar equivalencias de alias S10 paginadas con buscador
   async findAllAliases(filter: ItemAliasFilterDto) {
     const page = Math.max(1, Number(filter.page) || 1);
     const limit = Math.max(1, Math.min(100, Number(filter.limit) || 20));
     const skip = (page - 1) * limit;
 
-    const where: Record<string, unknown> = {};
+    const { summary, multipleAliasItemIds } =
+      await this.getAliasesSummaryAndMultipleIds();
 
-    if (filter.itemId) {
-      where.itemId = filter.itemId;
+    const resolvedIdFilter = this.resolveAliasItemIdFilter(
+      filter.onlyMultiple,
+      filter.itemId,
+      multipleAliasItemIds,
+    );
+
+    if (resolvedIdFilter.empty) {
+      return {
+        data: [],
+        meta: {
+          total: 0,
+          page,
+          limit,
+          totalPages: 1,
+        },
+        summary,
+      };
+    }
+
+    const where: Prisma.ItemAliasWhereInput = {};
+
+    if (resolvedIdFilter.filter !== undefined) {
+      where.itemId = resolvedIdFilter.filter;
     }
 
     if (filter.search && filter.search.trim()) {
@@ -618,6 +804,9 @@ export class ItemsService {
               baseUnit: true,
               type: true,
               isActive: true,
+              _count: {
+                select: { aliases: true },
+              },
             },
           },
         },
@@ -632,6 +821,7 @@ export class ItemsService {
         limit,
         totalPages: Math.ceil(total / limit) || 1,
       },
+      summary,
     };
   }
 
@@ -646,8 +836,10 @@ export class ItemsService {
 
     const rawNameFormatted = dto.s10RawName.trim();
 
-    const existing = await this.prisma.itemAlias.findUnique({
-      where: { s10RawName: rawNameFormatted },
+    const existing = await this.prisma.itemAlias.findFirst({
+      where: {
+        s10RawName: { equals: rawNameFormatted, mode: 'insensitive' },
+      },
     });
 
     if (existing) {
@@ -700,11 +892,14 @@ export class ItemsService {
 
     const rawNameFormatted =
       dto.s10RawName !== undefined ? dto.s10RawName.trim() : undefined;
-    if (rawNameFormatted && rawNameFormatted !== existing.s10RawName) {
-      const conflict = await this.prisma.itemAlias.findUnique({
-        where: { s10RawName: rawNameFormatted },
+    if (rawNameFormatted !== undefined) {
+      const conflict = await this.prisma.itemAlias.findFirst({
+        where: {
+          s10RawName: { equals: rawNameFormatted, mode: 'insensitive' },
+          id: { not: aliasId },
+        },
       });
-      if (conflict && conflict.id !== aliasId) {
+      if (conflict) {
         throw new ConflictException(
           'Ya existe otro alias registrado con esa descripcion literal de S10',
         );

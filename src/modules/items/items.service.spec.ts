@@ -25,6 +25,8 @@ describe('ItemsService', () => {
         count: vi.fn(),
         findMany: vi.fn(),
         findUnique: vi.fn(),
+        findFirst: vi.fn().mockResolvedValue(null),
+        groupBy: vi.fn().mockResolvedValue([]),
         create: vi.fn(),
         update: vi.fn(),
         delete: vi.fn(),
@@ -259,7 +261,7 @@ describe('ItemsService', () => {
 
   it('debe lanzar ConflictException si el alias S10 ya existe al registrar', async () => {
     vi.spyOn(prisma.item, 'findUnique').mockResolvedValue({ id: 'item-1', stocks: [] } as any);
-    vi.spyOn(prisma.itemAlias, 'findUnique').mockResolvedValue({ id: 'alias-1' } as any);
+    vi.spyOn(prisma.itemAlias, 'findFirst').mockResolvedValue({ id: 'alias-1' } as any);
 
     await expect(
       service.createAlias({
@@ -672,7 +674,11 @@ describe('ItemsService', () => {
   });
 
   describe('Fase B8: CRUD paginado de Alias S10 (1:N)', () => {
-    it('debe listar alias S10 paginados filtrando por search e itemId', async () => {
+    it('debe listar alias S10 paginados filtrando por search e itemId con summary y conteo', async () => {
+      vi.spyOn(prisma.itemAlias, 'groupBy').mockResolvedValue([
+        { itemId: 'item-1', _count: { _all: 2 } },
+        { itemId: 'item-2', _count: { _all: 1 } },
+      ] as any);
       vi.spyOn(prisma.itemAlias, 'count').mockResolvedValue(2);
       vi.spyOn(prisma.itemAlias, 'findMany').mockResolvedValue([
         {
@@ -682,7 +688,12 @@ describe('ItemsService', () => {
           s10Code: '020401',
           s10Unit: 'BOL',
           conversionFactor: 1,
-          item: { id: 'item-1', sku: 'MAT-0001', name: 'Cemento' },
+          item: {
+            id: 'item-1',
+            sku: 'MAT-0001',
+            name: 'Cemento',
+            _count: { aliases: 2 },
+          },
         },
       ] as any);
 
@@ -700,14 +711,157 @@ describe('ItemsService', () => {
         limit: 10,
         totalPages: 1,
       });
+      expect(res.summary).toEqual({
+        totalAliases: 3,
+        totalItemsWithAliases: 2,
+        itemsWithMultipleAliases: 1,
+      });
       expect(prisma.itemAlias.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
             itemId: 'item-1',
             OR: expect.any(Array),
           }),
+          include: {
+            item: {
+              select: expect.objectContaining({
+                _count: { select: { aliases: true } },
+              }),
+            },
+          },
         }),
       );
+    });
+
+    it('debe filtrar findAllAliases con onlyMultiple=true solo y combinado con itemId', async () => {
+      vi.spyOn(prisma.itemAlias, 'groupBy').mockResolvedValue([
+        { itemId: 'item-multi', _count: { _all: 3 } },
+        { itemId: 'item-single', _count: { _all: 1 } },
+      ] as any);
+      vi.spyOn(prisma.itemAlias, 'count').mockResolvedValue(3);
+      vi.spyOn(prisma.itemAlias, 'findMany').mockResolvedValue([] as any);
+
+      await service.findAllAliases({ onlyMultiple: true });
+      expect(prisma.itemAlias.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            itemId: { in: ['item-multi'] },
+          }),
+        }),
+      );
+
+      await service.findAllAliases({ onlyMultiple: true, itemId: 'item-multi' });
+      expect(prisma.itemAlias.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            itemId: 'item-multi',
+          }),
+        }),
+      );
+
+      const countSpy = vi.spyOn(prisma.itemAlias, 'count');
+      countSpy.mockClear();
+      const emptyRes = await service.findAllAliases({
+        onlyMultiple: true,
+        itemId: 'item-single',
+      });
+
+      expect(emptyRes.data).toEqual([]);
+      expect(emptyRes.meta.total).toBe(0);
+      expect(emptyRes.summary.itemsWithMultipleAliases).toBe(1);
+      expect(countSpy).not.toHaveBeenCalled();
+    });
+
+    it('debe listar productos maestros agrupados con sus alias S10 en findGroupedAliases', async () => {
+      vi.spyOn(prisma.itemAlias, 'groupBy').mockResolvedValue([
+        { itemId: 'item-1', _count: { _all: 2 } },
+        { itemId: 'item-2', _count: { _all: 1 } },
+      ] as any);
+      vi.spyOn(prisma.item, 'count').mockResolvedValue(1);
+      vi.spyOn(prisma.item, 'findMany').mockResolvedValue([
+        {
+          id: 'item-1',
+          sku: 'MAT-0001',
+          name: 'Cemento Portland',
+          baseUnit: 'BOLSA',
+          type: ItemType.CONSUMABLE,
+          isActive: true,
+          aliases: [
+            {
+              id: 'al-1',
+              itemId: 'item-1',
+              s10RawName: 'CEM. PORTLAND T-I',
+              s10Code: '020401',
+              s10Unit: 'BOL',
+              conversionFactor: 1,
+            },
+            {
+              id: 'al-2',
+              itemId: 'item-1',
+              s10RawName: 'CEMENTO TIPO I 42.5KG',
+              s10Code: '020402',
+              s10Unit: 'BOL',
+              conversionFactor: 1,
+            },
+          ],
+          _count: { aliases: 2 },
+        },
+      ] as any);
+
+      const res = await service.findGroupedAliases({
+        page: 2,
+        limit: 5,
+        search: 'PORTLAND',
+        onlyMultiple: true,
+      });
+
+      expect(res.data).toHaveLength(1);
+      expect(res.data[0].aliasCount).toBe(2);
+      expect(res.data[0].aliases).toHaveLength(2);
+      expect(res.meta).toEqual({
+        total: 1,
+        page: 2,
+        limit: 5,
+        totalPages: 1,
+      });
+      expect(res.summary).toEqual({
+        totalAliases: 3,
+        totalItemsWithAliases: 2,
+        itemsWithMultipleAliases: 1,
+      });
+      expect(prisma.item.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skip: 5,
+          take: 5,
+          where: expect.objectContaining({
+            aliases: { some: {} },
+            id: { in: ['item-1'] },
+            OR: expect.any(Array),
+          }),
+        }),
+      );
+    });
+
+    it('debe hacer cortocircuito vacio en findGroupedAliases cuando onlyMultiple=true no tiene productos con >1 alias', async () => {
+      vi.spyOn(prisma.itemAlias, 'groupBy').mockResolvedValue([
+        { itemId: 'item-1', _count: { _all: 1 } },
+      ] as any);
+      const itemCountSpy = vi.spyOn(prisma.item, 'count');
+      const itemFindManySpy = vi.spyOn(prisma.item, 'findMany');
+
+      const res = await service.findGroupedAliases({ onlyMultiple: true });
+
+      expect(res).toEqual({
+        data: [],
+        meta: { total: 0, page: 1, limit: 20, totalPages: 1 },
+        summary: {
+          totalAliases: 1,
+          totalItemsWithAliases: 1,
+          itemsWithMultipleAliases: 0,
+        },
+      });
+      expect(itemCountSpy).not.toHaveBeenCalled();
+      expect(itemFindManySpy).not.toHaveBeenCalled();
     });
 
     it('debe permitir multiples alias S10 distintos asociados al mismo itemId (1:N)', async () => {
@@ -716,7 +870,7 @@ describe('ItemsService', () => {
         isActive: true,
         stocks: [],
       } as any);
-      vi.spyOn(prisma.itemAlias, 'findUnique').mockResolvedValue(null);
+      vi.spyOn(prisma.itemAlias, 'findFirst').mockResolvedValue(null);
       vi.spyOn(prisma.itemAlias, 'create')
         .mockResolvedValueOnce({ id: 'al-1', itemId: 'item-1', s10RawName: 'CEM. PORTLAND T-I' } as any)
         .mockResolvedValueOnce({ id: 'al-2', itemId: 'item-1', s10RawName: 'CEMENTO TIPO I 42.5KG' } as any);
@@ -734,14 +888,38 @@ describe('ItemsService', () => {
       expect(al2.itemId).toBe('item-1');
     });
 
-    it('debe actualizar producto vinculado y factor de conversion de un alias S10', async () => {
-      vi.spyOn(prisma.itemAlias, 'findUnique')
-        .mockResolvedValueOnce({
-          id: 'al-1',
+    it('debe rechazar createAlias case-insensitive cuando ya existe el mismo s10RawName con distinto casing', async () => {
+      vi.spyOn(prisma.item, 'findUnique').mockResolvedValue({
+        id: 'item-1',
+        isActive: true,
+        stocks: [],
+      } as any);
+      vi.spyOn(prisma.itemAlias, 'findFirst').mockResolvedValue({
+        id: 'al-existente',
+        s10RawName: 'CEMENTO PORTLAND TIPO I',
+      } as any);
+
+      await expect(
+        service.createAlias({
           itemId: 'item-1',
-          s10RawName: 'ARENA GRUESA S10',
-        } as any)
-        .mockResolvedValueOnce(null);
+          s10RawName: '  cemento portland tipo i  ',
+        }),
+      ).rejects.toThrow(ConflictException);
+
+      expect(prisma.itemAlias.findFirst).toHaveBeenCalledWith({
+        where: {
+          s10RawName: { equals: 'cemento portland tipo i', mode: 'insensitive' },
+        },
+      });
+    });
+
+    it('debe actualizar producto vinculado y factor de conversion de un alias S10', async () => {
+      vi.spyOn(prisma.itemAlias, 'findUnique').mockResolvedValueOnce({
+        id: 'al-1',
+        itemId: 'item-1',
+        s10RawName: 'ARENA GRUESA S10',
+      } as any);
+      vi.spyOn(prisma.itemAlias, 'findFirst').mockResolvedValueOnce(null);
       vi.spyOn(prisma.item, 'findUnique').mockResolvedValue({
         id: 'item-2',
         isActive: true,
@@ -764,21 +942,53 @@ describe('ItemsService', () => {
       expect(updated.conversionFactor).toBe(1.5);
     });
 
-    it('debe lanzar ConflictException si updateAlias usa un s10RawName ya existente en otro alias', async () => {
-      vi.spyOn(prisma.itemAlias, 'findUnique')
-        .mockResolvedValueOnce({
-          id: 'al-1',
-          itemId: 'item-1',
-          s10RawName: 'NOMBRE A',
-        } as any)
-        .mockResolvedValueOnce({
-          id: 'al-2',
-          s10RawName: 'NOMBRE B',
-        } as any);
+    it('debe lanzar ConflictException si updateAlias usa un s10RawName ya existente en otro alias (case-insensitive)', async () => {
+      vi.spyOn(prisma.itemAlias, 'findUnique').mockResolvedValueOnce({
+        id: 'al-1',
+        itemId: 'item-1',
+        s10RawName: 'NOMBRE A',
+      } as any);
+      vi.spyOn(prisma.itemAlias, 'findFirst').mockResolvedValueOnce({
+        id: 'al-2',
+        s10RawName: 'NOMBRE B',
+      } as any);
 
       await expect(
-        service.updateAlias('al-1', { s10RawName: 'NOMBRE B' }),
+        service.updateAlias('al-1', { s10RawName: 'nombre b' }),
       ).rejects.toThrow(ConflictException);
+
+      expect(prisma.itemAlias.findFirst).toHaveBeenCalledWith({
+        where: {
+          s10RawName: { equals: 'nombre b', mode: 'insensitive' },
+          id: { not: 'al-1' },
+        },
+      });
+    });
+
+    it('debe permitir ajustar solo el casing del mismo alias en updateAlias sin falso conflicto', async () => {
+      vi.spyOn(prisma.itemAlias, 'findUnique').mockResolvedValueOnce({
+        id: 'al-1',
+        itemId: 'item-1',
+        s10RawName: 'cemento portland',
+      } as any);
+      vi.spyOn(prisma.itemAlias, 'findFirst').mockResolvedValueOnce(null);
+      vi.spyOn(prisma.itemAlias, 'update').mockResolvedValue({
+        id: 'al-1',
+        itemId: 'item-1',
+        s10RawName: 'CEMENTO PORTLAND',
+      } as any);
+
+      const updated = await service.updateAlias('al-1', {
+        s10RawName: 'CEMENTO PORTLAND',
+      });
+
+      expect(updated.s10RawName).toBe('CEMENTO PORTLAND');
+      expect(prisma.itemAlias.findFirst).toHaveBeenCalledWith({
+        where: {
+          s10RawName: { equals: 'CEMENTO PORTLAND', mode: 'insensitive' },
+          id: { not: 'al-1' },
+        },
+      });
     });
   });
 });
