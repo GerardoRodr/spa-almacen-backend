@@ -141,6 +141,29 @@ describe('SuppliersService', () => {
 
       await expect(service.create(dto)).rejects.toThrow(ConflictException);
     });
+
+    it('debe registrar un proveedor sin taxId persistiendo null y sin validar unicidad', async () => {
+      const dto = {
+        businessName: 'PROVEEDOR LOCAL SIN RUC',
+      };
+
+      prisma.supplier.create.mockResolvedValue({
+        id: 'sup-no-ruc',
+        taxId: null,
+        businessName: 'PROVEEDOR LOCAL SIN RUC',
+      });
+
+      const result = await service.create(dto);
+
+      expect(result.taxId).toBeNull();
+      expect(prisma.supplier.findUnique).not.toHaveBeenCalled();
+      expect(prisma.supplier.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          taxId: null,
+          businessName: 'PROVEEDOR LOCAL SIN RUC',
+        }),
+      });
+    });
   });
 
   describe('update', () => {
@@ -169,6 +192,31 @@ describe('SuppliersService', () => {
         where: { id: 'sup-1' },
         data: expect.objectContaining({
           notes: 'Calificacion A+',
+        }),
+      });
+    });
+
+    it('debe permitir limpiar taxId a null sin lanzar ConflictException', async () => {
+      const existing = {
+        id: 'sup-1',
+        taxId: '20100138112',
+        businessName: 'ACEROS AREQUIPA',
+      };
+
+      prisma.supplier.findUnique.mockResolvedValueOnce(existing);
+      prisma.supplier.update.mockResolvedValue({
+        ...existing,
+        taxId: null,
+      });
+
+      const result = await service.update('sup-1', { taxId: null });
+
+      expect(result.taxId).toBeNull();
+      expect(prisma.supplier.findUnique).toHaveBeenCalledTimes(1);
+      expect(prisma.supplier.update).toHaveBeenCalledWith({
+        where: { id: 'sup-1' },
+        data: expect.objectContaining({
+          taxId: null,
         }),
       });
     });

@@ -1878,4 +1878,276 @@ describe('PurchasesService', () => {
       });
     });
   });
+
+  describe('Fase B6: Serie de factura opcional en compras', () => {
+    it('debe crear compra sin invoiceSeries persistiendo null y observacion de Kardex con (Sin serie)', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'sup-1' });
+      prisma.warehouse.findUnique.mockResolvedValue({
+        id: 'wh-central',
+        type: WarehouseType.CENTRAL,
+        isActive: true,
+      });
+      prisma.item.findMany.mockResolvedValue([
+        {
+          id: 'item-cem',
+          sku: 'MAT-0001',
+          name: 'Cemento',
+          baseUnit: 'BOLSA',
+          type: ItemType.CONSUMABLE,
+          isActive: true,
+        },
+      ]);
+
+      const mockTx = {
+        purchase: {
+          create: vi.fn().mockImplementation((args) => ({ id: 'purch-no-series', ...args.data })),
+        },
+        purchaseDetail: {
+          create: vi.fn().mockImplementation((args) => ({ id: 'det-1', ...args.data })),
+        },
+        stock: {
+          findUnique: vi.fn().mockResolvedValue(null),
+          upsert: vi.fn().mockResolvedValue({}),
+        },
+        movement: {
+          create: vi.fn().mockResolvedValue({
+            id: 'mov-no-series',
+            movementNumber: 'MOV-2026-00099',
+          }),
+        },
+      };
+      prisma.$transaction.mockImplementation(async (cb) => cb(mockTx));
+
+      const result = await service.create(
+        {
+          supplierId: 'sup-1',
+          warehouseId: 'wh-central',
+          invoiceSeries: '   ',
+          voucherType: 'BOLETA',
+          currency: Currency.PEN,
+          exchangeRate: 1,
+          hasIgv: false,
+          issueDate: '2026-11-23T10:00:00.000Z',
+          subtotalPEN: 100,
+          totalAmountPEN: 100,
+          items: [
+            {
+              itemId: 'item-cem',
+              purchaseUnit: 'BOLSA',
+              conversionFactor: 1,
+              purchaseQty: 4,
+              unitPriceOriginal: 25,
+            },
+          ],
+        },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(result.invoiceSeries).toBeNull();
+      expect(mockTx.purchase.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            invoiceSeries: null,
+          }),
+        }),
+      );
+      expect(mockTx.movement.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            observation: 'Ingreso por compra segun BOLETA (Sin serie)',
+          }),
+        }),
+      );
+    });
+
+    it('debe permitir limpiar invoiceSeries a null en updateMetadata', async () => {
+      prisma.purchase.findUnique.mockResolvedValue({
+        id: 'purch-meta-1',
+        warehouseId: 'wh-central',
+        invoiceSeries: 'F001-00100',
+        isReverted: false,
+        details: [],
+      });
+
+      const mockTx = {
+        purchase: {
+          update: vi.fn().mockResolvedValue({}),
+          findUnique: vi.fn().mockResolvedValue({
+            id: 'purch-meta-1',
+            invoiceSeries: null,
+            isEdited: true,
+          }),
+        },
+        purchaseDetail: {
+          update: vi.fn(),
+        },
+      };
+      prisma.$transaction.mockImplementation(async (cb) => cb(mockTx));
+
+      const updated = await service.updateMetadata(
+        'purch-meta-1',
+        { invoiceSeries: null },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(mockTx.purchase.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            invoiceSeries: null,
+            isEdited: true,
+          }),
+        }),
+      );
+      expect(updated?.invoiceSeries).toBeNull();
+    });
+
+    it('debe valorizar una compra sin invoiceSeries buscando movimiento con (Sin serie) y acotado por createdAt', async () => {
+      const createdAt = new Date('2026-11-23T12:00:00.000Z');
+      prisma.purchase.findUnique.mockResolvedValue({
+        id: 'p-zero-null',
+        invoiceSeries: null,
+        voucherType: 'GUIA',
+        currency: Currency.PEN,
+        exchangeRate: 1,
+        hasIgv: false,
+        subtotalPEN: 0,
+        totalAmountPEN: 0,
+        warehouseId: 'wh-central',
+        createdAt,
+        details: [
+          {
+            id: 'd-zero',
+            itemId: 'item-cem',
+            conversionFactor: 1,
+            baseQty: 10,
+            unitPriceOriginal: 0,
+            subtotalPEN: 0,
+          },
+        ],
+      });
+
+      const mockTx = {
+        purchase: {
+          update: vi.fn().mockResolvedValue({}),
+          findUnique: vi.fn().mockResolvedValue({
+            id: 'p-zero-null',
+            invoiceSeries: null,
+            totalAmountPEN: 250,
+            details: [],
+          }),
+        },
+        purchaseDetail: {
+          update: vi.fn().mockResolvedValue({}),
+        },
+        movement: {
+          findFirst: vi.fn().mockResolvedValue({ id: 'mov-zero-1' }),
+        },
+        movementItem: {
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+        stock: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: 'st-1',
+            physicalQty: 10,
+            averageCost: 0,
+          }),
+          update: vi.fn().mockResolvedValue({}),
+        },
+      };
+      prisma.$transaction.mockImplementation(async (cb) => cb(mockTx));
+
+      const result = await service.valuatePurchase('p-zero-null', {
+        invoiceSeries: null,
+        subtotalPEN: 250,
+        totalAmountPEN: 250,
+        hasIgv: false,
+        items: [{ detailId: 'd-zero', unitPriceOriginal: 25 }],
+      });
+
+      expect(mockTx.movement.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            observation: { startsWith: 'Ingreso por compra segun GUIA (Sin serie)' },
+            createdAt: {
+              gte: new Date(createdAt.getTime() - 5000),
+              lte: new Date(createdAt.getTime() + 5000),
+            },
+          }),
+        }),
+      );
+      expect(mockTx.movementItem.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { movementId: 'mov-zero-1', itemId: 'item-cem' },
+        }),
+      );
+      expect(result?.invoiceSeries).toBeNull();
+    });
+
+    it('debe revertir una compra sin invoiceSeries usando etiqueta segura en REVERSAL_EXIT', async () => {
+      const createdAt = new Date('2026-11-23T12:00:00.000Z');
+      const purchaseNoSeries = {
+        id: 'purch-rev-null',
+        supplierId: 'sup-1',
+        warehouseId: 'wh-central',
+        invoiceSeries: null,
+        voucherType: 'BOLETA',
+        isReverted: false,
+        createdAt,
+        details: [
+          {
+            id: 'det-1',
+            itemId: 'item-cem',
+            baseQty: 5,
+            unitCostBasePEN: 20,
+            item: { id: 'item-cem', sku: 'MAT-001', name: 'Cemento', type: ItemType.CONSUMABLE },
+          },
+        ],
+      };
+
+      const mockTx = {
+        purchase: {
+          findUnique: vi.fn().mockResolvedValue(purchaseNoSeries),
+          update: vi.fn().mockResolvedValue({
+            ...purchaseNoSeries,
+            isReverted: true,
+          }),
+        },
+        stock: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: 'st-1',
+            physicalQty: 5,
+            reservedQty: 0,
+            loanedQty: 0,
+            averageCost: 20,
+          }),
+          update: vi.fn().mockResolvedValue({}),
+        },
+        movement: {
+          findFirst: vi.fn().mockResolvedValue({ id: 'mov-orig-null' }),
+          update: vi.fn().mockResolvedValue({}),
+          create: vi.fn().mockResolvedValue({
+            id: 'mov-rev-null',
+            movementNumber: 'MOV-2026-00100',
+            type: MovementType.REVERSAL_EXIT,
+          }),
+        },
+      };
+      prisma.$transaction.mockImplementation(async (cb) => cb(mockTx));
+
+      const result = await service.revertPurchase(
+        'purch-rev-null',
+        { reversalReason: 'Compra anulada' },
+        { id: 'admin-1', role: Role.ADMIN },
+      );
+
+      expect(result.isReverted).toBe(true);
+      expect(mockTx.movement.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            observation: 'Anulacion de compra BOLETA (Sin serie): Compra anulada',
+          }),
+        }),
+      );
+    });
+  });
 });

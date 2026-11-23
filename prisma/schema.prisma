@@ -300,7 +300,7 @@ model ProjectRequirement {
 
 model Supplier {
   id           String     @id @default(uuid())
-  taxId        String     @unique // RUC 11 digitos
+  taxId        String?    @unique // RUC 11 digitos (opcional)
   businessName String
   contactPhone String?
   contactEmail String?
@@ -315,7 +315,7 @@ model Purchase {
   id             String               @id @default(uuid())
   supplierId     String
   warehouseId    String?              // Almacen de destino (CENTRAL o caseta de obra)
-  invoiceSeries  String               // Factura o comprobante ej. F001-0004523
+  invoiceSeries  String?              // Factura o comprobante ej. F001-0004523 (opcional)
   voucherType    String               @default("FACTURA")
   hasIgv         Boolean              @default(true)
   currency       Currency             @default(PEN)

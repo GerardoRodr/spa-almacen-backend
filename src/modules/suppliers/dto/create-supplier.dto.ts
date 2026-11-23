@@ -5,19 +5,29 @@ import {
   IsString,
   Matches,
   MaxLength,
+  ValidateIf,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateSupplierDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: '20100138112',
-    description: 'Numero de RUC del proveedor (11 digitos numericos)',
+    description: 'Numero de RUC del proveedor (11 digitos numericos, opcional)',
+    nullable: true,
   })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') return value;
+    const trimmed = value.trim();
+    return trimmed === '' ? null : trimmed;
+  })
+  @ValidateIf((_, v) => v !== null && v !== undefined)
   @IsString({ message: 'El RUC debe ser una cadena de texto' })
   @Matches(/^[0-9]{11}$/, {
     message: 'El RUC debe estar compuesto exactamente por 11 digitos numericos',
   })
-  taxId: string;
+  taxId?: string | null;
 
   @ApiProperty({
     example: 'CORPORACION ACEROS AREQUIPA S.A.',

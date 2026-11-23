@@ -470,6 +470,74 @@ export class PurchasesService {
     };
   }
 
+  // Construir etiqueta segura de comprobante para observaciones de Kardex
+  private buildVoucherLabel(
+    voucherType: string,
+    invoiceSeries: string | null | undefined,
+  ): string {
+    const cleanSeries = invoiceSeries?.trim();
+    return cleanSeries
+      ? `${voucherType} ${cleanSeries}`
+      : `${voucherType} (Sin serie)`;
+  }
+
+  // Localizar movimiento PURCHASE_ENTRY asociado a una compra (con soporte para serie nula)
+  private async findAssociatedPurchaseEntryMovement(
+    tx: Prisma.TransactionClient,
+    purchase: {
+      voucherType: string;
+      invoiceSeries: string | null;
+      createdAt?: Date | null;
+    },
+    warehouseId: string,
+  ): Promise<{ id: string } | null> {
+    if (!tx.movement?.findFirst) {
+      return null;
+    }
+
+    const voucherLabel = this.buildVoucherLabel(
+      purchase.voucherType,
+      purchase.invoiceSeries,
+    );
+    const createdWindow = purchase.createdAt
+      ? {
+          gte: new Date(purchase.createdAt.getTime() - 5000),
+          lte: new Date(purchase.createdAt.getTime() + 5000),
+        }
+      : undefined;
+
+    let movement = await tx.movement.findFirst({
+      where: {
+        type: MovementType.PURCHASE_ENTRY,
+        destWarehouseId: warehouseId,
+        isReverted: false,
+        observation: {
+          startsWith: `Ingreso por compra segun ${voucherLabel}`,
+        },
+        ...(!purchase.invoiceSeries && createdWindow
+          ? { createdAt: createdWindow }
+          : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+
+    if (!movement && createdWindow) {
+      movement = await tx.movement.findFirst({
+        where: {
+          type: MovementType.PURCHASE_ENTRY,
+          destWarehouseId: warehouseId,
+          isReverted: false,
+          createdAt: createdWindow,
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true },
+      });
+    }
+
+    return movement;
+  }
+
   // Persistir compra y recalcular CPP dentro de una transaccion activa
   private async createInTransaction(
     tx: Prisma.TransactionClient,
@@ -496,12 +564,14 @@ export class PurchasesService {
       isEdited = false,
     } = params;
 
+    const normalizedInvoiceSeries = dto.invoiceSeries?.trim() || null;
+
     // Crear encabezado de Purchase con warehouseId y notes
     const purchase = await tx.purchase.create({
       data: {
         supplierId: dto.supplierId,
         warehouseId: targetWarehouseId,
-        invoiceSeries: dto.invoiceSeries.trim(),
+        invoiceSeries: normalizedInvoiceSeries,
         voucherType: dto.voucherType?.trim() || 'FACTURA',
         hasIgv,
         currency: dto.currency ?? Currency.PEN,
@@ -669,6 +739,10 @@ export class PurchasesService {
     let movement: { id: string; movementNumber: string } | null = null;
     if (movementItemsData.length > 0) {
       const movementNumber = await this.sequenceGenerator.getNextCode(tx, 'MOV');
+      const voucherLabel = this.buildVoucherLabel(
+        purchase.voucherType,
+        normalizedInvoiceSeries,
+      );
       movement = await tx.movement.create({
         data: {
           movementNumber,
@@ -676,7 +750,7 @@ export class PurchasesService {
           originWarehouseId: null,
           destWarehouseId: targetWarehouseId,
           userId,
-          observation: `Ingreso por compra segun ${purchase.voucherType} ${dto.invoiceSeries.trim()}${
+          observation: `Ingreso por compra segun ${voucherLabel}${
             dto.notes ? ` - ${dto.notes.trim()}` : ''
           }`,
           items: {
@@ -1005,7 +1079,10 @@ export class PurchasesService {
       await tx.purchase.update({
         where: { id },
         data: {
-          invoiceSeries: dto.invoiceSeries?.trim() || purchase.invoiceSeries,
+          invoiceSeries:
+            dto.invoiceSeries !== undefined
+              ? dto.invoiceSeries?.trim() || null
+              : purchase.invoiceSeries,
           voucherType: dto.voucherType?.trim() || purchase.voucherType,
           currency: effectiveCurrency,
           exchangeRate,
@@ -1025,21 +1102,13 @@ export class PurchasesService {
       const targetWarehouseId = purchase.warehouseId;
 
       // Buscar movimiento PURCHASE_ENTRY asociado para sincronizar unitCostSnapshot
-      let associatedMovement: { id: string } | null = null;
-      if (targetWarehouseId && tx.movement?.findFirst) {
-        associatedMovement = await tx.movement.findFirst({
-          where: {
-            type: MovementType.PURCHASE_ENTRY,
-            destWarehouseId: targetWarehouseId,
-            isReverted: false,
-            observation: {
-              startsWith: `Ingreso por compra segun ${purchase.voucherType} ${purchase.invoiceSeries}`,
-            },
-          },
-          orderBy: { createdAt: 'desc' },
-          select: { id: true },
-        });
-      }
+      const associatedMovement = targetWarehouseId
+        ? await this.findAssociatedPurchaseEntryMovement(
+            tx,
+            purchase,
+            targetWarehouseId,
+          )
+        : null;
 
       for (const itemDto of dto.items) {
         const existingDetail = detailMap.get(itemDto.detailId)!;
@@ -1312,31 +1381,11 @@ export class PurchasesService {
 
     if (reversalItemsData.length > 0) {
       // Buscar movimiento PURCHASE_ENTRY original para marcarlo como revertido
-      let originalMovement = await tx.movement.findFirst({
-        where: {
-          type: MovementType.PURCHASE_ENTRY,
-          destWarehouseId: warehouseId,
-          isReverted: false,
-          observation: {
-            startsWith: `Ingreso por compra segun ${purchase.voucherType} ${purchase.invoiceSeries}`,
-          },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-
-      if (!originalMovement && purchase.createdAt) {
-        const windowStart = new Date(purchase.createdAt.getTime() - 5000);
-        const windowEnd = new Date(purchase.createdAt.getTime() + 5000);
-        originalMovement = await tx.movement.findFirst({
-          where: {
-            type: MovementType.PURCHASE_ENTRY,
-            destWarehouseId: warehouseId,
-            isReverted: false,
-            createdAt: { gte: windowStart, lte: windowEnd },
-          },
-          orderBy: { createdAt: 'desc' },
-        });
-      }
+      const originalMovement = await this.findAssociatedPurchaseEntryMovement(
+        tx,
+        purchase,
+        warehouseId,
+      );
 
       if (originalMovement) {
         await tx.movement.update({
@@ -1351,6 +1400,8 @@ export class PurchasesService {
       }
 
       const movementNumber = await this.sequenceGenerator.getNextCode(tx, 'MOV');
+      const reversalTargetLabel =
+        purchase.invoiceSeries?.trim() || `${purchase.voucherType} (Sin serie)`;
       reversalMovement = await tx.movement.create({
         data: {
           movementNumber,
@@ -1359,7 +1410,7 @@ export class PurchasesService {
           destWarehouseId: null,
           userId: user.id,
           reversesMovementId: originalMovement?.id ?? null,
-          observation: `Anulacion de compra ${purchase.invoiceSeries}: ${reasonTrimmed}`,
+          observation: `Anulacion de compra ${reversalTargetLabel}: ${reasonTrimmed}`,
           items: {
             create: reversalItemsData,
           },
@@ -1478,9 +1529,10 @@ export class PurchasesService {
         where: { id },
         data: {
           supplierId: dto.supplierId ?? undefined,
-          invoiceSeries: dto.invoiceSeries
-            ? dto.invoiceSeries.trim()
-            : undefined,
+          invoiceSeries:
+            dto.invoiceSeries !== undefined
+              ? dto.invoiceSeries?.trim() || null
+              : undefined,
           voucherType: dto.voucherType ? dto.voucherType.trim() : undefined,
           issueDate: dto.issueDate ? new Date(dto.issueDate) : undefined,
           notes:

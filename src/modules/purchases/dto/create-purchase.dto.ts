@@ -14,7 +14,7 @@ import {
   MaxLength,
   ValidateIf,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Currency } from '@prisma/client';
 import { PurchaseItemDto } from './purchase-item.dto.js';
@@ -48,13 +48,23 @@ export class CreatePurchaseDto {
   })
   centralWarehouseId?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 'F001-0004523',
-    description: 'Serie y numero de comprobante de pago autorizado por SUNAT',
+    description: 'Serie y numero de comprobante de pago autorizado por SUNAT (opcional)',
+    nullable: true,
   })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') return value;
+    const trimmed = value.trim();
+    return trimmed === '' ? null : trimmed;
+  })
+  @ValidateIf((_, v) => v !== null && v !== undefined)
   @IsString({ message: 'La serie de factura debe ser una cadena de texto' })
-  @IsNotEmpty({ message: 'La serie de factura no puede estar vacia' })
-  invoiceSeries: string;
+  @MaxLength(100, {
+    message: 'La serie de factura no puede exceder 100 caracteres',
+  })
+  invoiceSeries?: string | null;
 
   @ApiPropertyOptional({
     example: 'FACTURA',

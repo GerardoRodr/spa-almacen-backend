@@ -1,9 +1,10 @@
 # Modulo 05 - Proveedores, Compras y Motor CPP (Purchases & Suppliers)
 
 ## 1. Descripcion General
-Este modulo gestiona el registro de proveedores comerciales (con RUC tributario de 11 digitos), el ingreso de facturas de adquisicion en Almacen Central o en Almacenes de Obra y la ejecucion atomica del algoritmo de Costo Promedio Ponderado (CPP / WAC) segun la normativa contable (NIC 2 / SUNAT).
+Este modulo gestiona el registro de proveedores comerciales (con RUC tributario de 11 digitos opcional), el ingreso de facturas de adquisicion en Almacen Central o en Almacenes de Obra y la ejecucion atomica del algoritmo de Costo Promedio Ponderado (CPP / WAC) segun la normativa contable (NIC 2 / SUNAT).
 
 ### Reglas Clave:
+- **RUC de Proveedor y Serie de Comprobante Opcionales (`string | null`):** Tanto `Supplier.taxId` como `Purchase.invoiceSeries` son opcionales. Cuando se envian cadenas vacias o espacios, el backend los normaliza a `null`. Si `taxId` se proporciona, debe cumplir exactamente 11 digitos numericos y ser unico (PostgreSQL permite multiples registros con `NULL`). Si `invoiceSeries` es `null`, las observaciones de Kardex (`PURCHASE_ENTRY` y `REVERSAL_EXIT`) muestran `<voucherType> (Sin serie)`.
 - **Base Imponible Neta sin IGV y Descuentos Comerciales (NIC 2):** El costo unitario computable para el valor del inventario se calcula sin IGV (18%) y deduciendo los descuentos comerciales por linea (`DiscountType`: `NONE`, `PERCENTAGE`, `FIXED`) antes de impuestos. La formula aplicada por linea es `netLineOriginal = max(0, (purchaseQty * unitPriceOriginal) - discountAmountOriginal)` y `unitCostBasePEN = (netLineOriginal * exchangeRate) / (purchaseQty * conversionFactor)`.
 - **Conversion Monetaria (PEN / USD):** En facturas emitidas en dolares (`currency = USD`), el tipo de cambio (`exchangeRate > 0`) es obligatorio. Los importes de linea, descuentos y costos unitarios se convierten a Soles (PEN) multiplicando por `exchangeRate`, manteniendo sincronizados `MovementItem.unitCostSnapshot` y `Stock.averageCost` en ingresos, valorizaciones y reemplazos.
 - **Compras Multi-Almacen y Descentralizacion Operativa:** Las compras pueden ingresar directamente tanto a un Almacen Central (`CENTRAL`) como a cualquier Almacen de Obra (`PROJECT_SITE`) activo. Los roles `ADMIN`, `MODERATOR` y `WAREHOUSE_KEEPER` estan facultados para registrar compras y dar de alta nuevos proveedores, permitiendo registrar adquisiciones directas de campo sin friccion burocratica.
@@ -70,7 +71,7 @@ Retorna la relacion de proveedores comerciales registrados con conteo de factura
 ---
 
 ### 2.2 Registrar Nuevo Proveedor
-Registra una persona juridica o natural proveedora validando unicidad de RUC (11 digitos numericos).
+Registra una persona juridica o natural proveedora validando unicidad de RUC (11 digitos numericos) cuando este es proporcionado.
 
 - **Metodo:** `POST`
 - **Ruta:** `/api/v1/suppliers`
@@ -82,7 +83,7 @@ Registra una persona juridica o natural proveedora validando unicidad de RUC (11
 #### Request Body (`CreateSupplierDto`)
 | Campo | Tipo | Obligatorio | Descripcion |
 |---|---|---|---|
-| `taxId` | string (11 digitos) | Si | Numero de RUC del proveedor. |
+| `taxId` | string (11 digitos) \| `null` | No | Numero de RUC del proveedor (opcional; cadenas vacias se normalizan a `null`). |
 | `businessName` | string | Si | Razon social o nombre comercial. |
 | `contactPhone` | string | No | Telefono de contacto. |
 | `contactEmail` | string (email) | No | Correo electronico. |
@@ -187,7 +188,7 @@ Modifica los datos generales de un proveedor comercial.
 #### Request Body (`UpdateSupplierDto`)
 | Campo | Tipo | Obligatorio | Descripcion |
 |---|---|---|---|
-| `taxId` | string (11 digitos) | No | RUC del proveedor. |
+| `taxId` | string (11 digitos) \| `null` | No | RUC del proveedor (`null` o cadena vacia lo limpia; omitido conserva el actual). |
 | `businessName` | string | No | Razon social. |
 | `contactPhone` | string | No | Telefono de contacto. |
 | `contactEmail` | string (email) | No | Correo electronico. |
@@ -341,7 +342,7 @@ Si el usuario autenticado tiene rol `WAREHOUSE_KEEPER`, se valida obligatoriamen
 | `supplierId` | string (UUID) | Si | Identificador del proveedor. |
 | `warehouseId` | string (UUID) | Condicional | Identificador del almacen receptor (sede destino). Obligatorio si no se envia `centralWarehouseId`. |
 | `centralWarehouseId` | string (UUID) | Condicional | Alias retrocompatible del almacen receptor (obligatorio si no se envia `warehouseId`). |
-| `invoiceSeries` | string | Si | Serie y numero de comprobante SUNAT (ej. `F001-0004523` o `T001-00492`). |
+| `invoiceSeries` | string (max 100) \| `null` | No | Serie y numero de comprobante SUNAT (opcional, ej. `F001-0004523` o `T001-00492`; cadenas vacias se normalizan a `null`). |
 | `voucherType` | string | No | Tipo de comprobante (default: `FACTURA`, ej. `BOLETA`, `GUIA`, `RECIBO`). |
 | `hasIgv` | boolean | No | Indica si el comprobante tiene IGV desglosado (default: `true`). |
 | `currency` | `PEN` \| `USD` | No | Moneda del comprobante (default: `PEN`). |
@@ -653,7 +654,7 @@ Permite a Administracion regularizar comprobantes ingresados previamente con cos
 #### Request Body (`ValuatePurchaseDto`)
 | Campo | Tipo | Obligatorio | Descripcion |
 |---|---|---|---|
-| `invoiceSeries` | string | No | Serie definitiva de la factura formal (si se omite conserva la serie actual). |
+| `invoiceSeries` | string (max 100) \| `null` | No | Serie definitiva de la factura formal (si se omite conserva la serie actual; `null` o cadena vacia la limpia). |
 | `voucherType` | string | No | Tipo de comprobante definitivo (`FACTURA`, `BOLETA`, `RECIBO`). |
 | `currency` | `PEN` \| `USD` | No | Moneda del comprobante formal (si se omite conserva la moneda actual). |
 | `exchangeRate` | number (`> 0`) | Condicional | Tipo de cambio oficial a Soles (obligatorio `> 0` si la moneda efectiva es `USD`). |
@@ -720,7 +721,7 @@ Permite corregir datos documentales o administrativos de una compra vigente (`is
 | Campo | Tipo | Obligatorio | Descripcion |
 |---|---|---|---|
 | `supplierId` | string (UUID) | No | Nuevo proveedor emisor validado. |
-| `invoiceSeries` | string (max 100, no vacio) | No | Serie y numero corregidos del comprobante. |
+| `invoiceSeries` | string (max 100) \| `null` | No | Serie y numero corregidos del comprobante (`null` o cadena vacia lo limpia; omitido conserva el actual). |
 | `voucherType` | string (max 50, no vacio) | No | Tipo de comprobante corregido. |
 | `issueDate` | ISO 8601 string | No | Fecha de emision corregida. |
 | `notes` | string (max 1000) | No | Observaciones generales actualizadas. |

@@ -9,6 +9,7 @@ import {
   IsString,
   IsUUID,
   Min,
+  ValidateIf,
   ValidateNested,
   ArrayMinSize,
   MaxLength,
@@ -92,12 +93,21 @@ export class ValuatePurchaseItemDto {
 export class ValuatePurchaseDto {
   @ApiPropertyOptional({
     example: 'F001-0004523',
-    description: 'Serie y numero de factura comercial definitiva',
+    description: 'Serie y numero de factura comercial definitiva (opcional o null para limpiar)',
+    nullable: true,
   })
   @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') return value;
+    const trimmed = value.trim();
+    return trimmed === '' ? null : trimmed;
+  })
+  @ValidateIf((_, v) => v !== null && v !== undefined)
   @IsString({ message: 'La serie de factura debe ser una cadena de texto' })
-  @IsNotEmpty({ message: 'La serie de factura no puede estar vacia' })
-  invoiceSeries?: string;
+  @MaxLength(100, {
+    message: 'La serie de factura no puede exceder 100 caracteres',
+  })
+  invoiceSeries?: string | null;
 
   @ApiPropertyOptional({
     example: 'FACTURA',

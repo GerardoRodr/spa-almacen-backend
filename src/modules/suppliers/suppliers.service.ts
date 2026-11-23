@@ -84,21 +84,25 @@ export class SuppliersService {
     return supplier;
   }
 
-  // Registrar nuevo proveedor comercial validando RUC unico
+  // Registrar nuevo proveedor comercial validando RUC unico cuando se proporciona
   async create(dto: CreateSupplierDto) {
-    const existing = await this.prisma.supplier.findUnique({
-      where: { taxId: dto.taxId },
-    });
+    const normalizedTaxId = dto.taxId?.trim() || null;
 
-    if (existing) {
-      throw new ConflictException(
-        `Ya existe un proveedor registrado con el RUC ${dto.taxId}`,
-      );
+    if (normalizedTaxId !== null) {
+      const existing = await this.prisma.supplier.findUnique({
+        where: { taxId: normalizedTaxId },
+      });
+
+      if (existing) {
+        throw new ConflictException(
+          `Ya existe un proveedor registrado con el RUC ${normalizedTaxId}`,
+        );
+      }
     }
 
     return this.prisma.supplier.create({
       data: {
-        taxId: dto.taxId,
+        taxId: normalizedTaxId,
         businessName: dto.businessName.trim(),
         contactPhone: dto.contactPhone?.trim(),
         contactEmail: dto.contactEmail?.trim(),
@@ -118,13 +122,16 @@ export class SuppliersService {
       throw new NotFoundException('Proveedor no encontrado');
     }
 
-    if (dto.taxId && dto.taxId !== existing.taxId) {
+    const normalizedTaxId =
+      dto.taxId !== undefined ? dto.taxId?.trim() || null : undefined;
+
+    if (normalizedTaxId && normalizedTaxId !== existing.taxId) {
       const conflict = await this.prisma.supplier.findUnique({
-        where: { taxId: dto.taxId },
+        where: { taxId: normalizedTaxId },
       });
       if (conflict) {
         throw new ConflictException(
-          `Ya existe un proveedor registrado con el RUC ${dto.taxId}`,
+          `Ya existe un proveedor registrado con el RUC ${normalizedTaxId}`,
         );
       }
     }
@@ -132,7 +139,7 @@ export class SuppliersService {
     return this.prisma.supplier.update({
       where: { id },
       data: {
-        ...(dto.taxId && { taxId: dto.taxId }),
+        ...(normalizedTaxId !== undefined && { taxId: normalizedTaxId }),
         ...(dto.businessName && { businessName: dto.businessName.trim() }),
         ...(dto.contactPhone !== undefined && {
           contactPhone: dto.contactPhone ? dto.contactPhone.trim() : null,
