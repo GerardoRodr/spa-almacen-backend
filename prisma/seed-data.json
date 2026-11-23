@@ -39,6 +39,14 @@
       "fullName": "Lucia Fernandez - Moderadora Operativa",
       "role": "MODERATOR",
       "isActive": true
+    },
+    {
+      "id": "a0000000-0000-4000-8000-000000000006",
+      "email": "exalmacenero@obra.com",
+      "password": "Almacen1234!",
+      "fullName": "Mateo Quispe - Ex Almacenero (Inactivo)",
+      "role": "WAREHOUSE_KEEPER",
+      "isActive": false
     }
   ],
   "projects": [
@@ -54,7 +62,10 @@
       "s10MaterialsBudget": 1250000.00,
       "s10EquipmentBudget": 350000.00,
       "s10LaborBudget": 850000.00,
-      "s10SubcontractsBudget": 400000.00
+      "s10SubcontractsBudget": 400000.00,
+      "s10FilePath": "s10/torre-central-s10.csv",
+      "s10FileName": "presupuesto_torre_central_s10.csv",
+      "s10UploadedAt": "2026-01-16T09:30:00.000Z"
     },
     {
       "id": "c0000000-0000-4000-8000-000000000002",
@@ -68,7 +79,10 @@
       "s10MaterialsBudget": 890000.00,
       "s10EquipmentBudget": 210000.00,
       "s10LaborBudget": 620000.00,
-      "s10SubcontractsBudget": 260000.00
+      "s10SubcontractsBudget": 260000.00,
+      "s10FilePath": "s10/las-villas-s10.csv",
+      "s10FileName": "presupuesto_las_villas_s10.csv",
+      "s10UploadedAt": "2026-02-02T10:15:00.000Z"
     },
     {
       "id": "c0000000-0000-4000-8000-000000000003",
@@ -82,7 +96,10 @@
       "s10MaterialsBudget": null,
       "s10EquipmentBudget": null,
       "s10LaborBudget": null,
-      "s10SubcontractsBudget": null
+      "s10SubcontractsBudget": null,
+      "s10FilePath": null,
+      "s10FileName": null,
+      "s10UploadedAt": null
     },
     {
       "id": "c0000000-0000-4000-8000-000000000004",
@@ -96,7 +113,27 @@
       "s10MaterialsBudget": 680000.00,
       "s10EquipmentBudget": 150000.00,
       "s10LaborBudget": 420000.00,
-      "s10SubcontractsBudget": 200000.00
+      "s10SubcontractsBudget": 200000.00,
+      "s10FilePath": "s10/costa-verde-s10.csv",
+      "s10FileName": "presupuesto_costa_verde_s10.csv",
+      "s10UploadedAt": "2025-05-12T08:00:00.000Z"
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000005",
+      "name": "Mejoramiento Vial Av. Universitaria (Historico)",
+      "budgetCode": "S10-MVU-2024",
+      "status": "ARCHIVED",
+      "s10Location": "LIMA - LIMA - LOS OLIVOS",
+      "s10Ubigeo": "150117",
+      "s10BudgetDate": "2024-03-01T00:00:00.000Z",
+      "s10TotalBudget": 950000.00,
+      "s10MaterialsBudget": 430000.00,
+      "s10EquipmentBudget": 120000.00,
+      "s10LaborBudget": 280000.00,
+      "s10SubcontractsBudget": 120000.00,
+      "s10FilePath": null,
+      "s10FileName": null,
+      "s10UploadedAt": null
     }
   ],
   "warehouses": [
@@ -243,6 +280,94 @@
       "contactPhone": "+51 1 6156003",
       "contactEmail": "corporativo@maestro.com.pe",
       "address": "Av. Angamos Este 1805, Surquillo, Lima"
+    },
+    {
+      "id": "d0000000-0000-4000-8000-000000000007",
+      "taxId": "20512345678",
+      "businessName": "TRANSPORTES Y LOGISTICA ANDINA S.A.C.",
+      "contactPhone": "+51 1 4458900",
+      "contactEmail": "operaciones@transandina.com.pe",
+      "address": "Av. Argentina 2150, Callao"
+    }
+  ],
+  "measurementUnits": [
+    { "code": "UND", "name": "Unidad", "description": "Unidad de pieza o articulo individual" },
+    { "code": "UNIDAD", "name": "Unidad", "description": "Equivalente textual de unidad" },
+    { "code": "BOLSA", "name": "Bolsa", "description": "Bolsa (ej. Cemento 42.5 kg)" },
+    { "code": "KG", "name": "Kilogramo", "description": "Unidad de masa en kilogramos" },
+    { "code": "M3", "name": "Metro Cubico", "description": "Unidad de volumen para agregados o concreto" },
+    { "code": "M2", "name": "Metro Cuadrado", "description": "Unidad de area para encofrados o acabados" },
+    { "code": "M", "name": "Metro Lineal", "description": "Metro lineal (abreviatura estandar)" },
+    { "code": "METRO", "name": "Metro Lineal", "description": "Unidad de longitud lineal" },
+    { "code": "VAR", "name": "Varilla", "description": "Varilla de acero o construccion" },
+    { "code": "VARILLA", "name": "Varilla de Acero", "description": "Varilla de construccion" },
+    { "code": "PZA", "name": "Pieza", "description": "Pieza individual" },
+    { "code": "GLN", "name": "Galon", "description": "Galon de combustible o liquido" },
+    { "code": "GALON", "name": "Galon", "description": "Equivalente textual de galon" },
+    { "code": "MILLAR", "name": "Millar", "description": "Mil unidades (ej. ladrillos)" },
+    { "code": "TUBO", "name": "Tubo", "description": "Tubo PVC, conduit o fierro" },
+    { "code": "PQTE", "name": "Paquete", "description": "Paquete de articulos agrupados" },
+    { "code": "ROLLO", "name": "Rollo", "description": "Rollo de alambre o geomembrana" },
+    { "code": "LITRO", "name": "Litro", "description": "Unidad de volumen liquido" },
+    { "code": "CIENTO", "name": "Ciento", "description": "Cien unidades" },
+    { "code": "DOCENA", "name": "Docena", "description": "Conjunto de doce unidades" },
+    { "code": "CJA", "name": "Caja", "description": "Caja contenedora (abreviatura estandar)" },
+    { "code": "CAJA", "name": "Caja", "description": "Caja contenedora" },
+    { "code": "PLIEGO", "name": "Pliego", "description": "Pliego de lija o lamina" },
+    { "code": "LATA", "name": "Lata", "description": "Lata de pintura, solvente o pegamento" },
+    { "code": "BALDE", "name": "Balde", "description": "Balde de pintura o aditivo" },
+    { "code": "PAR", "name": "Par", "description": "Par de guantes o calzado" },
+    { "code": "JGO", "name": "Juego", "description": "Juego de herramientas o llaves" },
+    { "code": "GLB", "name": "Global", "description": "Unidad global para partidas y servicios" }
+  ],
+  "itemCategories": [
+    {
+      "id": "11000000-0000-4000-8000-000000000001",
+      "name": "Cementos y Agregados",
+      "code": "CAT-CEM",
+      "description": "Conglomerantes hidraulicos, arena, piedra y ladrillos"
+    },
+    {
+      "id": "11000000-0000-4000-8000-000000000002",
+      "name": "Acero y Ferreteria",
+      "code": "CAT-ACE",
+      "description": "Fierro corrugado, alambre de amarre, clavos y fijaciones"
+    },
+    {
+      "id": "11000000-0000-4000-8000-000000000003",
+      "name": "Tuberia y Conexiones",
+      "code": "CAT-TUB",
+      "description": "Redes sanitarias, agua potable y canalizaciones electricas PVC"
+    },
+    {
+      "id": "11000000-0000-4000-8000-000000000004",
+      "name": "Aditivos y Combustibles",
+      "code": "CAT-ADI",
+      "description": "Aditivos quimicos para concreto, resinas y combustibles"
+    },
+    {
+      "id": "11000000-0000-4000-8000-000000000005",
+      "name": "Herramientas Manuales",
+      "code": "CAT-HER",
+      "description": "Herramientas de mano, carretillas y accesorios de cuadrilla"
+    },
+    {
+      "id": "11000000-0000-4000-8000-000000000006",
+      "name": "Equipos Electromecanicos",
+      "code": "CAT-EQU",
+      "description": "Equipos portatiles electricos, a combustion e instrumentos topograficos"
+    },
+    {
+      "id": "11000000-0000-4000-8000-000000000007",
+      "name": "Maquinaria Pesada",
+      "code": "CAT-MAQ",
+      "description": "Flota de movimiento de tierras, compactacion y transporte pesado"
+    },
+    {
+      "id": "11000000-0000-4000-8000-000000000008",
+      "name": "Servicios y Fletes",
+      "code": "CAT-SER",
+      "description": "Servicios logisticos, transporte de carga y ensayos tecnicos sin stock"
     }
   ],
   "items": [
@@ -253,8 +378,12 @@
       "description": "Bolsa de cemento estandar para vaciado de columnas, vigas y losas",
       "baseUnit": "BOLSA",
       "type": "CONSUMABLE",
+      "categoryId": "11000000-0000-4000-8000-000000000001",
       "minStockAlert": 100,
-      "isPerishable": true
+      "isPerishable": true,
+      "trackLot": true,
+      "trackExpiration": true,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000002",
@@ -263,8 +392,12 @@
       "description": "Varilla de acero de 9 metros para armaduras y estribos estructurales",
       "baseUnit": "VARILLA",
       "type": "CONSUMABLE",
+      "categoryId": "11000000-0000-4000-8000-000000000002",
       "minStockAlert": 150,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": true,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000003",
@@ -273,8 +406,12 @@
       "description": "Varilla de acero corrugado de 9m para refuerzo de zapatas y vigas",
       "baseUnit": "VARILLA",
       "type": "CONSUMABLE",
+      "categoryId": "11000000-0000-4000-8000-000000000002",
       "minStockAlert": 200,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000004",
@@ -283,8 +420,12 @@
       "description": "Agregado fino para mezclas de concreto y asentado de ladrillos",
       "baseUnit": "M3",
       "type": "CONSUMABLE",
+      "categoryId": "11000000-0000-4000-8000-000000000001",
       "minStockAlert": 30,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000005",
@@ -293,8 +434,12 @@
       "description": "Agregado grueso triturado para vaciado de concreto armado",
       "baseUnit": "M3",
       "type": "CONSUMABLE",
+      "categoryId": "11000000-0000-4000-8000-000000000001",
       "minStockAlert": 25,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000006",
@@ -303,8 +448,12 @@
       "description": "Ladrillo mecanizado para muros portantes estructurales",
       "baseUnit": "MILLAR",
       "type": "CONSUMABLE",
+      "categoryId": "11000000-0000-4000-8000-000000000001",
       "minStockAlert": 5,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000007",
@@ -313,8 +462,12 @@
       "description": "Tubo de desague pesado para instalaciones sanitarias internas",
       "baseUnit": "TUBO",
       "type": "CONSUMABLE",
+      "categoryId": "11000000-0000-4000-8000-000000000003",
       "minStockAlert": 40,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000008",
@@ -323,8 +476,12 @@
       "description": "Aditivo liquido para acelerar fraguado de concreto estructural",
       "baseUnit": "GLN",
       "type": "CONSUMABLE",
+      "categoryId": "11000000-0000-4000-8000-000000000004",
       "minStockAlert": 20,
-      "isPerishable": true
+      "isPerishable": true,
+      "trackLot": true,
+      "trackExpiration": true,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000009",
@@ -333,8 +490,12 @@
       "description": "Equipo electro-neumatico con encastre SDS Plus para perforacion en concreto",
       "baseUnit": "UNIDAD",
       "type": "EQUIPMENT",
+      "categoryId": "11000000-0000-4000-8000-000000000006",
       "minStockAlert": 2,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000010",
@@ -343,8 +504,12 @@
       "description": "Herramienta rotativa de alto rendimiento para corte y desbaste metalico",
       "baseUnit": "UNIDAD",
       "type": "EQUIPMENT",
+      "categoryId": "11000000-0000-4000-8000-000000000006",
       "minStockAlert": 3,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000011",
@@ -353,8 +518,12 @@
       "description": "Nivel de lineas 360 grados de precision milimetrica para topografia y acabados",
       "baseUnit": "UNIDAD",
       "type": "EQUIPMENT",
+      "categoryId": "11000000-0000-4000-8000-000000000006",
       "minStockAlert": 1,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000012",
@@ -363,8 +532,12 @@
       "description": "Manguera vibradora a combustion para compactacion y eliminacion de cangrejeras",
       "baseUnit": "UNIDAD",
       "type": "EQUIPMENT",
+      "categoryId": "11000000-0000-4000-8000-000000000006",
       "minStockAlert": 2,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000013",
@@ -373,8 +546,12 @@
       "description": "Taladro percutor reversible de velocidad variable para montajes de encofrado",
       "baseUnit": "UNIDAD",
       "type": "EQUIPMENT",
+      "categoryId": "11000000-0000-4000-8000-000000000006",
       "minStockAlert": 2,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000014",
@@ -383,8 +560,12 @@
       "description": "Herramienta manual forjada para acarreo y bateo de mortero",
       "baseUnit": "UNIDAD",
       "type": "TOOL",
+      "categoryId": "11000000-0000-4000-8000-000000000005",
       "minStockAlert": 8,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000015",
@@ -393,8 +574,12 @@
       "description": "Buggy metalico de tolva reforzada con llanta neumatica para transporte de concreto",
       "baseUnit": "UNIDAD",
       "type": "TOOL",
+      "categoryId": "11000000-0000-4000-8000-000000000005",
       "minStockAlert": 5,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000016",
@@ -404,8 +589,12 @@
       "baseUnit": "UNIDAD",
       "type": "MACHINERY",
       "meterType": "HOUR_METER",
+      "categoryId": "11000000-0000-4000-8000-000000000007",
       "minStockAlert": 1,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000017",
@@ -415,8 +604,12 @@
       "baseUnit": "UNIDAD",
       "type": "MACHINERY",
       "meterType": "HOUR_METER",
+      "categoryId": "11000000-0000-4000-8000-000000000007",
       "minStockAlert": 1,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000018",
@@ -426,8 +619,12 @@
       "baseUnit": "UNIDAD",
       "type": "MACHINERY",
       "meterType": "HOUR_METER",
+      "categoryId": "11000000-0000-4000-8000-000000000007",
       "minStockAlert": 1,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000019",
@@ -436,8 +633,12 @@
       "description": "Pico forjado en acero al carbono con mango ergonomico de fibra de vidrio 36 pulgadas",
       "baseUnit": "UNIDAD",
       "type": "TOOL",
+      "categoryId": "11000000-0000-4000-8000-000000000005",
       "minStockAlert": 6,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000020",
@@ -447,8 +648,12 @@
       "baseUnit": "UNIDAD",
       "type": "MACHINERY",
       "meterType": "KILOMETER",
+      "categoryId": "11000000-0000-4000-8000-000000000007",
       "minStockAlert": 1,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000021",
@@ -457,8 +662,12 @@
       "description": "Cemento Portland Tipo I en bolsas de 42.5 kg para obras civiles",
       "baseUnit": "BOLSA",
       "type": "CONSUMABLE",
+      "categoryId": "11000000-0000-4000-8000-000000000001",
       "minStockAlert": 500,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000022",
@@ -467,8 +676,12 @@
       "description": "Clavos de acero para encofrado y carpinteria 2 1/2 pulgada",
       "baseUnit": "KG",
       "type": "CONSUMABLE",
+      "categoryId": "11000000-0000-4000-8000-000000000002",
       "minStockAlert": 100,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000023",
@@ -477,8 +690,12 @@
       "description": "Combustible para maquinaria menor y motores estacionarios",
       "baseUnit": "GALON",
       "type": "CONSUMABLE",
+      "categoryId": "11000000-0000-4000-8000-000000000004",
       "minStockAlert": 10,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000024",
@@ -487,8 +704,12 @@
       "description": "Alambre de amarre para armaduras y estribos calibre 8",
       "baseUnit": "KG",
       "type": "CONSUMABLE",
+      "categoryId": "11000000-0000-4000-8000-000000000002",
       "minStockAlert": 200,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000025",
@@ -497,8 +718,12 @@
       "description": "Tuberia para redes de distribucion de agua potable 1 pulgada C-10",
       "baseUnit": "METRO",
       "type": "CONSUMABLE",
+      "categoryId": "11000000-0000-4000-8000-000000000003",
       "minStockAlert": 150,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000026",
@@ -507,8 +732,12 @@
       "description": "Barras de acero de refuerzo para concreto armado Grado 60",
       "baseUnit": "KG",
       "type": "CONSUMABLE",
+      "categoryId": "11000000-0000-4000-8000-000000000002",
       "minStockAlert": 1000,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000027",
@@ -517,8 +746,12 @@
       "description": "Alambre negro fino calibre 16 para amarras secundarias",
       "baseUnit": "KG",
       "type": "CONSUMABLE",
+      "categoryId": "11000000-0000-4000-8000-000000000002",
       "minStockAlert": 100,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000028",
@@ -527,8 +760,12 @@
       "description": "Clavos para encofrados pesados de 3 pulgadas",
       "baseUnit": "KG",
       "type": "CONSUMABLE",
+      "categoryId": "11000000-0000-4000-8000-000000000002",
       "minStockAlert": 50,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000029",
@@ -537,8 +774,12 @@
       "description": "Tuberia pesada para instalaciones electricas 3/4 pulgada (20mm)",
       "baseUnit": "METRO",
       "type": "CONSUMABLE",
+      "categoryId": "11000000-0000-4000-8000-000000000003",
       "minStockAlert": 50,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000030",
@@ -547,8 +788,12 @@
       "description": "Accesorios para conexion y curvatura de tuberia electrica",
       "baseUnit": "UNIDAD",
       "type": "CONSUMABLE",
+      "categoryId": "11000000-0000-4000-8000-000000000003",
       "minStockAlert": 20,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000031",
@@ -557,8 +802,12 @@
       "description": "Instrumento de nivelacion de precision con compensador automatico",
       "baseUnit": "UNIDAD",
       "type": "EQUIPMENT",
+      "categoryId": "11000000-0000-4000-8000-000000000006",
       "minStockAlert": 1,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000032",
@@ -567,8 +816,12 @@
       "description": "Equipo vibrador pendular a gasolina con manguera de 4m",
       "baseUnit": "UNIDAD",
       "type": "EQUIPMENT",
+      "categoryId": "11000000-0000-4000-8000-000000000006",
       "minStockAlert": 1,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
     },
     {
       "id": "e0000000-0000-4000-8000-000000000033",
@@ -577,8 +830,54 @@
       "description": "Bomba de presion manual para verificacion de estanqueidad en tuberias",
       "baseUnit": "UNIDAD",
       "type": "TOOL",
+      "categoryId": "11000000-0000-4000-8000-000000000005",
       "minStockAlert": 1,
-      "isPerishable": false
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000034",
+      "sku": "SER-0001",
+      "name": "Servicio de Flete y Transporte de Carga Pesada",
+      "description": "Traslado terrestre de materiales desde planta o almacen central hacia obra",
+      "baseUnit": "GLB",
+      "type": "SERVICE",
+      "categoryId": "11000000-0000-4000-8000-000000000008",
+      "minStockAlert": 0,
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000035",
+      "sku": "SER-0002",
+      "name": "Ensayo de Rotura de Probetas de Concreto",
+      "description": "Servicio de laboratorio certificado para control de resistencia a compresion",
+      "baseUnit": "UND",
+      "type": "SERVICE",
+      "categoryId": "11000000-0000-4000-8000-000000000008",
+      "minStockAlert": 0,
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": true
+    },
+    {
+      "id": "e0000000-0000-4000-8000-000000000036",
+      "sku": "MAT-DES-001",
+      "name": "Clavo Galvanizado 4 pulgadas (Descontinuado)",
+      "description": "Insumo historico desactivado logicamente para pruebas de filtro inactivos",
+      "baseUnit": "KG",
+      "type": "CONSUMABLE",
+      "categoryId": "11000000-0000-4000-8000-000000000002",
+      "minStockAlert": 0,
+      "isPerishable": false,
+      "trackLot": false,
+      "trackExpiration": false,
+      "isActive": false
     }
   ],
   "itemAliases": [
@@ -741,6 +1040,14 @@
       "s10Code": "03010400010006",
       "s10Unit": "hm",
       "conversionFactor": 1
+    },
+    {
+      "id": "90000000-0000-4000-8000-000000000034",
+      "itemId": "e0000000-0000-4000-8000-000000000034",
+      "s10RawName": "FLETE TERRESTRE DE MATERIALES A OBRA",
+      "s10Code": "0401010001",
+      "s10Unit": "glb",
+      "conversionFactor": 1
     }
   ],
   "projectRequirements": [
@@ -815,6 +1122,15 @@
       "allocatedQty": 40,
       "consumedQty": 35,
       "s10UnitPrice": 34
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000009",
+      "projectId": "c0000000-0000-4000-8000-000000000004",
+      "itemId": "e0000000-0000-4000-8000-000000000001",
+      "requiredQty": 500,
+      "allocatedQty": 0,
+      "consumedQty": 500,
+      "s10UnitPrice": 26.0
     }
   ],
   "purchases": [
@@ -897,6 +1213,43 @@
       "igvAmountPEN": 0,
       "totalAmountPEN": 1200,
       "notes": "Adquisicion menor de caseta Las Villas"
+    },
+    {
+      "id": "f0000000-0000-4000-8000-000000000007",
+      "supplierId": "d0000000-0000-4000-8000-000000000007",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "invoiceSeries": "F007-0001120",
+      "voucherType": "FACTURA",
+      "hasIgv": true,
+      "currency": "PEN",
+      "exchangeRate": 1,
+      "issueDate": "2026-10-02T10:00:00.000Z",
+      "subtotalPEN": 2560,
+      "igvAmountPEN": 460.8,
+      "totalAmountPEN": 3020.8,
+      "notes": "Compra con aditivo trazable por lote y servicio de flete incluido",
+      "isEdited": true
+    },
+    {
+      "id": "f0000000-0000-4000-8000-000000000008",
+      "supplierId": "d0000000-0000-4000-8000-000000000003",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "invoiceSeries": "F001-0099999",
+      "voucherType": "FACTURA",
+      "hasIgv": true,
+      "currency": "PEN",
+      "exchangeRate": 1,
+      "issueDate": "2026-10-03T09:15:00.000Z",
+      "subtotalPEN": 500,
+      "igvAmountPEN": 90,
+      "totalAmountPEN": 590,
+      "notes": "Comprobante emitido con RUC incorrecto, revertido contablemente",
+      "isEdited": false,
+      "isReverted": true,
+      "revertedAt": "2026-10-03T11:00:00.000Z",
+      "revertedById": "a0000000-0000-4000-8000-000000000001",
+      "reversalReason": "Factura anulada por error en razon social del emisor",
+      "reversalMovementId": "20000000-0000-4000-8000-000000000012"
     }
   ],
   "purchaseDetails": [
@@ -910,7 +1263,9 @@
       "baseQty": 500,
       "unitPriceOriginal": 35.5,
       "unitCostBasePEN": 35.5,
-      "subtotalPEN": 17750
+      "subtotalPEN": 17750,
+      "lotNumber": "COLADA-AA-2026-08",
+      "notes": "Certificado de calidad incluido"
     },
     {
       "id": "f1000000-0000-4000-8000-000000000002",
@@ -934,7 +1289,10 @@
       "baseQty": 1200,
       "unitPriceOriginal": 26.25,
       "unitCostBasePEN": 26.25,
-      "subtotalPEN": 31500
+      "subtotalPEN": 31500,
+      "lotNumber": "LOT-PAC-2026-09A",
+      "expirationDate": "2026-12-15T00:00:00.000Z",
+      "notes": "Lote verificado en recepcion sin humedad"
     },
     {
       "id": "f1000000-0000-4000-8000-000000000004",
@@ -1055,6 +1413,53 @@
       "unitPriceOriginal": 5.75,
       "unitCostBasePEN": 5.75,
       "subtotalPEN": 2875
+    },
+    {
+      "id": "f1000000-0000-4000-8000-000000000025",
+      "purchaseId": "f0000000-0000-4000-8000-000000000007",
+      "itemId": "e0000000-0000-4000-8000-000000000008",
+      "purchaseUnit": "GLN",
+      "conversionFactor": 1,
+      "purchaseQty": 20,
+      "baseQty": 20,
+      "unitPriceOriginal": 120,
+      "unitCostBasePEN": 108,
+      "subtotalPEN": 2160,
+      "discountType": "PERCENTAGE",
+      "discountValue": 10,
+      "discountAmountPEN": 240,
+      "lotNumber": "LOT-SIKA-8841",
+      "expirationDate": "2027-06-30T00:00:00.000Z",
+      "notes": "Lote aditivo con 10% descuento comercial"
+    },
+    {
+      "id": "f1000000-0000-4000-8000-000000000026",
+      "purchaseId": "f0000000-0000-4000-8000-000000000007",
+      "itemId": "e0000000-0000-4000-8000-000000000034",
+      "purchaseUnit": "GLB",
+      "conversionFactor": 1,
+      "purchaseQty": 1,
+      "baseQty": 1,
+      "unitPriceOriginal": 450,
+      "unitCostBasePEN": 400,
+      "subtotalPEN": 400,
+      "discountType": "FIXED",
+      "discountValue": 50,
+      "discountAmountPEN": 50,
+      "notes": "Servicio de flete Lima - San Isidro con descuento fijo"
+    },
+    {
+      "id": "f1000000-0000-4000-8000-000000000027",
+      "purchaseId": "f0000000-0000-4000-8000-000000000008",
+      "itemId": "e0000000-0000-4000-8000-000000000022",
+      "purchaseUnit": "KG",
+      "conversionFactor": 1,
+      "purchaseQty": 100,
+      "baseQty": 100,
+      "unitPriceOriginal": 5,
+      "unitCostBasePEN": 5,
+      "subtotalPEN": 500,
+      "notes": "Linea perteneciente a factura anulada"
     }
   ],
   "stocks": [
@@ -1515,7 +1920,10 @@
       "dispatchedAt": null,
       "receivedAt": null,
       "dispatchNotes": "Transferencia cancelada antes de la salida por reprogramacion de obra ante contingencia climatica",
-      "receptionNotes": null
+      "receptionNotes": null,
+      "cancelledAt": "2026-09-16T10:00:00.000Z",
+      "cancelledById": "a0000000-0000-4000-8000-000000000001",
+      "cancellationReason": "Reprogramacion de frente de obra Yanivilca por lluvias"
     }
   ],
   "transferItems": [
@@ -1742,6 +2150,76 @@
       "shrinkageReason": "Baja tecnica por dano electromecanico irreparable en motor de vibrador de concreto en obra",
       "observation": "Baja patrimonial autorizada por Residente de Obra tras informe tecnico de caseta (VALE-2026-00006)",
       "createdAt": "2026-10-04T15:00:00.000Z"
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000011",
+      "movementNumber": "MOV-2026-00011",
+      "type": "PURCHASE_ENTRY",
+      "originWarehouseId": null,
+      "destWarehouseId": "b0000000-0000-4000-8000-000000000001",
+      "projectId": null,
+      "userId": "a0000000-0000-4000-8000-000000000002",
+      "transferId": null,
+      "recipientName": null,
+      "recipientDni": null,
+      "shrinkageReason": null,
+      "observation": "Ingreso por factura F001-0099999 (luego revertida)",
+      "isReverted": true,
+      "revertedAt": "2026-10-03T11:00:00.000Z",
+      "revertedById": "a0000000-0000-4000-8000-000000000001",
+      "reversalReason": "Factura anulada por error en razon social del emisor",
+      "createdAt": "2026-10-03T09:20:00.000Z"
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000012",
+      "movementNumber": "MOV-2026-00012",
+      "type": "REVERSAL_EXIT",
+      "originWarehouseId": "b0000000-0000-4000-8000-000000000001",
+      "destWarehouseId": null,
+      "projectId": null,
+      "userId": "a0000000-0000-4000-8000-000000000001",
+      "transferId": null,
+      "recipientName": null,
+      "recipientDni": null,
+      "shrinkageReason": null,
+      "observation": "Contra-asiento de salida por anulacion de compra F001-0099999",
+      "reversesMovementId": "20000000-0000-4000-8000-000000000011",
+      "createdAt": "2026-10-03T11:00:00.000Z"
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000013",
+      "movementNumber": "MOV-2026-00013",
+      "type": "CONSUMPTION_EXIT",
+      "originWarehouseId": "b0000000-0000-4000-8000-000000000002",
+      "destWarehouseId": null,
+      "projectId": "c0000000-0000-4000-8000-000000000001",
+      "userId": "a0000000-0000-4000-8000-000000000003",
+      "transferId": null,
+      "recipientName": "Manuel Flores Huaman",
+      "recipientDni": "45892314",
+      "shrinkageReason": null,
+      "observation": "Salida erronea de cemento registrada por duplicado (revertida)",
+      "isReverted": true,
+      "revertedAt": "2026-10-04T09:15:00.000Z",
+      "revertedById": "a0000000-0000-4000-8000-000000000005",
+      "reversalReason": "Duplicado de vale de consumo en cuadrilla",
+      "createdAt": "2026-10-04T08:45:00.000Z"
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000014",
+      "movementNumber": "MOV-2026-00014",
+      "type": "REVERSAL_ENTRY",
+      "originWarehouseId": null,
+      "destWarehouseId": "b0000000-0000-4000-8000-000000000002",
+      "projectId": "c0000000-0000-4000-8000-000000000001",
+      "userId": "a0000000-0000-4000-8000-000000000005",
+      "transferId": null,
+      "recipientName": null,
+      "recipientDni": null,
+      "shrinkageReason": null,
+      "observation": "Contra-asiento de reingreso por anulacion de consumo duplicado MOV-2026-00013",
+      "reversesMovementId": "20000000-0000-4000-8000-000000000013",
+      "createdAt": "2026-10-04T09:15:00.000Z"
     }
   ],
   "movementItems": [
@@ -1856,6 +2334,38 @@
       "quantity": 1,
       "unitCostSnapshot": 1850,
       "totalCostSnapshot": 1850
+    },
+    {
+      "id": "21000000-0000-4000-8000-000000000015",
+      "movementId": "20000000-0000-4000-8000-000000000011",
+      "itemId": "e0000000-0000-4000-8000-000000000022",
+      "quantity": 100,
+      "unitCostSnapshot": 5,
+      "totalCostSnapshot": 500
+    },
+    {
+      "id": "21000000-0000-4000-8000-000000000016",
+      "movementId": "20000000-0000-4000-8000-000000000012",
+      "itemId": "e0000000-0000-4000-8000-000000000022",
+      "quantity": 100,
+      "unitCostSnapshot": 5,
+      "totalCostSnapshot": 500
+    },
+    {
+      "id": "21000000-0000-4000-8000-000000000017",
+      "movementId": "20000000-0000-4000-8000-000000000013",
+      "itemId": "e0000000-0000-4000-8000-000000000001",
+      "quantity": 20,
+      "unitCostSnapshot": 26.25,
+      "totalCostSnapshot": 525
+    },
+    {
+      "id": "21000000-0000-4000-8000-000000000018",
+      "movementId": "20000000-0000-4000-8000-000000000014",
+      "itemId": "e0000000-0000-4000-8000-000000000001",
+      "quantity": 20,
+      "unitCostSnapshot": 26.25,
+      "totalCostSnapshot": 525
     }
   ],
   "toolCustodies": [
@@ -1972,6 +2482,67 @@
       "conditionOnReturn": "DAMAGED_UNUSABLE",
       "notes": "Vaciado de concreto en zapatas de cimentacion manzana B",
       "returnNotes": "Bobinado de motor quemado por sobretension en obra. No reacciona. Se tramita acta de baja patrimonial."
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000007",
+      "custodyNumber": "VALE-2026-00007",
+      "itemId": "e0000000-0000-4000-8000-000000000019",
+      "warehouseId": "b0000000-0000-4000-8000-000000000002",
+      "quantity": 2,
+      "serialOrCode": null,
+      "assignedToName": "Luis Enrique Chavez",
+      "assignedToDni": "44123987",
+      "dispatchedById": "a0000000-0000-4000-8000-000000000003",
+      "receivedById": "a0000000-0000-4000-8000-000000000003",
+      "dispatchDate": "2026-10-06T08:00:00.000Z",
+      "expectedReturnDate": "2026-10-06T17:00:00.000Z",
+      "returnDate": "2026-10-06T16:45:00.000Z",
+      "conditionOnDispatch": "NEW",
+      "conditionOnReturn": "OPERATIVE",
+      "notes": "Entrega de picos nuevos recien ingresados a caseta",
+      "returnNotes": "Retorno limpio y completo al cierre de jornada"
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000008",
+      "custodyNumber": "VALE-2026-00008",
+      "itemId": "e0000000-0000-4000-8000-000000000033",
+      "warehouseId": "b0000000-0000-4000-8000-000000000001",
+      "quantity": 1,
+      "serialOrCode": "BOM-HID-001",
+      "assignedToName": "Victor Hugo Salazar",
+      "assignedToDni": "43120984",
+      "dispatchedById": "a0000000-0000-4000-8000-000000000002",
+      "receivedById": "a0000000-0000-4000-8000-000000000002",
+      "dispatchDate": "2026-10-07T08:30:00.000Z",
+      "expectedReturnDate": "2026-10-08T17:00:00.000Z",
+      "returnDate": "2026-10-08T18:00:00.000Z",
+      "conditionOnDispatch": "DAMAGED_USABLE",
+      "conditionOnReturn": "LOST",
+      "notes": "Bomba con desgaste normal en manometro",
+      "returnNotes": "Equipo reportado como extraviado en frente de obra. Acta de perdida adjunta."
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000009",
+      "custodyNumber": "VALE-2026-00009",
+      "itemId": "e0000000-0000-4000-8000-000000000014",
+      "warehouseId": "b0000000-0000-4000-8000-000000000002",
+      "quantity": 3,
+      "serialOrCode": null,
+      "assignedToName": "Operario Prueba Error",
+      "assignedToDni": "99999999",
+      "dispatchedById": "a0000000-0000-4000-8000-000000000003",
+      "receivedById": null,
+      "dispatchDate": "2026-10-09T09:00:00.000Z",
+      "expectedReturnDate": "2026-10-09T17:00:00.000Z",
+      "returnDate": null,
+      "conditionOnDispatch": "OPERATIVE",
+      "conditionOnReturn": null,
+      "notes": "Vale emitido por error de DNI",
+      "returnNotes": null,
+      "isReverted": true,
+      "revertedAt": "2026-10-09T09:20:00.000Z",
+      "revertedById": "a0000000-0000-4000-8000-000000000001",
+      "reversalReason": "DNI incorrecto del operario receptor"
     }
   ],
   "documentAttachments": [
@@ -1982,7 +2553,7 @@
       "movementId": null,
       "custodyId": null,
       "originalName": "Factura_Aceros_Arequipa_F001-0012890.pdf",
-      "storedPath": "/uploads/purchases/2026-09/F001-0012890.pdf",
+      "storedPath": "purchases/2026-09/F001-0012890.pdf",
       "mimeType": "application/pdf",
       "fileSizeBytes": 245100,
       "isConfidential": true
@@ -1994,7 +2565,7 @@
       "movementId": null,
       "custodyId": null,
       "originalName": "Guia_Remision_TR-2026-00001.pdf",
-      "storedPath": "/uploads/transfers/2026-09/GR-TR-2026-00001.pdf",
+      "storedPath": "transfers/2026-09/GR-TR-2026-00001.pdf",
       "mimeType": "application/pdf",
       "fileSizeBytes": 182300,
       "isConfidential": false
@@ -2006,7 +2577,7 @@
       "movementId": null,
       "custodyId": null,
       "originalName": "Acta_Discrepancia_Cargas_Humedas_TR-00003.pdf",
-      "storedPath": "/uploads/transfers/2026-09/ACTA-DISC-00003.pdf",
+      "storedPath": "transfers/2026-09/ACTA-DISC-00003.pdf",
       "mimeType": "application/pdf",
       "fileSizeBytes": 312400,
       "isConfidential": false
@@ -2018,7 +2589,7 @@
       "movementId": "20000000-0000-4000-8000-000000000005",
       "custodyId": null,
       "originalName": "Vale_Entrega_Consumo_MOV-00005.pdf",
-      "storedPath": "/uploads/movements/2026-09/VALE-CONS-00005.pdf",
+      "storedPath": "movements/2026-09/VALE-CONS-00005.pdf",
       "mimeType": "application/pdf",
       "fileSizeBytes": 154200,
       "isConfidential": false
@@ -2030,7 +2601,7 @@
       "movementId": null,
       "custodyId": "30000000-0000-4000-8000-000000000001",
       "originalName": "Foto_Entrega_Rotomartillo_VALE-00001.jpg",
-      "storedPath": "/uploads/custody/2026-09/FOTO-VALE-00001.jpg",
+      "storedPath": "custody/2026-09/FOTO-VALE-00001.jpg",
       "mimeType": "image/jpeg",
       "fileSizeBytes": 948200,
       "isConfidential": false,
@@ -2044,7 +2615,7 @@
       "custodyId": "30000000-0000-4000-8000-000000000006",
       "proofType": "RETURN",
       "originalName": "Foto_Devolucion_Vibrador_Danado_VALE-00006.webp",
-      "storedPath": "/uploads/custody/2026-10/FOTO-DEV-VALE-00006.webp",
+      "storedPath": "custody/2026-10/FOTO-DEV-VALE-00006.webp",
       "mimeType": "image/webp",
       "fileSizeBytes": 245000,
       "isConfidential": false
@@ -2057,7 +2628,7 @@
       "custodyId": null,
       "proofType": null,
       "originalName": "Factura_Maestro_Importacion_USD_F003-0008922.pdf",
-      "storedPath": "/uploads/purchases/2026-09/F003-0008922.pdf",
+      "storedPath": "purchases/2026-09/F003-0008922.pdf",
       "mimeType": "application/pdf",
       "fileSizeBytes": 198400,
       "isConfidential": true
@@ -2070,9 +2641,22 @@
       "custodyId": null,
       "proofType": null,
       "originalName": "Boleta_Ferreteria_SanMartin_B001-0001245.pdf",
-      "storedPath": "/uploads/purchases/2026-09/B001-0001245.pdf",
+      "storedPath": "purchases/2026-09/B001-0001245.pdf",
       "mimeType": "application/pdf",
       "fileSizeBytes": 165300,
+      "isConfidential": true
+    },
+    {
+      "id": "40000000-0000-4000-8000-000000000009",
+      "purchaseId": "f0000000-0000-4000-8000-000000000007",
+      "transferId": null,
+      "movementId": null,
+      "custodyId": null,
+      "proofType": null,
+      "originalName": "Factura_TransAndina_Flete_F007-0001120.pdf",
+      "storedPath": "purchases/2026-10/F007-0001120.pdf",
+      "mimeType": "application/pdf",
+      "fileSizeBytes": 142800,
       "isConfidential": true
     },
     {
@@ -2083,7 +2667,7 @@
       "custodyId": null,
       "proofType": null,
       "originalName": "horometro_inicial_cat420_jornada1.webp",
-      "storedPath": "/uploads/machinery/2026-10/horometro_inicial_cat420_jornada1.webp",
+      "storedPath": "machinery/2026-10/horometro_inicial_cat420_jornada1.webp",
       "mimeType": "image/webp",
       "fileSizeBytes": 145200,
       "isConfidential": false
@@ -2096,7 +2680,7 @@
       "custodyId": null,
       "proofType": null,
       "originalName": "horometro_final_cat420_jornada1.webp",
-      "storedPath": "/uploads/machinery/2026-10/horometro_final_cat420_jornada1.webp",
+      "storedPath": "machinery/2026-10/horometro_final_cat420_jornada1.webp",
       "mimeType": "image/webp",
       "fileSizeBytes": 152800,
       "isConfidential": false
@@ -2109,7 +2693,7 @@
       "custodyId": null,
       "proofType": null,
       "originalName": "voucher_combustible_cat420_jornada1.webp",
-      "storedPath": "/uploads/machinery/2026-10/voucher_combustible_cat420_jornada1.webp",
+      "storedPath": "machinery/2026-10/voucher_combustible_cat420_jornada1.webp",
       "mimeType": "image/webp",
       "fileSizeBytes": 189400,
       "isConfidential": false
@@ -2122,7 +2706,7 @@
       "custodyId": null,
       "proofType": null,
       "originalName": "horometro_inicial_cat420_jornada2.webp",
-      "storedPath": "/uploads/machinery/2026-10/horometro_inicial_cat420_jornada2.webp",
+      "storedPath": "machinery/2026-10/horometro_inicial_cat420_jornada2.webp",
       "mimeType": "image/webp",
       "fileSizeBytes": 138600,
       "isConfidential": false
@@ -2135,7 +2719,7 @@
       "custodyId": null,
       "proofType": null,
       "originalName": "horometro_final_cat420_jornada2.webp",
-      "storedPath": "/uploads/machinery/2026-10/horometro_final_cat420_jornada2.webp",
+      "storedPath": "machinery/2026-10/horometro_final_cat420_jornada2.webp",
       "mimeType": "image/webp",
       "fileSizeBytes": 147100,
       "isConfidential": false
@@ -2148,7 +2732,7 @@
       "custodyId": null,
       "proofType": null,
       "originalName": "voucher_combustible_cat420_jornada2.webp",
-      "storedPath": "/uploads/machinery/2026-10/voucher_combustible_cat420_jornada2.webp",
+      "storedPath": "machinery/2026-10/voucher_combustible_cat420_jornada2.webp",
       "mimeType": "image/webp",
       "fileSizeBytes": 176500,
       "isConfidential": false
@@ -2161,7 +2745,7 @@
       "custodyId": null,
       "proofType": null,
       "originalName": "horometro_inicial_cat420_jornada3_activa.webp",
-      "storedPath": "/uploads/machinery/2026-10/horometro_inicial_cat420_jornada3_activa.webp",
+      "storedPath": "machinery/2026-10/horometro_inicial_cat420_jornada3_activa.webp",
       "mimeType": "image/webp",
       "fileSizeBytes": 142000,
       "isConfidential": false
@@ -2174,7 +2758,7 @@
       "custodyId": null,
       "proofType": null,
       "originalName": "horometro_inicial_bomag_jornada1.webp",
-      "storedPath": "/uploads/machinery/2026-10/horometro_inicial_bomag_jornada1.webp",
+      "storedPath": "machinery/2026-10/horometro_inicial_bomag_jornada1.webp",
       "mimeType": "image/webp",
       "fileSizeBytes": 129000,
       "isConfidential": false
@@ -2187,9 +2771,22 @@
       "custodyId": null,
       "proofType": null,
       "originalName": "horometro_final_bomag_jornada1.webp",
-      "storedPath": "/uploads/machinery/2026-10/horometro_final_bomag_jornada1.webp",
+      "storedPath": "machinery/2026-10/horometro_final_bomag_jornada1.webp",
       "mimeType": "image/webp",
       "fileSizeBytes": 134500,
+      "isConfidential": false
+    },
+    {
+      "id": "40000000-0000-4000-8000-000000000019",
+      "purchaseId": null,
+      "transferId": null,
+      "movementId": null,
+      "custodyId": "30000000-0000-4000-8000-000000000008",
+      "proofType": "RETURN",
+      "originalName": "Acta_Perdida_Bomba_VALE-00008.pdf",
+      "storedPath": "custody/2026-10/ACTA-PERDIDA-VALE-00008.pdf",
+      "mimeType": "application/pdf",
+      "fileSizeBytes": 118400,
       "isConfidential": false
     }
   ],
@@ -2295,6 +2892,27 @@
       "endPhotoId": null,
       "fuelPhotoId": null,
       "notes": "Traslado de agregados cantera a Almacen Central | Cierre: 3 viajes completados sin incidencias."
+    },
+    {
+      "id": "50000000-0000-4000-8000-000000000007",
+      "itemId": "e0000000-0000-4000-8000-000000000016",
+      "warehouseId": "b0000000-0000-4000-8000-000000000002",
+      "operatorName": "Carlos Alberto Huaman Quispe",
+      "operatorDni": "45678912",
+      "meterType": "HOUR_METER",
+      "startMeter": 1248.5,
+      "endMeter": null,
+      "totalUsage": null,
+      "startDateTime": "2026-10-14T08:05:00.000Z",
+      "endDateTime": null,
+      "startPhotoId": null,
+      "endPhotoId": null,
+      "fuelPhotoId": null,
+      "notes": "Parte diario abierto por error de duplicacion de turno",
+      "isReverted": true,
+      "revertedAt": "2026-10-14T08:30:00.000Z",
+      "revertedById": "a0000000-0000-4000-8000-000000000005",
+      "reversalReason": "Jornada duplicada en el mismo turno matutino"
     }
   ],
   "documentSequences": [
@@ -2302,7 +2920,7 @@
       "id": "60000000-0000-4000-8000-000000000001",
       "year": 2026,
       "prefix": "MOV",
-      "nextSeq": 11
+      "nextSeq": 15
     },
     {
       "id": "60000000-0000-4000-8000-000000000002",
@@ -2314,7 +2932,37 @@
       "id": "60000000-0000-4000-8000-000000000003",
       "year": 2026,
       "prefix": "VALE",
-      "nextSeq": 7
+      "nextSeq": 10
+    },
+    {
+      "id": "60000000-0000-4000-8000-000000000004",
+      "year": 0,
+      "prefix": "MAT",
+      "nextSeq": 1
+    },
+    {
+      "id": "60000000-0000-4000-8000-000000000005",
+      "year": 0,
+      "prefix": "HER",
+      "nextSeq": 1
+    },
+    {
+      "id": "60000000-0000-4000-8000-000000000006",
+      "year": 0,
+      "prefix": "EQU",
+      "nextSeq": 1
+    },
+    {
+      "id": "60000000-0000-4000-8000-000000000007",
+      "year": 0,
+      "prefix": "MAQ",
+      "nextSeq": 1
+    },
+    {
+      "id": "60000000-0000-4000-8000-000000000008",
+      "year": 0,
+      "prefix": "SER",
+      "nextSeq": 3
     }
   ]
 }
