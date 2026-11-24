@@ -36,7 +36,6 @@ export class DashboardService {
     let valuationRows: Array<{
       totalValuation: string | number;
       toolsValuation: string | number;
-      suppliesValuation: string | number;
       totalActiveSkus: string | number;
     }>;
 
@@ -45,7 +44,6 @@ export class DashboardService {
         SELECT 
           COALESCE(SUM(s."physicalQty" * s."averageCost"), 0)::numeric AS "totalValuation",
           COALESCE(SUM(CASE WHEN i."type" IN ('TOOL', 'EQUIPMENT', 'MACHINERY') THEN s."physicalQty" * s."averageCost" ELSE 0 END), 0)::numeric AS "toolsValuation",
-          COALESCE(SUM(CASE WHEN i."type" = 'CONSUMABLE' THEN s."physicalQty" * s."averageCost" ELSE 0 END), 0)::numeric AS "suppliesValuation",
           COUNT(DISTINCT s."itemId")::int AS "totalActiveSkus"
         FROM "Stock" s
         JOIN "Item" i ON s."itemId" = i."id"
@@ -56,7 +54,6 @@ export class DashboardService {
         SELECT 
           COALESCE(SUM(s."physicalQty" * s."averageCost"), 0)::numeric AS "totalValuation",
           COALESCE(SUM(CASE WHEN i."type" IN ('TOOL', 'EQUIPMENT', 'MACHINERY') THEN s."physicalQty" * s."averageCost" ELSE 0 END), 0)::numeric AS "toolsValuation",
-          COALESCE(SUM(CASE WHEN i."type" = 'CONSUMABLE' THEN s."physicalQty" * s."averageCost" ELSE 0 END), 0)::numeric AS "suppliesValuation",
           COUNT(DISTINCT s."itemId")::int AS "totalActiveSkus"
         FROM "Stock" s
         JOIN "Item" i ON s."itemId" = i."id"
@@ -67,7 +64,6 @@ export class DashboardService {
     const valuation = valuationRows[0];
     const totalValuation = Number(valuation?.totalValuation ?? 0);
     const toolsValuation = Number(valuation?.toolsValuation ?? 0);
-    const suppliesValuation = Number(valuation?.suppliesValuation ?? 0);
     const totalActiveSkus = Number(valuation?.totalActiveSkus ?? 0);
 
     // Conteo de insumos en nivel critico de existencias calculado en motor SQL
@@ -99,7 +95,7 @@ export class DashboardService {
       criticalItemsCount = Number(critRows[0]?.criticalCount ?? 0);
     }
 
-    // Cantidad de custodias pendientes de devolucion en campo
+    // Cantidad de custodias pendientes de devolucion en campo y total de compras activas con IGV
     const custodyWhere: Record<string, unknown> = {
       returnDate: null,
       isReverted: false,
@@ -109,9 +105,22 @@ export class DashboardService {
       custodyWhere.warehouseId = warehouseId;
     }
 
-    const toolsInField = await this.prisma.toolCustody.count({
-      where: custodyWhere,
-    });
+    const [toolsInField, purchaseAggregate] = await Promise.all([
+      this.prisma.toolCustody.count({
+        where: custodyWhere,
+      }),
+      this.prisma.purchase.aggregate({
+        where: {
+          isReverted: false,
+          ...(isSpecificWarehouse ? { warehouseId } : {}),
+        },
+        _sum: {
+          totalAmountPEN: true,
+        },
+      }),
+    ]);
+
+    const suppliesValuation = Number(purchaseAggregate?._sum?.totalAmountPEN ?? 0);
 
     return {
       totalActiveSkus,

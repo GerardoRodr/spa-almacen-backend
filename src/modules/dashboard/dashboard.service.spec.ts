@@ -19,6 +19,9 @@ describe('DashboardService', () => {
       toolCustody: {
         count: vi.fn(),
       },
+      purchase: {
+        aggregate: vi.fn(),
+      },
       item: {
         findMany: vi.fn(),
       },
@@ -32,13 +35,12 @@ describe('DashboardService', () => {
   });
 
   describe('getMetrics', () => {
-    it('debe calcular metricas consolidadas separando inversion patrimonial de consumibles', async () => {
+    it('debe calcular metricas consolidadas separando inversion patrimonial de compras activas', async () => {
       vi.spyOn(prisma, '$queryRaw')
         .mockResolvedValueOnce([
           {
             totalValuation: 154500,
             toolsValuation: 152500,
-            suppliesValuation: 2000,
             totalActiveSkus: 3,
           },
         ])
@@ -48,8 +50,18 @@ describe('DashboardService', () => {
           },
         ]);
       vi.spyOn(prisma.toolCustody, 'count').mockResolvedValue(4);
+      const aggregateSpy = vi
+        .spyOn(prisma.purchase, 'aggregate')
+        .mockResolvedValue({
+          _sum: { totalAmountPEN: 2360.5 },
+        } as any);
 
       const metrics = await service.getMetrics('ALL');
+
+      expect(aggregateSpy).toHaveBeenCalledWith({
+        where: { isReverted: false },
+        _sum: { totalAmountPEN: true },
+      });
 
       // 3 SKUs unicos activos
       expect(metrics.totalActiveSkus).toBe(3);
@@ -57,8 +69,8 @@ describe('DashboardService', () => {
       // Valorizacion total de inventario: (100*20) + (5*500) + (1*150000) = 2000 + 2500 + 150000 = 154500
       expect(metrics.inventoryValuationPEN).toBe(154500);
 
-      // Valorizacion de insumos y consumibles: (100*20) = 2000
-      expect(metrics.suppliesValuationPEN).toBe(2000);
+      // Total de compras activas con IGV (distinto de inventoryValuationPEN - toolsInvestmentPEN = 2000)
+      expect(metrics.suppliesValuationPEN).toBe(2360.5);
 
       // Inversion patrimonial (TOOL + MACHINERY): 2500 + 150000 = 152500 (el cemento no se suma)
       expect(metrics.toolsInvestmentPEN).toBe(152500);
@@ -84,7 +96,6 @@ describe('DashboardService', () => {
           {
             totalValuation: 600,
             toolsValuation: 600,
-            suppliesValuation: 0,
             totalActiveSkus: 1,
           },
         ])
@@ -94,17 +105,50 @@ describe('DashboardService', () => {
           },
         ]);
       vi.spyOn(prisma.toolCustody, 'count').mockResolvedValue(1);
+      const aggregateSpy = vi
+        .spyOn(prisma.purchase, 'aggregate')
+        .mockResolvedValue({
+          _sum: { totalAmountPEN: 1180.25 },
+        } as any);
 
       const metrics = await service.getMetrics('wh-1');
 
+      expect(aggregateSpy).toHaveBeenCalledWith({
+        where: { isReverted: false, warehouseId: 'wh-1' },
+        _sum: { totalAmountPEN: true },
+      });
       expect(metrics.warehouseId).toBe('wh-1');
       expect(metrics.warehouseName).toBe('Almacen Obra San Isidro');
       expect(metrics.warehouseType).toBe(WarehouseType.PROJECT_SITE);
       expect(metrics.totalActiveSkus).toBe(1);
       expect(metrics.inventoryValuationPEN).toBe(600);
-      expect(metrics.suppliesValuationPEN).toBe(0);
+      expect(metrics.suppliesValuationPEN).toBe(1180.25);
       expect(metrics.toolsInvestmentPEN).toBe(600);
       expect(metrics.criticalItemsCount).toBe(1);
+    });
+
+    it('debe retornar 0 en suppliesValuationPEN cuando no existen compras activas', async () => {
+      vi.spyOn(prisma, '$queryRaw')
+        .mockResolvedValueOnce([
+          {
+            totalValuation: 500,
+            toolsValuation: 500,
+            totalActiveSkus: 1,
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            criticalCount: 0,
+          },
+        ]);
+      vi.spyOn(prisma.toolCustody, 'count').mockResolvedValue(0);
+      vi.spyOn(prisma.purchase, 'aggregate').mockResolvedValue({
+        _sum: { totalAmountPEN: null },
+      } as any);
+
+      const metrics = await service.getMetrics('ALL');
+
+      expect(metrics.suppliesValuationPEN).toBe(0);
     });
 
     it('debe lanzar NotFoundException si el almacen solicitado no existe', async () => {
