@@ -565,7 +565,10 @@ Obtiene la informacion completa de la factura, proveedor emisor, almacen recepto
 ---
 
 ### 3.4 Cuadro Comparativo de Precios Historicos por Insumo
-Retorna la comparativa exhaustiva de precios de compras historicas activas (`isReverted = false`) para un insumo, calculando el precio menor historico, costo promedio ponderado en stock y precio maximo, ordenando las compras de menor a mayor costo unitario base neto en Soles (`unitCostBasePEN ASC`).
+Retorna la comparativa exhaustiva de precios de compras historicas activas (`isReverted = false`) para un insumo, calculando el precio menor historico, costo promedio ponderado en stock y precio maximo.
+
+- **Criterio de comparacion y ordenamiento:** Las compras valorizadas (`unitCostWithIgvPEN > 0`) se comparan y ordenan por desembolso unitario efectivo con IGV ascendente (`unitCostWithIgvPEN ASC`), donde `unitCostWithIgvPEN` equivale a `unitCostBasePEN * 1.18` si `hasIgv = true` o `unitCostBasePEN` si `hasIgv = false`, con desempate por fecha de emision descendente (`issueDate DESC`). Las entradas no valorizadas (`unitCostWithIgvPEN <= 0`) se ubican al final ordenadas por `issueDate DESC`.
+- **Metricas de resumen:** `minUnitCostPEN` y `maxUnitCostPEN` reflejan el costo unitario efectivo incluyendo IGV segun el regimen tributario (`hasIgv`) de cada comprobante valorizado, mientras que `currentWeightedAverageCostPEN` conserva el costo promedio ponderado (CPP) neto vigente en inventario (`Stock.averageCost`). Los campos `unitCostBasePEN` y `subtotalPEN` de cada entrada permanecen netos sin IGV.
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/purchases/price-comparison`
@@ -599,8 +602,8 @@ GET /api/v1/purchases/price-comparison?itemId=e0000000-0000-4000-8000-0000000000
   },
   "summary": {
     "totalPurchasesCount": 2,
-    "minUnitCostPEN": 26.5,
-    "maxUnitCostPEN": 28.5,
+    "minUnitCostPEN": 31.27,
+    "maxUnitCostPEN": 33.63,
     "currentWeightedAverageCostPEN": 27.2,
     "bestSupplierName": "CEMENTOS PACASMAYO S.A.A.",
     "bestSupplierTaxId": "20100010744"
@@ -628,6 +631,8 @@ GET /api/v1/purchases/price-comparison?itemId=e0000000-0000-4000-8000-0000000000
       "exchangeRate": 1,
       "unitCostBasePEN": 26.5,
       "subtotalPEN": 13250,
+      "unitCostWithIgvPEN": 31.27,
+      "totalPEN": 15635,
       "discountType": "NONE",
       "discountValue": 0,
       "discountAmountPEN": 0,

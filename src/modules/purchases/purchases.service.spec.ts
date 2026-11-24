@@ -797,7 +797,7 @@ describe('PurchasesService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('debe generar cuadro comparativo ordenado por unitCostBasePEN ascendente con resumen estadistico', async () => {
+    it('debe generar cuadro comparativo ordenado por unitCostWithIgvPEN ascendente con resumen estadistico', async () => {
       vi.spyOn(prisma.item, 'findUnique').mockResolvedValue({
         id: 'item-cemento',
         sku: 'CEM-01',
@@ -885,15 +885,224 @@ describe('PurchasesService', () => {
 
       expect(result.item.sku).toBe('CEM-01');
       expect(result.summary.totalPurchasesCount).toBe(2);
-      expect(result.summary.minUnitCostPEN).toBe(26.0);
-      expect(result.summary.maxUnitCostPEN).toBe(29.0);
+      expect(result.summary.minUnitCostPEN).toBe(30.68);
+      expect(result.summary.maxUnitCostPEN).toBe(34.22);
       expect(result.summary.bestSupplierName).toBe('PROVEEDOR BARATO');
       expect(result.summary.bestSupplierTaxId).toBe('20100000001');
       expect(result.summary.currentWeightedAverageCostPEN).toBe(27.5);
       expect(result.entries).toHaveLength(2);
       expect(result.entries[0].unitCostBasePEN).toBe(26.0);
+      expect(result.entries[0].unitCostWithIgvPEN).toBe(30.68);
+      expect(result.entries[0].totalPEN).toBe(1534);
       expect(result.entries[0].notes).toBe('Lote A vence 2026-12');
       expect(result.entries[1].unitCostBasePEN).toBe(29.0);
+      expect(result.entries[1].unitCostWithIgvPEN).toBe(34.22);
+      expect(result.entries[1].totalPEN).toBe(3422);
+    });
+
+    it('debe priorizar compra sin IGV cuando su desembolso total es menor que una compra gravada con IGV', async () => {
+      vi.spyOn(prisma.item, 'findUnique').mockResolvedValue({
+        id: 'item-cemento',
+        sku: 'CEM-01',
+        name: 'Cemento Portland Tipo I',
+        baseUnit: 'BOLSA',
+        type: 'CONSUMABLE',
+        isPerishable: true,
+        category: null,
+      } as any);
+
+      prisma.stock = {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            physicalQty: 100,
+            averageCost: 26.0,
+            warehouse: { id: 'wh-1', name: 'Central', type: 'CENTRAL' },
+          },
+        ]),
+      } as any;
+
+      prisma.purchaseDetail = {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'pd-igv',
+            purchaseId: 'p-igv',
+            purchaseQty: 50,
+            purchaseUnit: 'BOLSA',
+            conversionFactor: 1,
+            baseQty: 50,
+            unitPriceOriginal: 25.0,
+            unitCostBasePEN: 25.0,
+            subtotalPEN: 1250,
+            notes: null,
+            purchase: {
+              id: 'p-igv',
+              issueDate: new Date('2026-09-12'),
+              invoiceSeries: 'F001-10',
+              voucherType: 'FACTURA',
+              hasIgv: true,
+              currency: 'PEN',
+              exchangeRate: 1,
+              notes: null,
+              supplierId: 'sup-igv',
+              supplier: {
+                businessName: 'PROVEEDOR CON IGV',
+                taxId: '20100000010',
+              },
+              warehouseId: 'wh-1',
+              warehouse: { id: 'wh-1', name: 'Central', type: 'CENTRAL' },
+            },
+          },
+          {
+            id: 'pd-sin-igv',
+            purchaseId: 'p-sin-igv',
+            purchaseQty: 50,
+            purchaseUnit: 'BOLSA',
+            conversionFactor: 1,
+            baseQty: 50,
+            unitPriceOriginal: 27.0,
+            unitCostBasePEN: 27.0,
+            subtotalPEN: 1350,
+            notes: null,
+            purchase: {
+              id: 'p-sin-igv',
+              issueDate: new Date('2026-09-10'),
+              invoiceSeries: 'B001-05',
+              voucherType: 'BOLETA',
+              hasIgv: false,
+              currency: 'PEN',
+              exchangeRate: 1,
+              notes: null,
+              supplierId: 'sup-sin-igv',
+              supplier: {
+                businessName: 'PROVEEDOR SIN IGV',
+                taxId: '10400000005',
+              },
+              warehouseId: 'wh-1',
+              warehouse: { id: 'wh-1', name: 'Central', type: 'CENTRAL' },
+            },
+          },
+        ]),
+      } as any;
+
+      const result = await service.getPriceComparison({ itemId: 'item-cemento' });
+
+      expect(result.entries).toHaveLength(2);
+      expect(result.entries[0].supplierName).toBe('PROVEEDOR SIN IGV');
+      expect(result.entries[0].unitCostWithIgvPEN).toBe(27);
+      expect(result.entries[0].totalPEN).toBe(1350);
+      expect(result.entries[0].unitCostBasePEN).toBe(27);
+      expect(result.entries[0].subtotalPEN).toBe(1350);
+
+      expect(result.entries[1].supplierName).toBe('PROVEEDOR CON IGV');
+      expect(result.entries[1].unitCostWithIgvPEN).toBe(29.5);
+      expect(result.entries[1].totalPEN).toBe(1475);
+      expect(result.entries[1].unitCostBasePEN).toBe(25);
+      expect(result.entries[1].subtotalPEN).toBe(1250);
+
+      expect(result.summary.bestSupplierName).toBe('PROVEEDOR SIN IGV');
+      expect(result.summary.minUnitCostPEN).toBe(27);
+      expect(result.summary.maxUnitCostPEN).toBe(29.5);
+      expect(result.summary.currentWeightedAverageCostPEN).toBe(26.0);
+    });
+
+    it('debe ubicar las compras a costo cero al final sin alterar minUnitCostPEN ni bestSupplierName', async () => {
+      vi.spyOn(prisma.item, 'findUnique').mockResolvedValue({
+        id: 'item-cemento',
+        sku: 'CEM-01',
+        name: 'Cemento Portland Tipo I',
+        baseUnit: 'BOLSA',
+        type: 'CONSUMABLE',
+        isPerishable: true,
+        category: null,
+      } as any);
+
+      prisma.stock = {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            physicalQty: 150,
+            averageCost: 26.0,
+            warehouse: { id: 'wh-1', name: 'Central', type: 'CENTRAL' },
+          },
+        ]),
+      } as any;
+
+      prisma.purchaseDetail = {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: 'pd-cero',
+            purchaseId: 'p-cero',
+            purchaseQty: 50,
+            purchaseUnit: 'BOLSA',
+            conversionFactor: 1,
+            baseQty: 50,
+            unitPriceOriginal: 0,
+            unitCostBasePEN: 0,
+            subtotalPEN: 0,
+            notes: null,
+            purchase: {
+              id: 'p-cero',
+              issueDate: new Date('2026-09-15'),
+              invoiceSeries: 'G001-01',
+              voucherType: 'GUIA_REMISION',
+              hasIgv: true,
+              currency: 'PEN',
+              exchangeRate: 1,
+              notes: null,
+              supplierId: 'sup-cero',
+              supplier: {
+                businessName: 'PROVEEDOR GUIA CERO',
+                taxId: '20100000099',
+              },
+              warehouseId: 'wh-1',
+              warehouse: { id: 'wh-1', name: 'Central', type: 'CENTRAL' },
+            },
+          },
+          {
+            id: 'pd-val',
+            purchaseId: 'p-val',
+            purchaseQty: 100,
+            purchaseUnit: 'BOLSA',
+            conversionFactor: 1,
+            baseQty: 100,
+            unitPriceOriginal: 25.0,
+            unitCostBasePEN: 25.0,
+            subtotalPEN: 2500,
+            notes: null,
+            purchase: {
+              id: 'p-val',
+              issueDate: new Date('2026-09-10'),
+              invoiceSeries: 'F001-20',
+              voucherType: 'FACTURA',
+              hasIgv: true,
+              currency: 'PEN',
+              exchangeRate: 1,
+              notes: null,
+              supplierId: 'sup-val',
+              supplier: {
+                businessName: 'PROVEEDOR FORMAL',
+                taxId: '20100000001',
+              },
+              warehouseId: 'wh-1',
+              warehouse: { id: 'wh-1', name: 'Central', type: 'CENTRAL' },
+            },
+          },
+        ]),
+      } as any;
+
+      const result = await service.getPriceComparison({ itemId: 'item-cemento' });
+
+      expect(result.entries).toHaveLength(2);
+      expect(result.entries[0].supplierName).toBe('PROVEEDOR FORMAL');
+      expect(result.entries[0].unitCostWithIgvPEN).toBe(29.5);
+      expect(result.entries[1].supplierName).toBe('PROVEEDOR GUIA CERO');
+      expect(result.entries[1].unitCostWithIgvPEN).toBe(0);
+      expect(result.entries[1].totalPEN).toBe(0);
+
+      expect(result.summary.totalPurchasesCount).toBe(2);
+      expect(result.summary.minUnitCostPEN).toBe(29.5);
+      expect(result.summary.maxUnitCostPEN).toBe(29.5);
+      expect(result.summary.bestSupplierName).toBe('PROVEEDOR FORMAL');
+      expect(result.summary.bestSupplierTaxId).toBe('20100000001');
     });
   });
 

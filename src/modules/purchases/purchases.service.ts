@@ -895,8 +895,16 @@ export class PurchasesService {
       },
     });
 
+    const IGV_RATE = 0.18;
+
     const entries = purchaseDetails.map((pd) => {
       const p = pd.purchase;
+      const unitCostBasePEN = Number(pd.unitCostBasePEN);
+      const subtotalPEN = Number(pd.subtotalPEN);
+      const igvFactor = p.hasIgv ? 1 + IGV_RATE : 1;
+      const unitCostWithIgvPEN = Number((unitCostBasePEN * igvFactor).toFixed(4));
+      const totalPEN = Number((subtotalPEN * igvFactor).toFixed(2));
+
       return {
         purchaseDetailId: pd.id,
         purchaseId: p.id,
@@ -917,8 +925,10 @@ export class PurchasesService {
         unitPriceOriginal: Number(pd.unitPriceOriginal),
         currency: p.currency,
         exchangeRate: Number(p.exchangeRate),
-        unitCostBasePEN: Number(pd.unitCostBasePEN),
-        subtotalPEN: Number(pd.subtotalPEN),
+        unitCostBasePEN,
+        subtotalPEN,
+        unitCostWithIgvPEN,
+        totalPEN,
         discountType: pd.discountType,
         discountValue: Number(pd.discountValue ?? 0),
         discountAmountPEN: Number(pd.discountAmountPEN ?? 0),
@@ -928,8 +938,21 @@ export class PurchasesService {
       };
     });
 
+    // Ordenar entradas valorizadas por costo efectivo con IGV ascendente y no valorizadas al final
+    entries.sort((a, b) => {
+      const aValued = a.unitCostWithIgvPEN > 0;
+      const bValued = b.unitCostWithIgvPEN > 0;
+      if (aValued !== bValued) {
+        return aValued ? -1 : 1;
+      }
+      if (aValued && a.unitCostWithIgvPEN !== b.unitCostWithIgvPEN) {
+        return a.unitCostWithIgvPEN - b.unitCostWithIgvPEN;
+      }
+      return new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime();
+    });
+
     // 4. Calcular metricas estadisticas de comparacion (solo sobre entradas valorizadas)
-    const valuedEntries = entries.filter((e) => e.unitCostBasePEN > 0);
+    const valuedEntries = entries.filter((e) => e.unitCostWithIgvPEN > 0);
     const totalPurchasesCount = entries.length;
     let minUnitCostPEN: number | null = null;
     let maxUnitCostPEN: number | null = null;
@@ -937,10 +960,11 @@ export class PurchasesService {
     let bestSupplierTaxId: string | null = null;
 
     if (valuedEntries.length > 0) {
-      minUnitCostPEN = valuedEntries[0].unitCostBasePEN;
+      minUnitCostPEN = valuedEntries[0].unitCostWithIgvPEN;
       maxUnitCostPEN = valuedEntries.reduce(
-        (max, curr) => (curr.unitCostBasePEN > max ? curr.unitCostBasePEN : max),
-        valuedEntries[0].unitCostBasePEN,
+        (max, curr) =>
+          curr.unitCostWithIgvPEN > max ? curr.unitCostWithIgvPEN : max,
+        valuedEntries[0].unitCostWithIgvPEN,
       );
       bestSupplierName = valuedEntries[0].supplierName;
       bestSupplierTaxId = valuedEntries[0].supplierTaxId;
