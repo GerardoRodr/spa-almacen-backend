@@ -129,6 +129,9 @@ export class PurchasesService {
       where.warehouseId = filter.warehouseId;
     }
 
+    const baseWarehouseWhere: Prisma.PurchaseWhereInput =
+      where.warehouseId !== undefined ? { warehouseId: where.warehouseId } : {};
+
     if (filter.invoiceSeries) {
       where.invoiceSeries = {
         contains: filter.invoiceSeries.trim(),
@@ -198,60 +201,100 @@ export class PurchasesService {
       isReverted: false,
     };
 
-    const [total, data, aggregateResult] = await Promise.all([
-      this.prisma.purchase.count({ where }),
-      this.prisma.purchase.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { issueDate: 'desc' },
-        include: {
-          supplier: {
-            select: {
-              id: true,
-              taxId: true,
-              businessName: true,
+    const globalCountWhere: Prisma.PurchaseWhereInput = { ...baseWarehouseWhere };
+    if (filter.voidFilter === 'ACTIVE_ONLY') {
+      globalCountWhere.isReverted = false;
+    } else if (filter.voidFilter === 'VOIDED_ONLY') {
+      globalCountWhere.isReverted = true;
+    } else if (filter.voidFilter !== 'ALL' && filter.includeReverted === false) {
+      globalCountWhere.isReverted = false;
+    }
+
+    const globalAggregateWhere: Prisma.PurchaseWhereInput = {
+      ...baseWarehouseWhere,
+      isReverted: false,
+    };
+
+    const hasSearchFilters = Boolean(
+      filter.invoiceSeries?.trim() ||
+        (filter.supplierId && filter.supplierId !== 'ALL') ||
+        filter.startDate ||
+        filter.endDate ||
+        filter.onlyEdited === true ||
+        filter.itemId ||
+        filter.itemSearch?.trim(),
+    );
+
+    const [total, data, aggregateResult, globalTotal, globalAggregateResult] =
+      await Promise.all([
+        this.prisma.purchase.count({ where }),
+        this.prisma.purchase.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { issueDate: 'desc' },
+          include: {
+            supplier: {
+              select: {
+                id: true,
+                taxId: true,
+                businessName: true,
+              },
             },
-          },
-          warehouse: {
-            select: {
-              id: true,
-              name: true,
-              type: true,
+            warehouse: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+              },
             },
-          },
-          revertedBy: {
-            select: {
-              id: true,
-              fullName: true,
+            revertedBy: {
+              select: {
+                id: true,
+                fullName: true,
+              },
             },
-          },
-          details: {
-            include: {
-              item: {
-                select: {
-                  id: true,
-                  sku: true,
-                  name: true,
-                  baseUnit: true,
-                  type: true,
+            details: {
+              include: {
+                item: {
+                  select: {
+                    id: true,
+                    sku: true,
+                    name: true,
+                    baseUnit: true,
+                    type: true,
+                  },
                 },
               },
             },
-          },
-          _count: {
-            select: {
-              details: true,
-              documents: true,
+            _count: {
+              select: {
+                details: true,
+                documents: true,
+              },
             },
           },
-        },
-      }),
-      filter.voidFilter === 'VOIDED_ONLY'
-        ? Promise.resolve(null)
-        : this.prisma.purchase.aggregate
+        }),
+        filter.voidFilter === 'VOIDED_ONLY'
+          ? Promise.resolve(null)
+          : this.prisma.purchase.aggregate
+            ? this.prisma.purchase.aggregate({
+                where: summaryWhere,
+                _sum: {
+                  subtotalPEN: true,
+                  igvAmountPEN: true,
+                  totalAmountPEN: true,
+                },
+              })
+            : Promise.resolve(null),
+        hasSearchFilters
+          ? this.prisma.purchase.count({ where: globalCountWhere })
+          : Promise.resolve(null),
+        hasSearchFilters &&
+        filter.voidFilter !== 'VOIDED_ONLY' &&
+        this.prisma.purchase.aggregate
           ? this.prisma.purchase.aggregate({
-              where: summaryWhere,
+              where: globalAggregateWhere,
               _sum: {
                 subtotalPEN: true,
                 igvAmountPEN: true,
@@ -259,7 +302,27 @@ export class PurchasesService {
               },
             })
           : Promise.resolve(null),
-    ]);
+      ]);
+
+    const summary = {
+      totalCount: total,
+      totalSubtotalPEN: Number(aggregateResult?._sum?.subtotalPEN ?? 0),
+      totalIgvPEN: Number(aggregateResult?._sum?.igvAmountPEN ?? 0),
+      totalAmountPEN: Number(aggregateResult?._sum?.totalAmountPEN ?? 0),
+    };
+
+    const globalSummary = hasSearchFilters
+      ? {
+          totalCount: globalTotal ?? total,
+          totalSubtotalPEN: Number(
+            globalAggregateResult?._sum?.subtotalPEN ?? 0,
+          ),
+          totalIgvPEN: Number(globalAggregateResult?._sum?.igvAmountPEN ?? 0),
+          totalAmountPEN: Number(
+            globalAggregateResult?._sum?.totalAmountPEN ?? 0,
+          ),
+        }
+      : summary;
 
     return {
       data,
@@ -269,12 +332,8 @@ export class PurchasesService {
         limit,
         totalPages: Math.ceil(total / limit) || 1,
       },
-      summary: {
-        totalCount: total,
-        totalSubtotalPEN: Number(aggregateResult?._sum?.subtotalPEN ?? 0),
-        totalIgvPEN: Number(aggregateResult?._sum?.igvAmountPEN ?? 0),
-        totalAmountPEN: Number(aggregateResult?._sum?.totalAmountPEN ?? 0),
-      },
+      summary,
+      globalSummary,
     };
   }
 

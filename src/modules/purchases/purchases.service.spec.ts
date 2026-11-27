@@ -172,6 +172,76 @@ describe('PurchasesService', () => {
         ),
       ).rejects.toThrow(ForbiddenException);
     });
+
+    it('debe calcular summary filtrado y globalSummary estable de la sede cuando hay filtros de busqueda', async () => {
+      prisma.purchase.count
+        .mockResolvedValueOnce(2)
+        .mockResolvedValueOnce(15);
+      prisma.purchase.findMany.mockResolvedValue([]);
+      prisma.purchase
+        .aggregate!.mockResolvedValueOnce({
+          _sum: { subtotalPEN: 100, igvAmountPEN: 18, totalAmountPEN: 118 },
+        })
+        .mockResolvedValueOnce({
+          _sum: { subtotalPEN: 1000, igvAmountPEN: 180, totalAmountPEN: 1180 },
+        });
+
+      const result = await service.findAll({
+        invoiceSeries: '001',
+        warehouseId: 'wh-1',
+        voidFilter: 'ACTIVE_ONLY',
+      });
+
+      expect(result.summary).toEqual({
+        totalCount: 2,
+        totalSubtotalPEN: 100,
+        totalIgvPEN: 18,
+        totalAmountPEN: 118,
+      });
+      expect(result.globalSummary).toEqual({
+        totalCount: 15,
+        totalSubtotalPEN: 1000,
+        totalIgvPEN: 180,
+        totalAmountPEN: 1180,
+      });
+
+      expect(prisma.purchase.count).toHaveBeenCalledTimes(2);
+      expect(prisma.purchase.count).toHaveBeenNthCalledWith(2, {
+        where: { warehouseId: 'wh-1', isReverted: false },
+      });
+      expect(prisma.purchase.aggregate).toHaveBeenCalledTimes(2);
+      expect(prisma.purchase.aggregate).toHaveBeenNthCalledWith(2, {
+        where: { warehouseId: 'wh-1', isReverted: false },
+        _sum: {
+          subtotalPEN: true,
+          igvAmountPEN: true,
+          totalAmountPEN: true,
+        },
+      });
+    });
+
+    it('debe retornar globalSummary igual a summary sin duplicar consultas cuando no hay filtros de busqueda', async () => {
+      prisma.purchase.count.mockResolvedValueOnce(15);
+      prisma.purchase.findMany.mockResolvedValue([]);
+      prisma.purchase.aggregate!.mockResolvedValueOnce({
+        _sum: { subtotalPEN: 1000, igvAmountPEN: 180, totalAmountPEN: 1180 },
+      });
+
+      const result = await service.findAll({
+        warehouseId: 'wh-1',
+        voidFilter: 'ACTIVE_ONLY',
+      });
+
+      expect(result.summary).toEqual({
+        totalCount: 15,
+        totalSubtotalPEN: 1000,
+        totalIgvPEN: 180,
+        totalAmountPEN: 1180,
+      });
+      expect(result.globalSummary).toEqual(result.summary);
+      expect(prisma.purchase.count).toHaveBeenCalledTimes(1);
+      expect(prisma.purchase.aggregate).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('findOne', () => {
