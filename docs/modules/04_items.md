@@ -539,13 +539,13 @@ Modifica datos descriptivos, unidad base o limite de alerta de un SKU maestro.
 ---
 
 ### 2.7 Eliminar o Desactivar Item
-Permite retirar un insumo del catalogo maestro de forma segura preservando la integridad del inventario y del Kardex. Exclusivo para el rol `ADMIN`.
+Permite retirar un insumo del catalogo maestro de forma segura preservando la integridad del inventario y del Kardex. Habilitado para los roles `ADMIN` y `MODERATOR`.
 
 - **Metodo:** `DELETE`
 - **Ruta:** `/api/v1/items/:id`
-- **Acceso:** Protegido (solo `ADMIN`)
+- **Acceso:** Protegido (`ADMIN` y `MODERATOR`)
 - **Cabeceras:**
-  - `Authorization: Bearer <accessToken_admin>`
+  - `Authorization: Bearer <accessToken_admin_o_moderator>`
 
 #### Parametros
 - `id` (URL Path): UUID del item a eliminar o desactivar.

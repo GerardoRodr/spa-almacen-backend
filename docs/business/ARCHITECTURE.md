@@ -100,7 +100,7 @@ Toda la infraestructura se aloja en una unica instancia VPS KVM 2 (100 GB SSD NV
 | :--- | :---: | :---: | :---: |
 | **Administracion de Usuarios (`/users`)** | **Total (Gestion, Altas, Bajas y Roles)** | **Bloqueado (403 Forbidden)** | **Bloqueado (403 Forbidden)** |
 | **Selector de Almacen Activo** | Acceso Global a Todos los Almacenes | Acceso Global a Todos los Almacenes | Solo Almacenes Asignados (`UserWarehouse`) con soporte multisede |
-| **Catalogo Maestro (Crear / Editar / Eliminar SKU)** | **Total (creacion, edicion, confirmacion `baseUnit` y `DELETE /items/:id`)** | Creacion, edicion y confirmacion `baseUnit` (sin `DELETE /items/:id`) | Alta Rapida Descentralizada (SKU automatico, sin edicion ni baja maestra) |
+| **Catalogo Maestro (Crear / Editar / Eliminar SKU)** | **Total (creacion, edicion, confirmacion `baseUnit` y `DELETE /items/:id`)** | Total (creacion, edicion, confirmacion `baseUnit` y `DELETE /items/:id`) | Alta Rapida Descentralizada (SKU automatico, sin edicion ni baja maestra) |
 | **Gestion CRUD de Alias S10 (`ItemAlias` 1:N)** | Total (`GET`, `POST`, `PUT`, `DELETE`) | Total (`GET`, `POST`, `PUT`, `DELETE`) | Acceso Denegado (`403 Forbidden`) |
 | **Visualizacion de Costos, Descuentos, Precios y CPP** | **Visible** | **Visible** | **Bloqueado / Ciego (`CostMaskingInterceptor`)** |
 | **Compras a Proveedores y Adjuntos** | **Total (costos, descuentos, IGV, valorizacion, carga y `DELETE` de adjuntos)** | Total (costos, descuentos, IGV, valorizacion y carga de adjuntos; sin `DELETE` de adjuntos) | Registro operativo en sedes asignadas (recepcion, carga de adjuntos, precio cero y proveedores; cifras ocultas) |
@@ -785,7 +785,7 @@ Todos los endpoints estan protegidos por defecto con `JwtAuthGuard` (salvo rutas
 - `DELETE /items/aliases/:id`                   -> [ADMIN, MODERATOR] Eliminacion de alias S10.
 - `GET    /items/:id`                           -> Detalle de item con consolidado de stock, alias y estadisticas transaccionales.
 - `PUT    /items/:id`                           -> [ADMIN, MODERATOR] Modificacion de datos base (`trackLot`, `trackExpiration`, etc.) y doble confirmacion para cambio de `baseUnit`.
-- `DELETE /items/:id`                           -> [ADMIN] Eliminacion segura de item (exige stock fisico = 0, reservado = 0 y cero custodias abiertas; borrado fisico sin historial o borrado logico `isActive = false` con historial).
+- `DELETE /items/:id`                           -> [ADMIN, MODERATOR] Eliminacion segura de item (exige stock fisico = 0, reservado = 0 y cero custodias abiertas; borrado fisico sin historial o borrado logico `isActive = false` con historial).
 - `GET    /item-categories`                     -> Listado de clasificaciones personalizadas.
 - `POST   /item-categories`                     -> [ADMIN, MODERATOR] Crear clasificacion personalizada.
 - `PATCH  /item-categories/:id`                 -> [ADMIN, MODERATOR] Actualizar clasificacion.

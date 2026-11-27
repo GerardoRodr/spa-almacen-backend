@@ -57,7 +57,7 @@ Este documento constituye la **Fuente Unica de Verdad (Single Source of Truth - 
 - Ambos campos se exponen ademas en el Cuadro Comparativo de Precios (`GET /purchases/price-comparison`) para auditoria historica de lotes y vencimientos.
 
 ### 1.7. Eliminacion Segura de Items (`DELETE /items/:id`)
-- Operacion restringida exclusivamente al rol **`ADMIN`** (`MODERATOR` y `WAREHOUSE_KEEPER` reciben `403 Forbidden`).
+- Operacion habilitada para los roles **`ADMIN`** y **`MODERATOR`** (`WAREHOUSE_KEEPER` recibe `403 Forbidden`).
 - **Precondiciones Obligatorias de Inventario Cero (Error `400 Bad Request` si se incumplen):**
   1. Stock fisico consolidado en todos los almacenes igual a cero ($\sum \text{Stock.physicalQty} = 0$).
   2. Stock reservado consolidado en todos los almacenes igual a cero ($\sum \text{Stock.reservedQty} = 0$).
@@ -369,7 +369,6 @@ Un almacen de obra (`PROJECT_SITE`) se liquida formalmente (`isActive = false`, 
 - Generacion, descarga y eliminacion de copias de seguridad de la base de datos (.sql/.tar.gz).
 - **Facultades Exclusivas de `ADMIN` (bloqueadas para `MODERATOR` y `WAREHOUSE_KEEPER` con `403 Forbidden`):**
   - Administracion total de usuarios (`/api/v1/users`: listado, alta, edicion, cambio de roles y asignacion de sedes).
-  - Eliminacion segura de items del catalogo (`DELETE /api/v1/items/:id`).
   - Eliminacion de adjuntos de compras (`DELETE /api/v1/purchases/:id/attachments/:attachmentId`).
   - Edicion manual CRUD de la Matriz de Brechas (`POST`, `PUT`, `DELETE /api/v1/projects/:id/requirements`).
 
@@ -377,12 +376,12 @@ Un almacen de obra (`PROJECT_SITE`) se liquida formalmente (`isActive = false`, 
 - Facultades administrativas operativas equivalentes al rol `ADMIN` en la gestion cotidiana:
   - Bypass global e irrestricto a todos los almacenes del sistema en `WarehouseAccessGuard` y `WarehousesService`.
   - Visibilidad financiera completa de costos unitarios, descuentos, precios, valorizaciones, CPP y comparativa de compras (`CostMaskingInterceptor` no enmascara costos).
-  - Gestion de proyectos S10 (carga/descarga/eliminacion de CSV S10, vinculacion/cambio de almacen `PROJECT_SITE`, reservas de stock y liquidacion), CRUD completo de Alias S10 (`ItemAlias`), catalogos maestros, clasificaciones y unidades de medida.
+  - Gestion de proyectos S10 (carga/descarga/eliminacion de CSV S10, vinculacion/cambio de almacen `PROJECT_SITE`, reservas de stock y liquidacion), CRUD completo de Alias S10 (`ItemAlias`), catalogos maestros (incluida eliminacion/desactivacion segura de items mediante `DELETE /items/:id` con stock en cero), clasificaciones y unidades de medida.
   - Generacion, descarga y eliminacion de copias de seguridad de PostgreSQL.
   - Aprobacion de ajustes de inventario fisico en Kardex, valorizacion de compras y descarga de documentos confidenciales.
 - **Restricciones Estrictas de `MODERATOR` (`403 Forbidden`):**
   - Aislamiento total del modulo de usuarios (`UsersController` en `/api/v1/users`).
-  - Sin acceso a operaciones destructivas/estructurales exclusivas de `ADMIN`: `DELETE /items/:id`, `DELETE /purchases/:id/attachments/:attachmentId` y CRUD manual de `/projects/:id/requirements`.
+  - Sin acceso a operaciones destructivas/estructurales exclusivas de `ADMIN`: `DELETE /purchases/:id/attachments/:attachmentId` y CRUD manual de `/projects/:id/requirements`.
 
 ### 8.3. Rol `WAREHOUSE_KEEPER` (Almacenero de Obra / Caseta)
 - Asignado a uno o mas almacenes mediante la tabla `UserWarehouse`. En la interfaz solo visualiza y opera los almacenes a los que tiene permiso activo.

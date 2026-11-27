@@ -154,9 +154,9 @@ export class ItemsController {
 
   @Delete(':id')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.MODERATOR)
   @ApiOperation({
-    summary: 'Eliminar fisicamente o desactivar logicamente un item del catalogo (solo ADMIN, stock = 0)',
+    summary: 'Eliminar fisicamente o desactivar logicamente un item del catalogo (ADMIN y MODERATOR, stock = 0)',
   })
   @ApiResponse({ status: 200, description: 'Item eliminado o desactivado exitosamente' })
   @ApiResponse({ status: 400, description: 'El item posee stock fisico, reservado o custodias activas' })

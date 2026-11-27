@@ -487,7 +487,7 @@ export class ItemsService {
     });
   }
 
-  // Eliminar fisicamente o desactivar logicamente un item del catalogo (solo ADMIN, stock = 0)
+  // Eliminar fisicamente o desactivar logicamente un item del catalogo (ADMIN y MODERATOR, stock = 0)
   async remove(id: string) {
     const item = await this.prisma.item.findUnique({
       where: { id },
