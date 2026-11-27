@@ -103,13 +103,18 @@ El sistema resuelve correcciones operativas sin destruir el historial contable m
    - Aplicable en compras, transferencias (`IN_TRANSIT` o `COMPLETED`/`DISCREPANCY`), consumos, mermas directas y vales de custodia de herramientas.
 
 ### 2.5. Exclusion de Registros Anulados, Auditoria de Compras y Gestion de Adjuntos
-- **Filtros de Anulacion y Auditoria en Compras (`GET /purchases`):**
+- **Filtros de Anulacion, Auditoria y Busqueda por Monto en Compras (`GET /purchases`):**
   - Soporta el parametro explicito **`voidFilter`** con tres modos: `ACTIVE_ONLY` (`isReverted = false`), `VOIDED_ONLY` (`isReverted = true`) y `ALL` (sin filtro de anulacion). Tiene precedencia sobre el parametro retrocompatible `includeReverted`.
   - Soporta el parametro booleano **`onlyEdited=true`** para filtrar exclusivamente comprobantes marcados con `Purchase.isEdited = true` (editados en Nivel 2 o generados mediante reemplazo en Nivel 3).
-- **Resumen Financiero Global (`summary` en `GET /purchases`):**
-  - El listado de compras retorna un bloque `summary` (`totalCount`, `totalSubtotalPEN`, `totalIgvPEN`, `totalAmountPEN`) calculado globalmente en PostgreSQL via `prisma.purchase.aggregate` sobre todos los registros vigentes (`isReverted = false`) que coinciden con los filtros aplicados, independientemente de la pagina consultada (`page`/`limit`).
+  - Soporta el parametro numerico **`approximateAmount`** (`>= 0`) para ordenar por cercania absoluta a `totalAmountPEN` (con desempate por `issueDate` descendente y minimo de `10` resultados por pagina). Se ignora automaticamente para `WAREHOUSE_KEEPER` para preservar la ceguera financiera.
+- **Resumen Financiero Global (`summary` y `globalSummary` en `GET /purchases`):**
+  - El listado de compras retorna dos bloques de agregacion `{ totalCount, totalSubtotalPEN, totalIgvPEN, totalAmountPEN }` calculados en PostgreSQL via `prisma.purchase.aggregate` sobre registros vigentes (`isReverted = false`), independientemente de la pagina consultada (`page`/`limit`):
+    - **`summary`:** Totales del subconjunto filtrado actual (incluye filtros de busqueda puntual).
+    - **`globalSummary`:** Totales estables por alcance de sede y `voidFilter` sin filtros de busqueda puntual (`invoiceSeries`, `supplierId`, `startDate`, `endDate`, `onlyEdited`, `itemId`, `itemSearch`), reutilizando `summary` sin consultas duplicadas cuando no hay filtros activos.
   - Cuando `voidFilter = VOIDED_ONLY`, las sumatorias monetarias retornan `0`.
-  - Los campos monetarios del resumen (`totalSubtotalPEN`, `totalIgvPEN`, `totalAmountPEN`) son purgados automaticamente por `CostMaskingInterceptor` para el rol `WAREHOUSE_KEEPER`.
+  - Los campos monetarios de ambos resumenes (`totalSubtotalPEN`, `totalIgvPEN`, `totalAmountPEN`) son purgados recursivamente por `CostMaskingInterceptor` para el rol `WAREHOUSE_KEEPER`.
+- **Eliminacion Segura de Proveedores Duplicados (`DELETE /suppliers/:id`):**
+  - Restringido a `ADMIN` y `MODERATOR`; exige `0` compras asociadas (`_count.purchases === 0`, retornando `400 Bad Request` en caso contrario) para ejecutar la eliminacion fisica del registro duplicado.
 - **Gestion de Adjuntos en Compras Existentes:**
   - `POST /purchases/:id/attachments`: Permite adjuntar nuevas fotografias (convertidas a WebP con Sharp) o PDFs a una compra existente (`isConfidential = true`). Autorizado para `ADMIN`, `MODERATOR`, y `WAREHOUSE_KEEPER` unicamente sobre compras de sus almacenes asignados.
   - `DELETE /purchases/:id/attachments/:attachmentId`: Eliminacion fisica en disco y logica en `DocumentAttachment`, validando pertenencia a la compra. Restringido exclusivamente al rol **`ADMIN`**.

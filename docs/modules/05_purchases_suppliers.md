@@ -39,6 +39,8 @@ Retorna la relacion de proveedores comerciales registrados con conteo de factura
 | `page` | integer | `1` | Numero de pagina. |
 | `limit` | integer | `20` | Cantidad de registros por pagina. |
 | `search` | string | opcional | Termino de busqueda por RUC o razon social. |
+| `sortBy` | `'businessName' \| 'purchasesCount'` | `businessName` | Campo de ordenamiento (`purchasesCount` ordena por `_count.purchases` con desempate por `businessName` ascendente). |
+| `sortDir` | `'asc' \| 'desc'` | `asc` (`desc` si `sortBy=purchasesCount`) | Direccion de ordenamiento. |
 
 #### Respuestas
 **200 OK - Listado obtenido:**
@@ -212,10 +214,56 @@ Modifica los datos generales de un proveedor comercial.
 
 ---
 
+### 2.5 Eliminar Proveedor
+Elimina fisicamente un proveedor comercial duplicado o registrado por error, siempre que no posea compras asociadas.
+
+- **Metodo:** `DELETE`
+- **Ruta:** `/api/v1/suppliers/:id`
+- **Acceso:** Protegido (`ADMIN` o `MODERATOR`)
+- **Cabeceras:**
+  - `Authorization: Bearer <accessToken_admin>`
+
+#### Parametros
+- `id` (URL Path): UUID del proveedor.
+
+#### Reglas de Negocio
+- Valida existencia previa del proveedor (`404 Not Found` si no existe).
+- Valida que el proveedor tenga cero compras asociadas (`_count.purchases === 0`); si posee al menos una compra, rechaza la operacion con `400 Bad Request` indicando reasignar primero sus comprobantes desde el modulo de Compras.
+- Ejecuta eliminacion fisica permanente en base de datos (`prisma.supplier.delete`).
+
+#### Respuestas
+**200 OK - Proveedor eliminado:**
+```json
+{
+  "deleted": true,
+  "message": "Proveedor eliminado permanentemente."
+}
+```
+
+**400 Bad Request - Proveedor con compras asociadas:**
+```json
+{
+  "statusCode": 400,
+  "message": "No se puede eliminar el proveedor \"CORPORACION ACEROS AREQUIPA S.A.\" porque tiene 8 compra(s) asociada(s). Reasigne primero sus comprobantes desde el modulo de Compras.",
+  "error": "Bad Request"
+}
+```
+
+**404 Not Found - Proveedor inexistente:**
+```json
+{
+  "statusCode": 404,
+  "message": "Proveedor no encontrado",
+  "error": "Not Found"
+}
+```
+
+---
+
 ## 3. Endpoints de Compras (`/api/v1/purchases`)
 
 ### 3.1 Listar Compras Paginadas
-Consulta el historial de comprobantes de compra con filtros avanzados, auditoria de estado (`voidFilter`, `onlyEdited`), paginacion numerica estandarizada y resumen global acumulado (`summary`). Para usuarios con rol `WAREHOUSE_KEEPER`, el listado se segrega de forma automatica retornando unicamente las compras asociadas a sus sedes asignadas (`UserWarehouse`).
+Consulta el historial de comprobantes de compra con filtros avanzados, busqueda por cercania de monto (`approximateAmount`), auditoria de estado (`voidFilter`, `onlyEdited`), paginacion numerica estandarizada y resumen financiero (`summary` y `globalSummary`). Para usuarios con rol `WAREHOUSE_KEEPER`, el listado se segrega de forma automatica retornando unicamente las compras asociadas a sus sedes asignadas (`UserWarehouse`).
 
 - **Metodo:** `GET`
 - **Ruta:** `/api/v1/purchases`
@@ -227,7 +275,7 @@ Consulta el historial de comprobantes de compra con filtros avanzados, auditoria
 | Parametro | Tipo | Por Defecto | Descripcion |
 |---|---|---|---|
 | `page` | integer (`>= 1`) | `1` | Numero de pagina (paginacion numerica estandarizada). |
-| `limit` | integer (`>= 1`) | `20` | Cantidad de registros por pagina. |
+| `limit` | integer (`>= 1`) | `20` | Cantidad de registros por pagina (minimo `10` si se envia `approximateAmount`). |
 | `warehouseId` | UUID \| `'ALL'` | opcional | Filtrar por almacen destino (para `WAREHOUSE_KEEPER` restringido a sus `UserWarehouse`; retorna `403` si la sede no esta asignada). |
 | `supplierId` | UUID \| `'ALL'` | opcional | Filtrar por proveedor (valores vacios o `'ALL'` se sanean automaticamente a `undefined`). |
 | `invoiceSeries` | string | opcional | Busqueda parcial insensible a mayusculas por serie/numero (ej. `F001-0004523`). |
@@ -238,13 +286,15 @@ Consulta el historial de comprobantes de compra con filtros avanzados, auditoria
 | `voidFilter` | `ACTIVE_ONLY` \| `ALL` \| `VOIDED_ONLY` | opcional | Filtro explicito de anulacion sobre `isReverted`. Tiene precedencia sobre `includeReverted`. |
 | `onlyEdited` | boolean | opcional | Si se envia `true`, retorna unicamente compras editadas o generadas por reemplazo (`isEdited = true`). |
 | `includeReverted` | boolean | `true` | Parametro retrocompatible (aplicado si no se envia `voidFilter`): si es `false`, excluye compras con `isReverted = true`. |
+| `approximateAmount` | number (`>= 0`) | opcional | Monto aproximado en PEN (`totalAmountPEN`) para ordenar comprobantes por cercania absoluta al importe (con desempate por `issueDate` descendente). Fuerza `limit` minimo de `10`. Ignorado automaticamente para `WAREHOUSE_KEEPER` para preservar ceguera financiera. |
 
-#### Resumen Global (`summary`)
-La respuesta incluye el objeto `summary`: `{ totalCount, totalSubtotalPEN, totalIgvPEN, totalAmountPEN }`:
-- Se calcula en paralelo mediante `prisma.purchase.aggregate` reutilizando exactamente el mismo predicado `where` de la consulta sin `skip` ni `take` (cubre todas las paginas coincidentes).
+#### Resumen Financiero (`summary` y `globalSummary`)
+La respuesta incluye los objetos `summary` y `globalSummary`, ambos con estructura `{ totalCount, totalSubtotalPEN, totalIgvPEN, totalAmountPEN }`:
+- **`summary` (subconjunto filtrado actual):** Se calcula en paralelo mediante `prisma.purchase.aggregate` reutilizando exactamente el mismo predicado `where` de la consulta sin `skip` ni `take` (cubre todas las paginas coincidentes con los filtros aplicados).
+- **`globalSummary` (totales estables por sede):** Se calcula sobre el alcance de sede (`warehouseId` / sedes autorizadas) y `voidFilter` sin filtros de busqueda puntual (`invoiceSeries`, `supplierId`, `startDate`, `endDate`, `onlyEdited`, `itemId`, `itemSearch`). Cuando no hay filtros de busqueda puntual activos, reutiliza `summary` directamente sin ejecutar consultas duplicadas.
 - Las sumas monetarias (`totalSubtotalPEN`, `totalIgvPEN`, `totalAmountPEN`) excluyen siempre las facturas anuladas (`isReverted = false`).
-- Cuando `voidFilter = VOIDED_ONLY`, se omite la agregacion monetaria y las sumas retornan `0` (`totalSubtotalPEN: 0`, `totalIgvPEN: 0`, `totalAmountPEN: 0`), mientras `totalCount` refleja el total de comprobantes anulados que cumplen los filtros.
-- Para el rol `WAREHOUSE_KEEPER`, `CostMaskingInterceptor` elimina `totalSubtotalPEN`, `totalIgvPEN` y `totalAmountPEN`, devolviendo unicamente `{ "totalCount": <n> }`.
+- Cuando `voidFilter = VOIDED_ONLY`, se omite la agregacion monetaria y las sumas retornan `0` (`totalSubtotalPEN: 0`, `totalIgvPEN: 0`, `totalAmountPEN: 0`), mientras `totalCount` refleja el total de comprobantes anulados dentro del alcance respectivo.
+- Para el rol `WAREHOUSE_KEEPER`, `CostMaskingInterceptor` elimina recursivamente `totalSubtotalPEN`, `totalIgvPEN` y `totalAmountPEN` tanto de `summary` como de `globalSummary`, devolviendo unicamente `{ "totalCount": <n> }` en cada bloque.
 
 #### Respuestas
 **200 OK - Listado obtenido (ADMIN / MODERATOR):**
@@ -315,6 +365,12 @@ La respuesta incluye el objeto `summary`: `{ totalCount, totalSubtotalPEN, total
     "totalPages": 1
   },
   "summary": {
+    "totalCount": 1,
+    "totalSubtotalPEN": 28500,
+    "totalIgvPEN": 5130,
+    "totalAmountPEN": 33630
+  },
+  "globalSummary": {
     "totalCount": 1,
     "totalSubtotalPEN": 28500,
     "totalIgvPEN": 5130,

@@ -797,11 +797,12 @@ Todos los endpoints estan protegidos por defecto con `JwtAuthGuard` (salvo rutas
 - `DELETE /measurement-units/:id`               -> [ADMIN, MODERATOR] Eliminar fisicamente o desactivar unidad en uso.
 
 ### 5.4. Compras y Proveedores
-- `GET    /suppliers`                           -> Listado y busqueda de proveedores.
+- `GET    /suppliers`                           -> Listado y busqueda de proveedores con ordenamiento (`sortBy`, `sortDir`, incluido `purchasesCount`).
 - `POST   /suppliers`                           -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Registro de proveedor.
 - `GET    /suppliers/:id`                       -> Detalle de proveedor.
 - `PUT    /suppliers/:id`                       -> [ADMIN, MODERATOR] Actualizacion de proveedor.
-- `GET    /purchases`                           -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Historial de compras con filtros `voidFilter` (`ACTIVE_ONLY`, `ALL`, `VOIDED_ONLY`), `includeReverted`, `onlyEdited` y objeto `summary` global calculado via `aggregate` (almacenero restringido a sus sedes y montos enmascarados).
+- `DELETE /suppliers/:id`                       -> [ADMIN, MODERATOR] Eliminacion fisica de proveedor duplicado sin compras asociadas (rechaza con 400 si posee compras).
+- `GET    /purchases`                           -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Historial de compras con filtros `voidFilter` (`ACTIVE_ONLY`, `ALL`, `VOIDED_ONLY`), `includeReverted`, `onlyEdited`, `approximateAmount` (orden por cercania al monto con minimo 10 registros, ignorado para almaceneros) y bloques `summary` (filtrado) y `globalSummary` (estable por sede) calculados via `aggregate` (almacenero restringido a sus sedes y montos enmascarados).
 - `GET    /purchases/price-comparison`          -> [ADMIN, MODERATOR] Cuadro comparativo de precios historicos por insumo (incluye descuentos, lote y caducidad).
 - `POST   /purchases`                           -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Registro de compra con descuentos comerciales por linea (NIC 2), `lotNumber`/`expirationDate`, validacion `exchangeRate > 0` en USD y recalculo atomico de CPP (excluye `SERVICE` de Stock/CPP/Kardex).
 - `GET    /purchases/:id`                       -> [ADMIN, MODERATOR, WAREHOUSE_KEEPER] Detalle de factura.
