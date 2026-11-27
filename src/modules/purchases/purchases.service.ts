@@ -106,9 +106,62 @@ export class PurchasesService {
     filter: PurchaseFilterDto,
     user?: { id: string; role: Role },
   ) {
+    // Ignorar monto aproximado para almaceneros para preservar ceguera financiera
+    const approximateAmount =
+      user?.role !== Role.WAREHOUSE_KEEPER &&
+      filter.approximateAmount !== undefined &&
+      filter.approximateAmount !== null &&
+      !Number.isNaN(Number(filter.approximateAmount))
+        ? Number(filter.approximateAmount)
+        : undefined;
+
     const page = Math.max(1, Number(filter.page) || 1);
-    const limit = Math.max(1, Number(filter.limit) || 20);
+    const rawLimit = Math.max(1, Number(filter.limit) || 20);
+    const limit =
+      approximateAmount !== undefined ? Math.max(rawLimit, 10) : rawLimit;
     const skip = (page - 1) * limit;
+
+    const purchaseInclude = {
+      supplier: {
+        select: {
+          id: true,
+          taxId: true,
+          businessName: true,
+        },
+      },
+      warehouse: {
+        select: {
+          id: true,
+          name: true,
+          type: true,
+        },
+      },
+      revertedBy: {
+        select: {
+          id: true,
+          fullName: true,
+        },
+      },
+      details: {
+        include: {
+          item: {
+            select: {
+              id: true,
+              sku: true,
+              name: true,
+              baseUnit: true,
+              type: true,
+            },
+          },
+        },
+      },
+      _count: {
+        select: {
+          details: true,
+          documents: true,
+        },
+      },
+    } as const;
 
     const where: Prisma.PurchaseWhereInput = {};
 
@@ -225,56 +278,26 @@ export class PurchasesService {
         filter.itemSearch?.trim(),
     );
 
-    const [total, data, aggregateResult, globalTotal, globalAggregateResult] =
+    const [total, rawData, aggregateResult, globalTotal, globalAggregateResult] =
       await Promise.all([
         this.prisma.purchase.count({ where }),
-        this.prisma.purchase.findMany({
-          where,
-          skip,
-          take: limit,
-          orderBy: { issueDate: 'desc' },
-          include: {
-            supplier: {
+        approximateAmount !== undefined
+          ? // shortcut: ordenamiento por proximidad en memoria sobre candidatos de sede, migrar a SQL ORDER BY ABS si supera decenas de miles de compras
+            this.prisma.purchase.findMany({
+              where,
               select: {
                 id: true,
-                taxId: true,
-                businessName: true,
+                totalAmountPEN: true,
+                issueDate: true,
               },
-            },
-            warehouse: {
-              select: {
-                id: true,
-                name: true,
-                type: true,
-              },
-            },
-            revertedBy: {
-              select: {
-                id: true,
-                fullName: true,
-              },
-            },
-            details: {
-              include: {
-                item: {
-                  select: {
-                    id: true,
-                    sku: true,
-                    name: true,
-                    baseUnit: true,
-                    type: true,
-                  },
-                },
-              },
-            },
-            _count: {
-              select: {
-                details: true,
-                documents: true,
-              },
-            },
-          },
-        }),
+            })
+          : this.prisma.purchase.findMany({
+              where,
+              skip,
+              take: limit,
+              orderBy: { issueDate: 'desc' },
+              include: purchaseInclude,
+            }),
         filter.voidFilter === 'VOIDED_ONLY'
           ? Promise.resolve(null)
           : this.prisma.purchase.aggregate
@@ -303,6 +326,48 @@ export class PurchasesService {
             })
           : Promise.resolve(null),
       ]);
+
+    let data: Array<
+      Prisma.PurchaseGetPayload<{ include: typeof purchaseInclude }>
+    >;
+
+    if (approximateAmount !== undefined) {
+      const candidates = rawData as Array<{
+        id: string;
+        totalAmountPEN: Prisma.Decimal | number | string;
+        issueDate: Date;
+      }>;
+      const sortedCandidates = [...candidates].sort((a, b) => {
+        const diff =
+          Math.abs(Number(a.totalAmountPEN) - approximateAmount) -
+          Math.abs(Number(b.totalAmountPEN) - approximateAmount);
+        if (diff !== 0) {
+          return diff;
+        }
+        return new Date(b.issueDate).getTime() - new Date(a.issueDate).getTime();
+      });
+
+      const pageIds = sortedCandidates
+        .slice(skip, skip + limit)
+        .map((c) => c.id);
+
+      if (pageIds.length === 0) {
+        data = [];
+      } else {
+        const pageRows = await this.prisma.purchase.findMany({
+          where: { id: { in: pageIds } },
+          include: purchaseInclude,
+        });
+        const rowById = new Map(pageRows.map((row) => [row.id, row]));
+        data = pageIds
+          .map((id) => rowById.get(id))
+          .filter((row): row is (typeof pageRows)[number] => row !== undefined);
+      }
+    } else {
+      data = rawData as Array<
+        Prisma.PurchaseGetPayload<{ include: typeof purchaseInclude }>
+      >;
+    }
 
     const summary = {
       totalCount: total,

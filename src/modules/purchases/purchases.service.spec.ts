@@ -242,6 +242,108 @@ describe('PurchasesService', () => {
       expect(prisma.purchase.count).toHaveBeenCalledTimes(1);
       expect(prisma.purchase.aggregate).toHaveBeenCalledTimes(1);
     });
+
+    it('debe ordenar por cercania a approximateAmount con desempate por issueDate desc y forzar meta.limit minimo de 10', async () => {
+      prisma.purchase.count.mockResolvedValueOnce(4);
+      prisma.purchase.findMany
+        .mockResolvedValueOnce([
+          {
+            id: 'p-far',
+            totalAmountPEN: 150,
+            issueDate: new Date('2026-09-10T10:00:00.000Z'),
+          },
+          {
+            id: 'p-tie-old',
+            totalAmountPEN: 90,
+            issueDate: new Date('2026-09-01T10:00:00.000Z'),
+          },
+          {
+            id: 'p-tie-new',
+            totalAmountPEN: 110,
+            issueDate: new Date('2026-09-05T10:00:00.000Z'),
+          },
+          {
+            id: 'p-exact',
+            totalAmountPEN: 100,
+            issueDate: new Date('2026-09-02T10:00:00.000Z'),
+          },
+        ])
+        .mockResolvedValueOnce([
+          { id: 'p-far', totalAmountPEN: 150 },
+          { id: 'p-exact', totalAmountPEN: 100 },
+          { id: 'p-tie-old', totalAmountPEN: 90 },
+          { id: 'p-tie-new', totalAmountPEN: 110 },
+        ]);
+
+      const result = await service.findAll({
+        page: 1,
+        limit: 5,
+        approximateAmount: 100,
+      });
+
+      expect(result.meta.limit).toBe(10);
+      expect(result.data.map((d) => d.id)).toEqual([
+        'p-exact',
+        'p-tie-new',
+        'p-tie-old',
+        'p-far',
+      ]);
+      expect(prisma.purchase.findMany).toHaveBeenCalledTimes(2);
+      expect(prisma.purchase.findMany).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          select: {
+            id: true,
+            totalAmountPEN: true,
+            issueDate: true,
+          },
+        }),
+      );
+      expect(prisma.purchase.findMany).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          where: {
+            id: { in: ['p-exact', 'p-tie-new', 'p-tie-old', 'p-far'] },
+          },
+        }),
+      );
+    });
+
+    it('debe ignorar approximateAmount cuando el rol es WAREHOUSE_KEEPER y mantener orderBy issueDate desc', async () => {
+      prisma.purchase.count.mockResolvedValueOnce(1);
+      prisma.purchase.findMany.mockResolvedValueOnce([]);
+
+      const result = await service.findAll(
+        { page: 1, limit: 5, approximateAmount: 450 },
+        { id: 'user-keeper', role: Role.WAREHOUSE_KEEPER },
+      );
+
+      expect(result.meta.limit).toBe(5);
+      expect(prisma.purchase.findMany).toHaveBeenCalledTimes(1);
+      expect(prisma.purchase.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: 5,
+          orderBy: { issueDate: 'desc' },
+          where: expect.objectContaining({
+            warehouseId: { in: ['wh-central'] },
+          }),
+        }),
+      );
+    });
+
+    it('debe retornar data vacio sin segunda llamada a findMany cuando no hay candidatos para approximateAmount', async () => {
+      prisma.purchase.count.mockResolvedValueOnce(0);
+      prisma.purchase.findMany.mockResolvedValueOnce([]);
+
+      const result = await service.findAll({
+        page: 1,
+        limit: 10,
+        approximateAmount: 500,
+      });
+
+      expect(result.data).toEqual([]);
+      expect(prisma.purchase.findMany).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('findOne', () => {

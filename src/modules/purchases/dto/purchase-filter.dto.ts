@@ -3,6 +3,7 @@ import {
   IsDateString,
   IsIn,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -159,4 +160,21 @@ export class PurchaseFilterDto {
   })
   @IsBoolean({ message: 'onlyEdited debe ser un valor booleano' })
   onlyEdited?: boolean;
+
+  @ApiPropertyOptional({
+    example: 450.5,
+    description:
+      'Monto aproximado en PEN (totalAmountPEN) para ordenar comprobantes por cercania al importe',
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === '' || value === null || value === undefined) {
+      return undefined;
+    }
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? value : parsed;
+  })
+  @IsNumber({}, { message: 'El monto aproximado debe ser un numero valido' })
+  @Min(0, { message: 'El monto aproximado no puede ser negativo' })
+  approximateAmount?: number;
 }
