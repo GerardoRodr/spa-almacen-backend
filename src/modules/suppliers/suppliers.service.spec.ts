@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { SuppliersService } from './suppliers.service.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 
@@ -13,6 +17,7 @@ describe('SuppliersService', () => {
       count: ReturnType<typeof vi.fn>;
       create: ReturnType<typeof vi.fn>;
       update: ReturnType<typeof vi.fn>;
+      delete: ReturnType<typeof vi.fn>;
     };
   };
 
@@ -24,6 +29,7 @@ describe('SuppliersService', () => {
         count: vi.fn(),
         create: vi.fn(),
         update: vi.fn(),
+        delete: vi.fn(),
       },
     };
 
@@ -63,6 +69,29 @@ describe('SuppliersService', () => {
       expect(result.data).toEqual(mockSuppliers);
       expect(result.meta.total).toBe(1);
       expect(result.meta.totalPages).toBe(1);
+      expect(prisma.supplier.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: [{ businessName: 'asc' }],
+        }),
+      );
+    });
+
+    it('debe ordenar por cantidad de compras cuando sortBy es purchasesCount', async () => {
+      prisma.supplier.count.mockResolvedValue(0);
+      prisma.supplier.findMany.mockResolvedValue([]);
+
+      await service.findAll({
+        page: 1,
+        limit: 10,
+        sortBy: 'purchasesCount',
+        sortDir: 'desc',
+      });
+
+      expect(prisma.supplier.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: [{ purchases: { _count: 'desc' } }, { businessName: 'asc' }],
+        }),
+      );
     });
   });
 
@@ -227,6 +256,48 @@ describe('SuppliersService', () => {
       await expect(
         service.update('inexistente', { businessName: 'Test' }),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('remove', () => {
+    it('debe eliminar fisicamente el proveedor si no tiene compras asociadas', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({
+        id: 'sup-dup',
+        businessName: 'PROVEEDOR DUPLICADO',
+        _count: { purchases: 0 },
+      });
+      prisma.supplier.delete.mockResolvedValue({ id: 'sup-dup' });
+
+      const result = await service.remove('sup-dup');
+
+      expect(prisma.supplier.delete).toHaveBeenCalledWith({
+        where: { id: 'sup-dup' },
+      });
+      expect(result).toEqual({
+        deleted: true,
+        message: 'Proveedor eliminado permanentemente.',
+      });
+    });
+
+    it('debe lanzar BadRequestException si el proveedor tiene compras asociadas', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({
+        id: 'sup-1',
+        businessName: 'ACEROS AREQUIPA',
+        _count: { purchases: 2 },
+      });
+
+      await expect(service.remove('sup-1')).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(prisma.supplier.delete).not.toHaveBeenCalled();
+    });
+
+    it('debe lanzar NotFoundException si el proveedor a eliminar no existe', async () => {
+      prisma.supplier.findUnique.mockResolvedValue(null);
+
+      await expect(service.remove('inexistente')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

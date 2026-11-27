@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Delete,
   Body,
   Param,
   Query,
@@ -64,5 +65,16 @@ export class SuppliersController {
   @ApiResponse({ status: 409, description: 'Numero de RUC en conflicto' })
   update(@Param('id') id: string, @Body() dto: UpdateSupplierDto) {
     return this.suppliersService.update(id, dto);
+  }
+
+  @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.MODERATOR)
+  @ApiOperation({ summary: 'Eliminar proveedor duplicado sin compras asociadas' })
+  @ApiResponse({ status: 200, description: 'Proveedor eliminado exitosamente' })
+  @ApiResponse({ status: 400, description: 'El proveedor tiene compras asociadas' })
+  @ApiResponse({ status: 404, description: 'Proveedor no encontrado' })
+  remove(@Param('id') id: string) {
+    return this.suppliersService.remove(id);
   }
 }

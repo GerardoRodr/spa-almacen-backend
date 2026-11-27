@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service.js';
@@ -28,13 +29,20 @@ export class SuppliersService {
       ];
     }
 
+    const dir: Prisma.SortOrder =
+      filter.sortDir ?? (filter.sortBy === 'purchasesCount' ? 'desc' : 'asc');
+    const orderBy: Prisma.SupplierOrderByWithRelationInput[] =
+      filter.sortBy === 'purchasesCount'
+        ? [{ purchases: { _count: dir } }, { businessName: 'asc' }]
+        : [{ businessName: dir }];
+
     const [total, data] = await Promise.all([
       this.prisma.supplier.count({ where }),
       this.prisma.supplier.findMany({
         where,
         skip,
         take: limit,
-        orderBy: { businessName: 'asc' },
+        orderBy,
         include: {
           _count: {
             select: { purchases: true },
@@ -155,5 +163,35 @@ export class SuppliersService {
         }),
       },
     });
+  }
+
+  // Eliminar fisicamente un proveedor sin compras asociadas
+  async remove(id: string) {
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: { purchases: true },
+        },
+      },
+    });
+
+    if (!supplier) {
+      throw new NotFoundException('Proveedor no encontrado');
+    }
+
+    const purchasesCount = supplier._count?.purchases ?? 0;
+    if (purchasesCount > 0) {
+      throw new BadRequestException(
+        `No se puede eliminar el proveedor "${supplier.businessName}" porque tiene ${purchasesCount} compra(s) asociada(s). Reasigne primero sus comprobantes desde el modulo de Compras.`,
+      );
+    }
+
+    await this.prisma.supplier.delete({ where: { id } });
+
+    return {
+      deleted: true,
+      message: 'Proveedor eliminado permanentemente.',
+    };
   }
 }
